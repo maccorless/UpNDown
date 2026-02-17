@@ -231,7 +231,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
       <section className="panel foundation-panel" aria-label="foundation piles">
         <div className="foundation-header">
           <h2>Foundation Piles</h2>
-          <div className="pill mini">Draw: {gameState.drawPile.length}</div>
+          <div className="pill mini">Cards in Draw Pile: {gameState.drawPile.length}</div>
         </div>
         <div className="pile-grid">
           {gameState.foundationPiles.map((pile) => {
@@ -1104,6 +1104,17 @@ export function App(): JSX.Element {
       <section className="app-header">
         <h1>UpNDown</h1>
         <div className="header-actions">
+          {mode === null ? (
+            <a
+              className="secondary link-button"
+              href="/how-to-play.html"
+              target="_blank"
+              rel="noreferrer"
+              data-testid="how-to-play-link"
+            >
+              How to Play
+            </a>
+          ) : null}
           {mode === 'solitaire' && solitaireActive ? (
             <button
               type="button"
@@ -1217,18 +1228,7 @@ export function App(): JSX.Element {
       {mode === null ? (
         <section className="panel lobby" aria-label="welcome">
           <h2>Choose a mode to begin.</h2>
-          <p>New to UpNDown? Read the quick rules first.</p>
-          <div className="button-row">
-            <a
-              className="secondary link-button"
-              href="/how-to-play.html"
-              target="_blank"
-              rel="noreferrer"
-              data-testid="how-to-play-link"
-            >
-              How to Play
-            </a>
-          </div>
+          <p>New to UpNDown? Use the How to Play link above.</p>
         </section>
       ) : mode === 'solitaire' ? (
         solitaireActive ? (

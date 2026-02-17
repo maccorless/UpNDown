@@ -1,11 +1,11 @@
 :root {
-  --bg: #0d1b2a;
-  --panel: #1b263b;
-  --panel2: #132137;
+  --bg: #d9ecff;
+  --panel: #ecf6ff;
+  --panel2: #d8eaff;
   --card: #f2f5f9;
   --ink: #102033;
-  --muted: #a9b4c2;
-  --accent: #00b4d8;
+  --muted: #4e6480;
+  --accent: #1ea8ff;
   --asc: #84dcc6;
   --desc: #f28482;
   --good: #8ac926;
@@ -19,22 +19,25 @@
 body {
   margin: 0;
   font-family: 'Avenir Next', 'Segoe UI', sans-serif;
-  background: radial-gradient(circle at 10% 10%, #1b263b 0%, #0d1b2a 55%, #0a1420 100%);
-  color: #f1f5f9;
+  background:
+    radial-gradient(circle at 12% 10%, #ffffff 0%, rgba(255, 255, 255, 0.45) 22%, transparent 45%),
+    radial-gradient(circle at 90% 8%, #d9f4ff 0%, rgba(217, 244, 255, 0.35) 28%, transparent 52%),
+    linear-gradient(180deg, #bfe1ff 0%, #a2d0fb 45%, #95c6f6 100%);
+  color: #102033;
 }
 
 .app {
   max-width: 1120px;
   margin: 0 auto;
-  padding: 16px;
+  padding: 10px 14px;
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-height: 100dvh;
 }
 
 .app.board-mode {
-  padding: 10px;
-  gap: 8px;
+  padding: 8px 10px;
+  gap: 6px;
   height: 100dvh;
   overflow: hidden;
 }
@@ -48,7 +51,7 @@ body {
 
 .app-header h1 {
   margin: 0;
-  font-size: clamp(42px, 8vw, 64px);
+  font-size: clamp(32px, 6vw, 48px);
   line-height: 1;
 }
 
@@ -125,10 +128,11 @@ body {
   display: inline-flex;
   align-items: center;
   background: var(--panel2);
-  border: 1px solid #274160;
+  border: 1px solid #87a6c8;
   border-radius: 999px;
-  padding: 7px 10px;
-  font-size: 13px;
+  padding: 5px 9px;
+  font-size: 12px;
+  color: #173252;
 }
 
 .pill.mini {
@@ -137,10 +141,10 @@ body {
 }
 
 .panel {
-  background: rgba(13, 27, 42, 0.9);
-  border: 1px solid rgba(169, 180, 194, 0.16);
+  background: rgba(236, 246, 255, 0.92);
+  border: 1px solid rgba(93, 132, 176, 0.35);
   border-radius: 12px;
-  padding: 12px;
+  padding: 9px 10px;
   min-height: 0;
   overflow: hidden;
 }
@@ -226,7 +230,7 @@ body {
 
 .pile-tag,
 .pile-hint {
-  color: #f4f7fb;
+  color: #173252;
   text-align: center;
   font-weight: 700;
   font-size: 12px;
@@ -326,7 +330,7 @@ body {
 .button-row {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 button {
@@ -343,8 +347,9 @@ button.primary {
 }
 
 button.secondary {
-  background: #263c58;
-  color: #dce6f3;
+  background: #cde4ff;
+  color: #173252;
+  border: 1px solid #8cb4df;
 }
 
 button.danger {
@@ -414,18 +419,18 @@ button:disabled {
 
 .lobby {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 
 .flow-choice {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 10px;
+  gap: 8px;
 }
 
 .choice-card {
-  min-height: 74px;
-  font-size: 18px;
+  min-height: 52px;
+  font-size: 16px;
 }
 
 .joinable-list {
@@ -444,8 +449,9 @@ button:disabled {
   gap: 10px;
   border: 1px solid rgba(169, 180, 194, 0.22);
   border-radius: 8px;
-  padding: 8px 10px;
-  background: #15233a;
+  padding: 6px 8px;
+  background: #deedff;
+  border-color: #a8c4e3;
 }
 
 .private-join {
@@ -554,11 +560,11 @@ label {
 }
 
 input {
-  border: 1px solid #3b5677;
+  border: 1px solid #89accc;
   border-radius: 8px;
-  padding: 9px 10px;
-  background: #112035;
-  color: #f1f5f9;
+  padding: 7px 9px;
+  background: #f7fbff;
+  color: #112741;
 }
 
 .players-list {
@@ -575,8 +581,17 @@ input {
   border: 1px solid rgba(169, 180, 194, 0.22);
   border-radius: 8px;
   padding: 6px 8px;
-  background: #15233a;
+  background: #e6f1ff;
+  border-color: #a7c0dc;
   font-size: 12px;
+}
+
+section[aria-label="welcome"] {
+  max-width: 600px;
+}
+
+section[aria-label="welcome"] h2 {
+  margin: 0;
 }
 
 .player-line.active {
