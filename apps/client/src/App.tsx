@@ -261,7 +261,10 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
 
       {mode === 'multiplayer' ? (
         <section className="panel players-panel" aria-label="players list">
-          <h2>Players</h2>
+          <div className="players-panel-header">
+            <h2>Players</h2>
+            <div className="pill mini">{gameState.players.length}</div>
+          </div>
           <div className="players-list">
             {gameState.players.map((player, index) => (
               <div

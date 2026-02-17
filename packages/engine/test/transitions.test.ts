@@ -242,7 +242,7 @@ describe('endTurn', () => {
     expect(ended.currentPlayerIndex).toBe(1);
   });
 
-  it('marks game as lost immediately when active player has zero legal moves', () => {
+  it('does not mark lost when active player has met min plays and can end turn', () => {
     const losingState = createStartedGameState({
       gameId: 'ABC123',
       hostId: 'p1',
@@ -264,8 +264,9 @@ describe('endTurn', () => {
     const afterThird = playCard(afterSecond, 'p1', 'c-2', 2);
     const afterFourth = playCard(afterThird, 'p1', 'c-3', 3);
 
-    expect(afterFourth.gamePhase).toBe('lost');
-    expect(() => endTurn(afterFourth, 'p1')).toThrowError(EngineError);
+    expect(afterFourth.gamePhase).toBe('playing');
+    const ended = endTurn(afterFourth, 'p1');
+    expect(ended.currentPlayerIndex).toBe(1);
   });
 });
 

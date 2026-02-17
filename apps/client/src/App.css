@@ -33,6 +33,7 @@ body {
   display: grid;
   gap: 8px;
   min-height: 100dvh;
+  align-content: start;
 }
 
 .app.board-mode {
@@ -109,6 +110,7 @@ body {
 
 .mode-switch.compact {
   align-items: center;
+  padding: 7px 9px;
 }
 
 .mode-current {
@@ -178,6 +180,13 @@ body {
 .players-panel h2 {
   margin: 0;
   font-size: 14px;
+}
+
+.players-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
 }
 
 .gameboard-multi > .foundation-panel {
@@ -420,6 +429,7 @@ button:disabled {
 .lobby {
   display: grid;
   gap: 6px;
+  align-content: start;
 }
 
 .flow-choice {
@@ -465,6 +475,7 @@ button:disabled {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
   gap: 6px;
+  align-items: end;
 }
 
 .settings-grid {

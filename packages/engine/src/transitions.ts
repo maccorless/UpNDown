@@ -125,8 +125,9 @@ function evaluateLossForCurrentPlayer(state: GameState): GameState {
     return canPlayAny ? state : { ...state, gamePhase: 'lost' };
   }
 
-  // Multiplayer loss is only when there are zero legal moves from the current state.
-  // Min-cards-per-turn is enforced by endTurn, not by early loss declaration.
+  // Multiplayer loss is only when there are zero legal moves and the active player
+  // cannot legally end their turn yet. If they have already met the required plays,
+  // they may pass the turn even with no immediate legal card plays.
   const canPlayAny = canPlayerSatisfyRequiredPlays(
     currentPlayer.hand,
     state.foundationPiles,
@@ -135,7 +136,13 @@ function evaluateLossForCurrentPlayer(state: GameState): GameState {
     state.settings.autoRefillHand
   );
 
-  return canPlayAny ? state : { ...state, gamePhase: 'lost' };
+  if (canPlayAny) {
+    return state;
+  }
+
+  const required = requiredCardsForTurn(state.settings.minCardsPerTurn, state.drawPile.length);
+  const canEndTurn = state.cardsPlayedThisTurn >= required;
+  return canEndTurn ? state : { ...state, gamePhase: 'lost' };
 }
 
 function nextPlayerIndexWithCards(players: Player[], fromIndex: number): number {
