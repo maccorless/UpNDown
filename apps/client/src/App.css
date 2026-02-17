@@ -46,7 +46,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .app-header h1 {
@@ -58,7 +58,7 @@ body {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .header-actions button {
@@ -419,18 +419,18 @@ button:disabled {
 
 .lobby {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .flow-choice {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .choice-card {
-  min-height: 52px;
-  font-size: 16px;
+  min-height: 44px;
+  font-size: 15px;
 }
 
 .joinable-list {
@@ -464,7 +464,7 @@ button:disabled {
 .lobby-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 10px;
+  gap: 6px;
 }
 
 .settings-grid {
@@ -567,6 +567,10 @@ input {
   color: #112741;
 }
 
+input::placeholder {
+  color: #95a6bb;
+}
+
 .players-list {
   display: grid;
   gap: 6px;
@@ -592,6 +596,30 @@ section[aria-label="welcome"] {
 
 section[aria-label="welcome"] h2 {
   margin: 0;
+}
+
+.socket-indicator {
+  position: fixed;
+  left: 12px;
+  bottom: 12px;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 2px solid #f7fbff;
+  box-shadow: 0 0 0 1px rgba(43, 72, 105, 0.6);
+  z-index: 50;
+}
+
+.socket-indicator.connected {
+  background: #26be67;
+}
+
+.socket-indicator.connecting {
+  background: #f3b82f;
+}
+
+.socket-indicator.disconnected {
+  background: #e75b63;
 }
 
 .player-line.active {

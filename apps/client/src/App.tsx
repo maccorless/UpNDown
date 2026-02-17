@@ -570,11 +570,11 @@ export function App(): JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [solitaireNewCardIds, setSolitaireNewCardIds] = useState<string[]>([]);
   const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
-  const [playerName, setPlayerName] = useState('Player');
+  const [playerName, setPlayerName] = useState('');
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
   const [joinLookup, setJoinLookup] = useState<JoinLookupSummary | null>(null);
-  const [multiplayerFlow, setMultiplayerFlow] = useState<'choose' | 'host' | 'join'>('choose');
+  const [multiplayerFlow, setMultiplayerFlow] = useState<'choose' | 'join'>('choose');
   const [joinableGames, setJoinableGames] = useState<JoinableGameSummary[]>([]);
   const [loadingJoinableGames, setLoadingJoinableGames] = useState(false);
   const [playerId, setPlayerId] = useState<string | null>(null);
@@ -1264,6 +1264,7 @@ export function App(): JSX.Element {
                     value={playerName}
                     onChange={(e) => setPlayerName(e.target.value)}
                     maxLength={32}
+                    placeholder="Your Name"
                     disabled={multiplayerInteractionDisabled}
                   />
                 </label>
@@ -1274,15 +1275,15 @@ export function App(): JSX.Element {
                     type="button"
                     className="choice-card primary"
                     onClick={() => {
-                      setMultiplayerFlow('host');
+                      void handleCreateGame();
                       setShowJoinById(false);
                       setJoinLookup(null);
                       setError(null);
                     }}
-                    disabled={multiplayerInteractionDisabled}
+                    disabled={multiplayerInteractionDisabled || !playerName.trim() || !!createSettingsError}
                     data-testid="flow-host"
                   >
-                    Host Game
+                    {pendingAction === 'create' ? 'Hosting...' : 'Host Game'}
                   </button>
                   <button
                     type="button"
@@ -1299,30 +1300,6 @@ export function App(): JSX.Element {
                     Join Game
                   </button>
                 </div>
-              ) : null}
-
-              {multiplayerFlow === 'host' ? (
-                <>
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      className="primary"
-                      onClick={() => { void handleCreateGame(); }}
-                      disabled={multiplayerInteractionDisabled || !playerName.trim() || !!createSettingsError}
-                      data-testid="create-game"
-                    >
-                      {pendingAction === 'create' ? 'Creating...' : 'Create Game'}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setMultiplayerFlow('choose')}
-                      disabled={multiplayerInteractionDisabled}
-                    >
-                      Back
-                    </button>
-                  </div>
-                </>
               ) : null}
 
               {multiplayerFlow === 'join' ? (
@@ -1426,12 +1403,14 @@ export function App(): JSX.Element {
                 </>
               ) : null}
 
-              <div className="pill">Socket: {connectionState}</div>
               {createSettingsError ? <div className="error">{createSettingsError}</div> : null}
             </section>
           ) : multiplayerState.gamePhase === 'lobby' ? (
             <section className="panel lobby" aria-label="waiting room">
               <h2>Game {multiplayerState.gameId}</h2>
+              <div className="pill">
+                Players in Lobby: {multiplayerState.players.length}/{multiplayerState.settings.maxPlayers}
+              </div>
               <div className="players-list">
                 {multiplayerState.players.map((player, index) => (
                   <div className="player-line" key={player.id}>
@@ -1508,6 +1487,14 @@ export function App(): JSX.Element {
         <div className="error" role="alert" aria-live="assertive" data-testid="error-banner">
           {error}
         </div>
+      ) : null}
+
+      {mode === 'multiplayer' ? (
+        <div
+          className={`socket-indicator ${connectionState}`}
+          aria-label={`Connection ${connectionState}`}
+          title={`Server connection: ${connectionState}`}
+        />
       ) : null}
 
       {mode ? (

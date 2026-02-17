@@ -37,10 +37,8 @@ test('@smoke accessibility baseline has no serious violations', async ({ page })
 test('multiplayer create/join/start/play/end-turn flow', async ({ browser, page }) => {
   await page.goto('/');
   await page.getByTestId('mode-multiplayer').click();
-  await page.getByTestId('flow-host').click();
-
   await page.locator('#player-name-input').fill('Host');
-  await page.getByTestId('create-game').click();
+  await page.getByTestId('flow-host').click();
 
   await expect(page.getByRole('heading', { name: /Game [A-Z0-9]{6}/ })).toBeVisible();
 
