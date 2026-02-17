@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "install:browsers": "playwright install --with-deps chromium",
     "test": "playwright test",
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
