@@ -393,6 +393,20 @@ button:disabled {
   font-size: 14px;
 }
 
+.landing-support {
+  margin-top: auto;
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.landing-support p {
+  margin: 0;
+  color: #375877;
+  font-size: 13px;
+}
+
 .cards-fan {
   margin-top: 10px;
   display: flex;

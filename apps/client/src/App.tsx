@@ -589,6 +589,7 @@ export function App(): JSX.Element {
   const socketRef = useRef<Socket | null>(null);
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
+  const bmcContainerRef = useRef<HTMLDivElement | null>(null);
 
   const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
@@ -735,6 +736,32 @@ export function App(): JSX.Element {
   useEffect(() => {
     setJoinLookup(null);
   }, [joinGameId]);
+
+  useEffect(() => {
+    if (mode !== null || import.meta.env.MODE === 'test') {
+      return;
+    }
+
+    const container = bmcContainerRef.current;
+    if (!container) {
+      return;
+    }
+
+    container.replaceChildren();
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js';
+    script.type = 'text/javascript';
+    script.setAttribute('data-name', 'bmc-button');
+    script.setAttribute('data-slug', 'goldenchimp');
+    script.setAttribute('data-color', '#FFDD00');
+    script.setAttribute('data-emoji', '☕');
+    script.setAttribute('data-font', 'Cookie');
+    script.setAttribute('data-text', 'Buy me a coffee');
+    script.setAttribute('data-outline-color', '#000000');
+    script.setAttribute('data-font-color', '#000000');
+    script.setAttribute('data-coffee-color', '#ffffff');
+    container.appendChild(script);
+  }, [mode]);
 
   const emitWithAck = async <T,>(
     event: string,
@@ -1223,7 +1250,12 @@ export function App(): JSX.Element {
         </section>
       ) : null}
 
-      {mode === null ? null : mode === 'solitaire' ? (
+      {mode === null ? (
+        <section className="panel landing-support" aria-label="support">
+          <p>If you like this game...</p>
+          <div ref={bmcContainerRef} />
+        </section>
+      ) : mode === 'solitaire' ? (
         solitaireActive ? (
         <GameBoard
           mode="solitaire"
