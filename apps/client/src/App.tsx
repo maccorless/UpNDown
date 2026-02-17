@@ -1204,6 +1204,9 @@ export function App(): JSX.Element {
             >
               Multiplayer
             </button>
+            {!persisted ? (
+              <p className="landing-hint">First time here? Click "How to Play" above.</p>
+            ) : null}
           </>
           ) : null}
         </section>

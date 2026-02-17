@@ -390,11 +390,19 @@ button:disabled {
   color: #ffffff !important;
   border: 1px solid #2f78d9;
   box-shadow: 0 6px 14px rgba(58, 141, 255, 0.32);
-  font-weight: 800;
+  font-weight: 600;
 }
 
 .how-to-play-cta:hover {
   filter: brightness(1.05);
+}
+
+.landing-hint {
+  width: 100%;
+  margin: 2px 0 0;
+  text-align: center;
+  color: #375877;
+  font-size: 14px;
 }
 
 .cards-fan {
