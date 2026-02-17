@@ -1008,11 +1008,10 @@ export function App(): JSX.Element {
   };
 
   const handleOpenSettings = (): void => {
-    if (!mode) {
-      return;
-    }
     if (mode === 'solitaire') {
       setSettingsDraft(solitaireConfig);
+    } else if (mode === null) {
+      setSettingsDraft(multiplayerCreateSettings);
     } else {
       setSettingsDraft(multiplayerState ? multiplayerState.settings : multiplayerCreateSettings);
     }
@@ -1094,8 +1093,8 @@ export function App(): JSX.Element {
     }
     : settingsDraft);
   const hostCanEditLiveSettings = !!multiplayerState && multiplayerState.hostId === playerId && multiplayerState.gamePhase === 'lobby';
-  const settingsEditable = !!mode && !settingsLockedByActiveGame && (
-    mode === 'solitaire' || (mode === 'multiplayer' && (!multiplayerState || hostCanEditLiveSettings))
+  const settingsEditable = !settingsLockedByActiveGame && (
+    mode !== 'multiplayer' || (!multiplayerState || hostCanEditLiveSettings)
   );
   const isBoardMode = (mode === 'solitaire' && solitaireActive) || (mode === 'multiplayer' && multiplayerGameActive);
   const isHostInLobby = !!multiplayerState && multiplayerState.gamePhase === 'lobby' && multiplayerState.hostId === playerId;
@@ -1108,7 +1107,7 @@ export function App(): JSX.Element {
         <div className="header-actions">
           {mode === null ? (
             <a
-              className="secondary link-button how-to-play-cta"
+              className="secondary link-button"
               href="/how-to-play.html"
               target="_blank"
               rel="noreferrer"
@@ -1155,17 +1154,15 @@ export function App(): JSX.Element {
               </button>
             ) : null
           ) : null}
-          {mode ? (
-            <button
-              type="button"
-              className="secondary"
-              onClick={handleOpenSettings}
-              disabled={(mode === 'multiplayer' && connectionState === 'connecting') || settingsLockedByActiveGame}
-              data-testid="open-settings"
-            >
-              Settings
-            </button>
-          ) : null}
+          <button
+            type="button"
+            className="secondary"
+            onClick={handleOpenSettings}
+            disabled={(mode === 'multiplayer' && connectionState === 'connecting') || settingsLockedByActiveGame}
+            data-testid="open-settings"
+          >
+            Settings
+          </button>
         </div>
       </section>
 
@@ -1493,9 +1490,9 @@ export function App(): JSX.Element {
         />
       ) : null}
 
-      {mode ? (
+      {(mode || isSettingsOpen) ? (
         <SettingsDialog
-          mode={mode}
+          mode={mode ?? 'multiplayer'}
           open={isSettingsOpen}
           settings={settingsDraft}
           editable={settingsEditable}
