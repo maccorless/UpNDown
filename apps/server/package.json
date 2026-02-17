@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "dist/apps/server/src/index.js",
+  "types": "dist/apps/server/src/index.d.ts",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "node dist/apps/server/src/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "eslint src test --ext .ts",
     "test": "vitest run --passWithNoTests",
