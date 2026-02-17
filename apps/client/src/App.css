@@ -357,6 +357,12 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.link-button {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+
 .cards-fan {
   margin-top: 10px;
   display: flex;

@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UpNDown - How to Play</title>
+  <style>
+    :root {
+      --bg: #0d1b2a;
+      --panel: #14253d;
+      --ink: #f1f5f9;
+      --muted: #b7c5d8;
+      --good: #8ac926;
+      --line: #2b4869;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 10% 10%, #1b263b 0%, #0d1b2a 55%, #0a1420 100%);
+      color: var(--ink);
+    }
+
+    main {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    section {
+      background: rgba(13, 27, 42, 0.92);
+      border: 1px solid rgba(183, 197, 216, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+    }
+
+    h1, h2 {
+      margin: 0 0 8px;
+    }
+
+    p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    ul, ol {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .tip {
+      border-color: rgba(138, 201, 38, 0.45);
+      background: linear-gradient(180deg, rgba(138, 201, 38, 0.08), rgba(13, 27, 42, 0.92));
+    }
+
+    code {
+      background: #0d1b2a;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 1px 6px;
+      color: #d8ecff;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <h1>How to Play UpNDown</h1>
+      <p>UpNDown is a cooperative card game. Everyone wins together or loses together.</p>
+    </section>
+
+    <section>
+      <h2>Goal</h2>
+      <p>Play all cards from all players onto four foundation piles.</p>
+    </section>
+
+    <section>
+      <h2>Foundation Piles</h2>
+      <ul>
+        <li>Two ascending piles start at <code>1</code>. You normally play higher cards.</li>
+        <li>Two descending piles start at <code>100</code>. You normally play lower cards.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Special Rule: Backward 10</h2>
+      <ul>
+        <li>Ascending piles can also take a card exactly <code>10 lower</code> than the top card.</li>
+        <li>Descending piles can also take a card exactly <code>10 higher</code> than the top card.</li>
+      </ul>
+      <p>Example: On ascending 47, you may play 57 (normal) or 37 (backward 10).</p>
+    </section>
+
+    <section>
+      <h2>Turn Basics (Multiplayer)</h2>
+      <ol>
+        <li>On your turn, play at least the required minimum cards.</li>
+        <li>Play by selecting a card and then selecting a valid pile.</li>
+        <li>Use <code>End Turn</code> only after meeting the minimum.</li>
+      </ol>
+    </section>
+
+    <section>
+      <h2>Win and Loss</h2>
+      <ul>
+        <li><strong>Win:</strong> all players clear all cards and draw pile is exhausted.</li>
+        <li><strong>Loss:</strong> no legal moves remain for the active state.</li>
+      </ul>
+    </section>
+
+    <section class="tip">
+      <h2>Quick Strategy</h2>
+      <ul>
+        <li>Save backward-10 plays when possible.</li>
+        <li>Avoid pushing a pile too far if teammates may need lower or higher ranges.</li>
+        <li>In multiplayer, communicate likely future plays before committing extremes.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

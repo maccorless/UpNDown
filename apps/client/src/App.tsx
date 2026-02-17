@@ -1217,6 +1217,18 @@ export function App(): JSX.Element {
       {mode === null ? (
         <section className="panel lobby" aria-label="welcome">
           <h2>Choose a mode to begin.</h2>
+          <p>New to UpNDown? Read the quick rules first.</p>
+          <div className="button-row">
+            <a
+              className="secondary link-button"
+              href="/how-to-play.html"
+              target="_blank"
+              rel="noreferrer"
+              data-testid="how-to-play-link"
+            >
+              How to Play
+            </a>
+          </div>
         </section>
       ) : mode === 'solitaire' ? (
         solitaireActive ? (
