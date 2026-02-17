@@ -16,7 +16,6 @@ describe('solitaire App', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByTestId('mode-solitaire'));
-    await user.click(screen.getByTestId('start-solitaire'));
 
     expect(screen.getByRole('heading', { name: 'Foundation Piles' })).toBeTruthy();
     expect(screen.getByRole('heading', { name: 'Your Hand' })).toBeTruthy();
@@ -29,7 +28,6 @@ describe('solitaire App', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByTestId('mode-solitaire'));
-    await user.click(screen.getByTestId('start-solitaire'));
 
     const firstCard = screen.getAllByTestId(/hand-card-/)[0];
     if (!firstCard) throw new Error('missing first card');
@@ -45,7 +43,6 @@ describe('solitaire App', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByTestId('mode-solitaire'));
-    await user.click(screen.getByTestId('start-solitaire'));
 
     // Force an invalid move path with deterministic deck order:
     // play a high card to ascending pile, then attempt a much lower non-backward-10 card.

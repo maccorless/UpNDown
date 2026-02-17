@@ -20,7 +20,8 @@ async function playFirstCardToPile(page: Page, pileId: number): Promise<void> {
 test('@smoke app shell renders', async ({ page }) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { name: 'UpNDown' })).toBeVisible();
-  await expect(page.getByText('Choose Mode')).toBeVisible();
+  await expect(page.getByTestId('mode-solitaire')).toBeVisible();
+  await expect(page.getByTestId('mode-multiplayer')).toBeVisible();
 });
 
 test('@smoke accessibility baseline has no serious violations', async ({ page }) => {

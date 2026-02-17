@@ -1100,7 +1100,6 @@ export function App(): JSX.Element {
   const isBoardMode = (mode === 'solitaire' && solitaireActive) || (mode === 'multiplayer' && multiplayerGameActive);
   const isHostInLobby = !!multiplayerState && multiplayerState.gamePhase === 'lobby' && multiplayerState.hostId === playerId;
   const amInMultiplayerGame = !!multiplayerState && !!playerId && multiplayerState.players.some((player) => player.id === playerId);
-  const modeLocked = (mode === 'solitaire' && solitaireActive) || (mode === 'multiplayer' && !!multiplayerState);
 
   return (
     <main className={`app ${isBoardMode ? 'board-mode' : ''}`}>
@@ -1174,16 +1173,16 @@ export function App(): JSX.Element {
         {pendingAction ? `Action in progress: ${pendingAction}` : 'Ready'}
       </p>
 
-      {(mode === null || modeLocked) ? (
-        <section className="panel mode-switch compact" aria-label="mode switch">
+      {mode === null ? (
+        <section className="panel mode-switch compact landing" aria-label="mode switch">
           {mode === null ? (
           <>
-            <div className="pill">Choose Mode</div>
             <button
               type="button"
               className="primary mode-current"
               onClick={() => {
                 setMode('solitaire');
+                handleSolitaireNewGame();
                 setMultiplayerFlow('choose');
                 setShowJoinById(false);
                 setError(null);
@@ -1206,11 +1205,7 @@ export function App(): JSX.Element {
               Multiplayer
             </button>
           </>
-          ) : (
-            <button type="button" className="primary mode-current" disabled>
-              {mode === 'solitaire' ? 'Solitaire' : 'Multiplayer'}
-            </button>
-          )}
+          ) : null}
         </section>
       ) : null}
 
@@ -1228,12 +1223,7 @@ export function App(): JSX.Element {
         </section>
       ) : null}
 
-      {mode === null ? (
-        <section className="panel lobby" aria-label="welcome">
-          <h2>Choose a mode to begin.</h2>
-          <p>New to UpNDown? Use the How to Play link above.</p>
-        </section>
-      ) : mode === 'solitaire' ? (
+      {mode === null ? null : mode === 'solitaire' ? (
         solitaireActive ? (
         <GameBoard
           mode="solitaire"

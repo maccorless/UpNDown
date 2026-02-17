@@ -86,7 +86,16 @@ export class GameManager {
     return state;
   }
 
-  listJoinableGames(): JoinableGameSummary[] {
+  listJoinableGames(activePlayerIds?: ReadonlySet<string>): JoinableGameSummary[] {
+    if (activePlayerIds) {
+      for (const [gameId, room] of this.rooms) {
+        const connectedCount = room.gameState.players.filter((player) => activePlayerIds.has(player.id)).length;
+        if (connectedCount === 0) {
+          this.rooms.delete(gameId);
+        }
+      }
+    }
+
     return [...this.rooms.values()]
       .filter((room) => {
         const state = room.gameState;

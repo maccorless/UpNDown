@@ -198,7 +198,7 @@ export function createRealtimeServer(port?: number) {
 
     socket.on('game:listJoinable', (_payload, ack?: Ack<{ games: unknown[] }>) => {
       try {
-        const games = manager.listJoinableGames();
+        const games = manager.listJoinableGames(connectedPlayerIds);
         ack?.({ ok: true, data: { games } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to list games');
