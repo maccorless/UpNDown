@@ -385,6 +385,18 @@ button:disabled {
   text-decoration: none;
 }
 
+.how-to-play-cta {
+  background: linear-gradient(135deg, #3a8dff, #36c9ff);
+  color: #ffffff !important;
+  border: 1px solid #2f78d9;
+  box-shadow: 0 6px 14px rgba(58, 141, 255, 0.32);
+  font-weight: 800;
+}
+
+.how-to-play-cta:hover {
+  filter: brightness(1.05);
+}
+
 .cards-fan {
   margin-top: 10px;
   display: flex;

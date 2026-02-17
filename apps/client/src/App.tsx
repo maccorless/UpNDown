@@ -1108,7 +1108,7 @@ export function App(): JSX.Element {
         <div className="header-actions">
           {mode === null ? (
             <a
-              className="secondary link-button"
+              className="secondary link-button how-to-play-cta"
               href="/how-to-play.html"
               target="_blank"
               rel="noreferrer"
