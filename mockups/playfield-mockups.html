@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UpNDown Playfield Mockups (Top-Card Piles)</title>
+  <style>
+    :root {
+      --bg: #0d1b2a;
+      --panel: #1b263b;
+      --card: #f2f5f9;
+      --ink: #102033;
+      --muted: #a9b4c2;
+      --accent: #00b4d8;
+      --asc: #84dcc6;
+      --desc: #f28482;
+      --good: #8ac926;
+      --warn: #ffca3a;
+      --undo: #ffd166;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 10% 10%, #1b263b 0%, #0d1b2a 55%, #0a1420 100%);
+      color: #f1f5f9;
+      padding: 18px;
+    }
+
+    h1, h2, h3 { margin: 0; }
+    p { margin: 0; color: var(--muted); }
+
+    .page {
+      max-width: 1320px;
+      margin: 0 auto;
+      display: grid;
+      gap: 18px;
+    }
+
+    .note {
+      background: rgba(0, 180, 216, 0.12);
+      border: 1px solid rgba(0, 180, 216, 0.45);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      color: #d6f6ff;
+    }
+
+    .mockup {
+      background: rgba(27, 38, 59, 0.88);
+      border: 1px solid rgba(169, 180, 194, 0.2);
+      border-radius: var(--radius);
+      padding: 14px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: 1.1fr 1fr auto auto;
+      gap: 10px;
+      align-items: center;
+      background: rgba(13, 27, 42, 0.9);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: #132137;
+      border: 1px solid #274160;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .undo-slot {
+      border: 1px dashed rgba(255, 209, 102, 0.7);
+      color: #ffe8a8;
+      background: rgba(255, 209, 102, 0.12);
+      border-radius: 999px;
+      padding: 7px 12px;
+      font-size: 12px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: 1.55fr 1fr;
+      gap: 12px;
+    }
+
+    .piles, .sidebar, .hand, .turn-order {
+      background: rgba(13, 27, 42, 0.9);
+      border-radius: 12px;
+      padding: 12px;
+      border: 1px solid rgba(169, 180, 194, 0.16);
+    }
+
+    .pile-grid {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(110px, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .pile {
+      border-radius: 12px;
+      padding: 8px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 8px;
+      border: 2px solid transparent;
+      min-height: 252px;
+    }
+
+    .pile.asc { background: color-mix(in srgb, var(--asc) 24%, #0d1b2a); border-color: #5bc7ae; }
+    .pile.desc { background: color-mix(in srgb, var(--desc) 22%, #0d1b2a); border-color: #ee6f6d; }
+
+    .pile .tag {
+      font-size: 12px;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      font-weight: 800;
+      color: #102033;
+      text-align: center;
+    }
+
+    .top-card {
+      width: 92px;
+      height: 132px;
+      border-radius: 10px;
+      background: #f4f7fb;
+      border: 2px solid #c3cfdd;
+      display: grid;
+      place-items: center;
+      color: #112338;
+      font-size: 34px;
+      font-weight: 800;
+      justify-self: center;
+      align-self: center;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.24);
+    }
+
+    .pile .hint {
+      text-align: center;
+      font-size: 11px;
+      color: #17324d;
+      font-weight: 700;
+    }
+
+    .side-stack { display: grid; gap: 10px; }
+
+    .players {
+      display: grid;
+      gap: 8px;
+    }
+
+    .player {
+      border: 1px solid rgba(169, 180, 194, 0.22);
+      border-radius: 10px;
+      padding: 8px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      background: #15233a;
+      font-size: 14px;
+    }
+
+    .player.active { border-color: var(--good); box-shadow: 0 0 0 1px rgba(138, 201, 38, 0.4) inset; }
+
+    .hand { display: grid; gap: 10px; }
+
+    .cards-fan {
+      display: flex;
+      align-items: flex-end;
+      overflow-x: auto;
+      gap: 0;
+      min-height: 150px;
+      padding: 6px 4px 2px;
+    }
+
+    .card {
+      flex: 0 0 auto;
+      width: 86px;
+      height: 126px;
+      margin-left: -24px;
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--ink);
+      border: 2px solid #bcc8d6;
+      display: grid;
+      place-items: center;
+      font-size: 30px;
+      font-weight: 800;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.18);
+    }
+
+    .card:first-child { margin-left: 0; }
+
+    .card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0, 180, 216, 0.35); }
+
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 8px;
+      padding: 10px 12px;
+      font-weight: 700;
+      cursor: default;
+    }
+
+    .primary { background: var(--good); color: #132b00; }
+    .secondary { background: #263c58; color: #dce6f3; }
+    .undo-btn { background: var(--undo); color: #3d2e00; }
+
+    .phone-shell {
+      margin-top: 6px;
+      max-width: 390px;
+      width: 100%;
+      border: 10px solid #0b1118;
+      border-radius: 24px;
+      padding: 10px;
+      background: #0d1b2a;
+      justify-self: center;
+    }
+
+    .phone-compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      align-items: start;
+    }
+
+    .phone-col {
+      display: grid;
+      gap: 6px;
+      justify-items: center;
+    }
+
+    .phone-col h4 {
+      margin: 0;
+      font-size: 13px;
+      color: #d3deea;
+      letter-spacing: 0.02em;
+    }
+
+    .phone .topbar {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .phone .board {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .phone .pile-grid {
+      grid-template-columns: repeat(2, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .phone .pile {
+      min-height: 190px;
+      padding: 7px;
+    }
+
+    .phone .top-card {
+      width: 74px;
+      height: 104px;
+      font-size: 28px;
+    }
+
+    .phone .cards-fan {
+      min-height: 120px;
+      padding: 4px 2px 2px;
+    }
+
+    .phone .card {
+      width: 72px;
+      height: 106px;
+      font-size: 26px;
+      margin-left: -16px;
+    }
+
+    .phone .cards-fan.compact-9 .card {
+      width: 48px;
+      height: 76px;
+      font-size: 18px;
+      margin-left: -2px;
+    }
+
+    .hint-row {
+      color: #c6d2df;
+      font-size: 12px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      padding: 8px 10px;
+      border: 1px solid rgba(169,180,194,0.2);
+    }
+
+    @media (max-width: 1040px) {
+      .topbar { grid-template-columns: 1fr; }
+      .board { grid-template-columns: 1fr; }
+      .pile-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
+      .cards-fan { min-height: 132px; }
+      .phone-compare { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <h1>UpNDown Playfield Mockups (Top-Card Foundation Piles)</h1>
+    <div class="note">
+      Foundation piles show only the current top card. Hand layout guarantees visible values for all 9 cards.
+    </div>
+
+    <section class="mockup">
+      <h2>Mockup A: Desktop (2-6 players)</h2>
+      <p>Foundation piles are large top-card boxes; hand uses vertical fan cards (standard 7-card view).</p>
+
+      <div class="topbar">
+        <div class="pill">Game: <strong>Q7M2K9</strong> | Host: Ken</div>
+        <div class="pill">Phase: <strong>Playing</strong> | Draw: <strong>38</strong></div>
+        <div class="pill">Need this turn: <strong>2 cards</strong></div>
+        <div class="undo-slot">Undo Slot (v2): appears after turn ends</div>
+      </div>
+
+      <div class="board">
+        <div class="piles">
+          <h3>Foundation Piles</h3>
+          <div class="pile-grid">
+            <article class="pile asc">
+              <div class="tag">Ascending A</div>
+              <div class="top-card">43</div>
+              <div class="hint">play &gt;43 or 33</div>
+            </article>
+            <article class="pile asc">
+              <div class="tag">Ascending B</div>
+              <div class="top-card">67</div>
+              <div class="hint">play &gt;67 or 57</div>
+            </article>
+            <article class="pile desc">
+              <div class="tag">Descending A</div>
+              <div class="top-card">84</div>
+              <div class="hint">play &lt;84 or 94</div>
+            </article>
+            <article class="pile desc">
+              <div class="tag">Descending B</div>
+              <div class="top-card">28</div>
+              <div class="hint">play &lt;28 or 38</div>
+            </article>
+          </div>
+        </div>
+
+        <aside class="sidebar side-stack">
+          <section class="turn-order">
+            <h3>Turn Order</h3>
+            <div class="players" style="margin-top:10px;">
+              <div class="player active"><span>1. Ken (You)</span><strong>9 cards</strong></div>
+              <div class="player"><span>2. Maya</span><strong>8 cards</strong></div>
+              <div class="player"><span>3. Alex</span><strong>9 cards</strong></div>
+              <div class="player"><span>4. Jo</span><strong>7 cards</strong></div>
+              <div class="player"><span>5. Pat</span><strong>9 cards</strong></div>
+              <div class="player"><span>6. Liv</span><strong>8 cards</strong></div>
+            </div>
+          </section>
+        </aside>
+      </div>
+
+      <section class="hand">
+        <h3>Your Hand</h3>
+        <div class="cards-fan">
+          <div class="card selected">12</div><div class="card">21</div><div class="card">35</div><div class="card">46</div><div class="card">57</div>
+          <div class="card">64</div><div class="card">72</div><div class="card">90</div><div class="card">98</div>
+        </div>
+        <div class="controls">
+          <button class="secondary">Sort Hand</button>
+          <button class="undo-btn">Undo Last Turn (v2)</button>
+          <button class="primary">End Turn</button>
+        </div>
+        <div class="hint-row">v2 undo rule: during your active turn, tap a just-played card on a pile to return it to hand. After your turn ends, only the immediately previous player can be undone, and only until the next player completes their turn.</div>
+      </section>
+    </section>
+
+    <section class="mockup">
+      <h2>Mockup B: Phone Comparison (7 vs 9 cards)</h2>
+      <p>Side-by-side comparison of standard 7-card hand and compact 9-card hand, both in vertical orientation.</p>
+
+      <div class="phone-compare">
+        <div class="phone-col">
+          <h4>Phone - 7 Cards (Standard)</h4>
+          <div class="phone-shell phone">
+            <div class="topbar">
+              <div class="pill">Q7M2K9 • Your turn • Draw 38</div>
+              <div class="pill">Need 2 cards this turn</div>
+              <div class="undo-slot">Undo Slot (v2)</div>
+            </div>
+
+            <div class="board" style="margin-top:10px;">
+              <div class="piles">
+                <h3 style="font-size:15px;">Foundation Piles</h3>
+                <div class="pile-grid">
+                  <article class="pile asc"><div class="tag">1↑ A</div><div class="top-card">43</div><div class="hint">&gt;43 or 33</div></article>
+                  <article class="pile asc"><div class="tag">1↑ B</div><div class="top-card">67</div><div class="hint">&gt;67 or 57</div></article>
+                  <article class="pile desc"><div class="tag">100↓ A</div><div class="top-card">84</div><div class="hint">&lt;84 or 94</div></article>
+                  <article class="pile desc"><div class="tag">100↓ B</div><div class="top-card">28</div><div class="hint">&lt;28 or 38</div></article>
+                </div>
+              </div>
+
+              <div class="turn-order">
+                <h3 style="font-size:14px;">Turn</h3>
+                <div class="players" style="margin-top:8px;">
+                  <div class="player active"><span>1. You</span><strong>7</strong></div>
+                  <div class="player"><span>2. Maya</span><strong>8</strong></div>
+                  <div class="player"><span>3. Alex</span><strong>9</strong></div>
+                  <div class="player"><span>4. Jo</span><strong>7</strong></div>
+                  <div class="player"><span>5. Pat</span><strong>9</strong></div>
+                  <div class="player"><span>6. Liv</span><strong>8</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <section class="hand" style="margin-top:10px;">
+              <h3 style="font-size:15px;">Your Hand</h3>
+              <div class="cards-fan">
+                <div class="card selected">12</div><div class="card">21</div><div class="card">35</div><div class="card">46</div>
+                <div class="card">57</div><div class="card">64</div><div class="card">90</div>
+              </div>
+              <div class="controls">
+                <button class="secondary">Sort</button>
+                <button class="undo-btn">Undo (v2)</button>
+                <button class="primary" style="flex:1;">End Turn</button>
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div class="phone-col">
+          <h4>Phone - 9 Cards (Compact)</h4>
+          <div class="phone-shell phone">
+            <div class="topbar">
+              <div class="pill">Q7M2K9 • Your turn • Draw 38</div>
+              <div class="pill">Need 2 cards this turn</div>
+              <div class="undo-slot">Undo Slot (v2)</div>
+            </div>
+
+            <div class="board" style="margin-top:10px;">
+              <div class="piles">
+                <h3 style="font-size:15px;">Foundation Piles</h3>
+                <div class="pile-grid">
+                  <article class="pile asc"><div class="tag">1↑ A</div><div class="top-card">43</div><div class="hint">&gt;43 or 33</div></article>
+                  <article class="pile asc"><div class="tag">1↑ B</div><div class="top-card">67</div><div class="hint">&gt;67 or 57</div></article>
+                  <article class="pile desc"><div class="tag">100↓ A</div><div class="top-card">84</div><div class="hint">&lt;84 or 94</div></article>
+                  <article class="pile desc"><div class="tag">100↓ B</div><div class="top-card">28</div><div class="hint">&lt;28 or 38</div></article>
+                </div>
+              </div>
+
+              <div class="turn-order">
+                <h3 style="font-size:14px;">Turn</h3>
+                <div class="players" style="margin-top:8px;">
+                  <div class="player active"><span>1. You</span><strong>9</strong></div>
+                  <div class="player"><span>2. Maya</span><strong>8</strong></div>
+                  <div class="player"><span>3. Alex</span><strong>9</strong></div>
+                  <div class="player"><span>4. Jo</span><strong>7</strong></div>
+                  <div class="player"><span>5. Pat</span><strong>9</strong></div>
+                  <div class="player"><span>6. Liv</span><strong>8</strong></div>
+                </div>
+              </div>
+            </div>
+
+            <section class="hand" style="margin-top:10px;">
+              <h3 style="font-size:15px;">Your Hand</h3>
+              <div class="cards-fan compact-9">
+                <div class="card selected">12</div><div class="card">21</div><div class="card">35</div>
+                <div class="card">46</div><div class="card">57</div><div class="card">64</div>
+                <div class="card">72</div><div class="card">90</div><div class="card">98</div>
+              </div>
+              <div class="controls">
+                <button class="secondary">Sort</button>
+                <button class="undo-btn">Undo (v2)</button>
+                <button class="primary" style="flex:1;">End Turn</button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

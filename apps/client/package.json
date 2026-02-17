@@ -1,0 +1,36 @@
+{
+  "name": "@upndown/client",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@upndown/engine": "0.1.0",
+    "@upndown/shared-types": "0.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "socket.io-client": "^4.8.1"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.1.0",
+    "@testing-library/user-event": "^14.5.2",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.5",
+    "vitest": "^2.1.8",
+    "jsdom": "^25.0.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "eslint": "^9.17.0",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@typescript-eslint/parser": "^8.18.2",
+    "@typescript-eslint/eslint-plugin": "^8.18.2"
+  }
+}

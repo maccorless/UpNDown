@@ -1,0 +1,14 @@
+{
+  "name": "@upndown/e2e",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "playwright test",
+    "test:e2e:smoke": "playwright test --grep @smoke"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@axe-core/playwright": "^4.10.1"
+  }
+}
