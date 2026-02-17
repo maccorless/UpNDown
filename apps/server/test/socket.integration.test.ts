@@ -368,4 +368,50 @@ describe('socket integration', () => {
     guest.disconnect();
     extra.disconnect();
   });
+
+  it('rate limits repeated lookup attempts', async () => {
+    const host = await connect();
+    const guest = await connect();
+
+    const createResponse = await new Promise<Ack<{ gameState: { gameId: string } }>>((resolve) => {
+      host.emit(
+        'game:create',
+        {
+          playerName: 'Host',
+          isSolitaire: false,
+          settings: {
+            minCardValue: 2,
+            maxCardValue: 99,
+            handSize: 7,
+            minPlayers: 2,
+            maxPlayers: 4,
+            minCardsPerTurn: 2,
+            autoRefillHand: false,
+            allowUndo: false,
+            privateGame: true
+          }
+        },
+        (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
+      );
+    });
+
+    expect(createResponse.ok).toBe(true);
+    if (!createResponse.ok) return;
+    const gameId = createResponse.data.gameState.gameId;
+
+    let lastAck: Ack<{ game: { gameId: string } }> | null = null;
+    for (let i = 0; i < 21; i += 1) {
+      lastAck = await new Promise<Ack<{ game: { gameId: string } }>>((resolve) => {
+        guest.emit('game:lookup', { gameId }, (ack: Ack<{ game: { gameId: string } }>) => resolve(ack));
+      });
+    }
+
+    expect(lastAck).not.toBeNull();
+    expect(lastAck?.ok).toBe(false);
+    if (lastAck?.ok) return;
+    expect(lastAck.error).toContain('Too many lookup attempts');
+
+    host.disconnect();
+    guest.disconnect();
+  });
 });

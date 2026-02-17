@@ -10,7 +10,11 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "build:server": "npm run build --workspace @upndown/shared-types && npm run build --workspace @upndown/engine && npm run build --workspace @upndown/server",
+    "build:client": "npm run build --workspace @upndown/shared-types && npm run build --workspace @upndown/engine && npm run build --workspace @upndown/client",
     "dev": "npm run dev --workspace @upndown/server --if-present",
+    "start:server": "npm run start --workspace @upndown/server",
+    "start:client": "npm run preview --workspace @upndown/client -- --host 0.0.0.0 --port ${PORT:-4173}",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
