@@ -1,4 +1,4 @@
-import { buildDeck, createStartedGameState, endTurn, playCard } from '@upndown/engine';
+import { buildDeck, createStartedGameState, endTurn, playCard, shuffle } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
@@ -29,17 +29,6 @@ export interface JoinLookupSummary {
   playerCount: number;
   maxPlayers: number;
   privateGame: boolean;
-}
-
-function shuffle<T>(input: T[]): T[] {
-  const out = [...input];
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = out[i];
-    out[i] = out[j] as T;
-    out[j] = tmp as T;
-  }
-  return out;
 }
 
 function generateGameId(): string {

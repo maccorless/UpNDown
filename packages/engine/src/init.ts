@@ -8,6 +8,17 @@ export function buildDeck(settings: GameSettings): Card[] {
   return deck;
 }
 
+export function shuffle<T>(input: T[]): T[] {
+  const out = [...input];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j] as T;
+    out[j] = tmp as T;
+  }
+  return out;
+}
+
 export function createFoundationPiles(settings: GameSettings): FoundationPile[] {
   const ascendingBase = settings.minCardValue - 1;
   const descendingBase = settings.maxCardValue + 1;

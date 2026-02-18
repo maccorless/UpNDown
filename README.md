@@ -80,14 +80,14 @@ Client (`apps/client/.env`):
 - `VITE_SOCKET_URL` (defaults to `http://localhost:3001` when unset)
 
 See:
-- `/Users/kcorless/Documents/Projects/UpNDown/apps/server/.env.example`
-- `/Users/kcorless/Documents/Projects/UpNDown/apps/client/.env.example`
+- `apps/server/.env.example`
+- `apps/client/.env.example`
 
 ## Deployment
 
 Deployment and runtime docs:
-- `/Users/kcorless/Documents/Projects/UpNDown/DEPLOYMENT.md`
-- `/Users/kcorless/Documents/Projects/UpNDown/OPERATIONS.md`
+- `DEPLOYMENT.md`
+- `OPERATIONS.md`
 
 ## Current Production Model
 

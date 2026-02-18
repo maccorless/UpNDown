@@ -1,4 +1,4 @@
-import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn } from '@upndown/engine';
+import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { gameSettingsSchema, type Card, type GameSettings, type GameState } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -113,17 +113,6 @@ function writePersistedSettings(settings: PersistedSettings): void {
   } catch {
     // Ignore storage write failures (private mode/quota/etc).
   }
-}
-
-function shuffle<T>(input: T[]): T[] {
-  const out = [...input];
-  for (let i = out.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    const tmp = out[i];
-    out[i] = out[j] as T;
-    out[j] = tmp as T;
-  }
-  return out;
 }
 
 function newSolitaireGame(settings: GameSettings): GameState {
