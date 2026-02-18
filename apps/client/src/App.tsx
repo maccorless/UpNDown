@@ -585,11 +585,9 @@ export function App(): JSX.Element {
   const socketRef = useRef<Socket | null>(null);
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
-  const bmcContainerRef = useRef<HTMLDivElement | null>(null);
   const joinablePollFailuresRef = useRef(0);
 
   const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
-  const enableBmcWidget = import.meta.env.VITE_ENABLE_BMC_WIDGET === 'true';
 
   const getSocket = (): Socket => {
     if (!socketRef.current) {
@@ -775,32 +773,6 @@ export function App(): JSX.Element {
   useEffect(() => {
     setJoinLookup(null);
   }, [joinGameId]);
-
-  useEffect(() => {
-    if (mode !== null || !enableBmcWidget || import.meta.env.MODE === 'test') {
-      return;
-    }
-
-    const container = bmcContainerRef.current;
-    if (!container) {
-      return;
-    }
-
-    container.replaceChildren();
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.buymeacoffee.com/1.0.0/button.prod.min.js';
-    script.type = 'text/javascript';
-    script.setAttribute('data-name', 'bmc-button');
-    script.setAttribute('data-slug', 'goldenchimp');
-    script.setAttribute('data-color', '#FFDD00');
-    script.setAttribute('data-emoji', '☕');
-    script.setAttribute('data-font', 'Cookie');
-    script.setAttribute('data-text', 'Buy me a coffee');
-    script.setAttribute('data-outline-color', '#000000');
-    script.setAttribute('data-font-color', '#000000');
-    script.setAttribute('data-coffee-color', '#ffffff');
-    container.appendChild(script);
-  }, [enableBmcWidget, mode]);
 
   const requestSocketAck = <T,>(event: string, payload: unknown): Promise<Ack<T>> => {
     const socket = getSocket();
@@ -1201,7 +1173,7 @@ export function App(): JSX.Element {
   const amInMultiplayerGame = !!multiplayerState && !!playerId && multiplayerState.players.some((player) => player.id === playerId);
 
   return (
-    <main className={`app ${isBoardMode ? 'board-mode' : ''}`}>
+    <main className={`app ${isBoardMode ? 'board-mode' : ''} ${mode === null ? 'landing-mode' : ''}`}>
       <section className="app-header">
         <h1>UpNDown</h1>
         <div className="header-actions">
@@ -1324,20 +1296,17 @@ export function App(): JSX.Element {
       ) : null}
 
       {mode === null ? (
-        <section className="panel landing-support" aria-label="support">
-          <p>If you like this game...</p>
-          {enableBmcWidget ? (
-            <div ref={bmcContainerRef} />
-          ) : (
-            <a
-              className="secondary link-button"
-              href="https://www.buymeacoffee.com/goldenchimp"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Buy me a coffee
+        <section className="landing-support-bar" aria-label="support">
+          <div className="landing-support-inner">
+            <p>If you like the game, buy me a cup of coffee.</p>
+            <a href="https://www.buymeacoffee.com/goldenchimp" target="_blank" rel="noreferrer">
+              <img
+                src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png"
+                alt="Buy Me A Coffee"
+                className="coffee-button-image"
+              />
             </a>
-          )}
+          </div>
         </section>
       ) : mode === 'solitaire' ? (
         solitaireActive ? (

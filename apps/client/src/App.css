@@ -36,6 +36,10 @@ body {
   align-content: start;
 }
 
+.app.landing-mode {
+  padding-bottom: 128px;
+}
+
 .app.board-mode {
   padding: 8px 10px;
   gap: 6px;
@@ -393,18 +397,37 @@ button:disabled {
   font-size: 14px;
 }
 
-.landing-support {
-  margin-top: auto;
-  display: grid;
-  justify-items: center;
-  gap: 4px;
-  text-align: center;
+.landing-support-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  background: rgba(183, 211, 235, 0.94);
+  border-top: 1px solid rgba(81, 123, 167, 0.45);
+  backdrop-filter: blur(4px);
 }
 
-.landing-support p {
+.landing-support-inner {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.landing-support-inner p {
   margin: 0;
-  color: #375877;
-  font-size: 13px;
+  color: #204666;
+  font-size: 14px;
+}
+
+.coffee-button-image {
+  width: 217px;
+  height: 60px;
+  display: block;
 }
 
 .cards-fan {
@@ -774,6 +797,26 @@ section[aria-label="welcome"] h2 {
   .connection-banner {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .app.landing-mode {
+    padding-bottom: 148px;
+  }
+
+  .landing-support-inner {
+    flex-direction: column;
+    padding: 8px 10px;
+    text-align: center;
+    gap: 6px;
+  }
+
+  .landing-support-inner p {
+    font-size: 13px;
+  }
+
+  .coffee-button-image {
+    width: min(217px, 72vw);
+    height: auto;
   }
 }
 
