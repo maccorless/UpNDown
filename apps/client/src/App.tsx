@@ -717,6 +717,25 @@ export function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
+    const applyViewportHeight = (): void => {
+      document.documentElement.style.setProperty('--app-height', `${window.innerHeight}px`);
+    };
+
+    const onResize = (): void => {
+      applyViewportHeight();
+      window.setTimeout(applyViewportHeight, 80);
+    };
+
+    applyViewportHeight();
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, []);
+
+  useEffect(() => {
     const onVisibilityChange = (): void => {
       setIsPageVisible(document.visibilityState === 'visible');
     };

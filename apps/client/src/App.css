@@ -32,7 +32,7 @@ body {
   padding: 10px 14px;
   display: grid;
   gap: 8px;
-  min-height: 100dvh;
+  min-height: var(--app-height, 100dvh);
   align-content: start;
 }
 
@@ -47,7 +47,7 @@ body {
 .app.board-mode {
   padding: 8px 10px;
   gap: 6px;
-  height: 100dvh;
+  height: var(--app-height, 100dvh);
   overflow: hidden;
 }
 
