@@ -52,6 +52,10 @@ const multiplayerSettings: GameSettings = {
 };
 
 const SETTINGS_STORAGE_KEY = 'upndown.settings.v1';
+const ACK_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 80 : 5000;
+const ACK_TIMEOUT_ERROR = 'Request timed out. Please check your connection and try again.';
+const SOCKET_DISCONNECTED_ERROR = 'Not connected to server. Please wait for reconnect and retry.';
+const SOCKET_REQUEST_ERROR = 'Unable to reach server. Please retry.';
 
 interface PersistedSettings {
   solitaire: GameSettings;
@@ -763,17 +767,45 @@ export function App(): JSX.Element {
     container.appendChild(script);
   }, [mode]);
 
+  const requestSocketAck = <T,>(event: string, payload: unknown): Promise<Ack<T>> => {
+    const socket = getSocket();
+    if (!socket.connected) {
+      return Promise.resolve({ ok: false, error: SOCKET_DISCONNECTED_ERROR });
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      let timer = 0;
+
+      const finish = (ack: Ack<T>): void => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(ack);
+      };
+
+      timer = window.setTimeout(() => {
+        finish({ ok: false, error: ACK_TIMEOUT_ERROR });
+      }, ACK_TIMEOUT_MS);
+
+      try {
+        socket.emit(event, payload, (ack: Ack<T>) => finish(ack));
+      } catch {
+        finish({ ok: false, error: SOCKET_REQUEST_ERROR });
+      }
+    });
+  };
+
   const emitWithAck = async <T,>(
     event: string,
     payload: unknown,
     action: Exclude<PendingAction, null>
   ): Promise<Ack<T>> => {
-    const socket = getSocket();
     setPendingAction(action);
     try {
-      return await new Promise((resolve) => {
-        socket.emit(event, payload, (ack: Ack<T>) => resolve(ack));
-      });
+      return await requestSocketAck<T>(event, payload);
     } finally {
       setPendingAction(null);
     }
@@ -786,15 +818,13 @@ export function App(): JSX.Element {
 
     setLoadingJoinableGames(true);
     try {
-      const socket = getSocket();
-      const ack = await new Promise<Ack<{ games: JoinableGameSummary[] }>>((resolve) => {
-        socket.emit('game:listJoinable', {}, (response: Ack<{ games: JoinableGameSummary[] }>) => resolve(response));
-      });
+      const ack = await requestSocketAck<{ games: JoinableGameSummary[] }>('game:listJoinable', {});
       if (!ack.ok) {
         setError(ack.error);
         return;
       }
       setJoinableGames(ack.data.games);
+      setError(null);
     } finally {
       setLoadingJoinableGames(false);
     }
