@@ -596,6 +596,7 @@ export function App(): JSX.Element {
   const bmcContainerRef = useRef<HTMLDivElement | null>(null);
 
   const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+  const enableBmcWidget = import.meta.env.VITE_ENABLE_BMC_WIDGET === 'true';
 
   const getSocket = (): Socket => {
     if (!socketRef.current) {
@@ -742,7 +743,7 @@ export function App(): JSX.Element {
   }, [joinGameId]);
 
   useEffect(() => {
-    if (mode !== null || import.meta.env.MODE === 'test') {
+    if (mode !== null || !enableBmcWidget || import.meta.env.MODE === 'test') {
       return;
     }
 
@@ -765,7 +766,7 @@ export function App(): JSX.Element {
     script.setAttribute('data-font-color', '#000000');
     script.setAttribute('data-coffee-color', '#ffffff');
     container.appendChild(script);
-  }, [mode]);
+  }, [enableBmcWidget, mode]);
 
   const requestSocketAck = <T,>(event: string, payload: unknown): Promise<Ack<T>> => {
     const socket = getSocket();
@@ -1288,7 +1289,18 @@ export function App(): JSX.Element {
       {mode === null ? (
         <section className="panel landing-support" aria-label="support">
           <p>If you like this game...</p>
-          <div ref={bmcContainerRef} />
+          {enableBmcWidget ? (
+            <div ref={bmcContainerRef} />
+          ) : (
+            <a
+              className="secondary link-button"
+              href="https://www.buymeacoffee.com/goldenchimp"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Buy me a coffee
+            </a>
+          )}
         </section>
       ) : mode === 'solitaire' ? (
         solitaireActive ? (

@@ -70,4 +70,12 @@ describe('solitaire App', () => {
 
     expect(screen.getByRole('alert')).toBeTruthy();
   });
+
+  it('uses safe support link by default without third-party script injection', () => {
+    render(<App />);
+
+    const supportLink = screen.getByRole('link', { name: 'Buy me a coffee' });
+    expect(supportLink.getAttribute('href')).toBe('https://www.buymeacoffee.com/goldenchimp');
+    expect(document.querySelector('script[src*=\"buymeacoffee.com\"]')).toBeNull();
+  });
 });
