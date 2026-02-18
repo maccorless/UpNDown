@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSettings, GameState } from '@upndown/shared-types';
@@ -55,6 +55,8 @@ let emitHandler: EmitHandler = (event, _payload, ack) => {
   }
   ack?.({ ok: false, error: `Unhandled event: ${event}` });
 };
+let listJoinableCalls = 0;
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => { window.setTimeout(resolve, ms); });
 
 vi.mock('socket.io-client', () => ({
   io: () => socket
@@ -95,8 +97,10 @@ function createLobbyState(): GameState {
 describe('multiplayer ack handling', () => {
   beforeEach(() => {
     socket.disconnect();
+    listJoinableCalls = 0;
     emitHandler = (event, _payload, ack) => {
       if (event === 'game:listJoinable') {
+        listJoinableCalls += 1;
         ack?.({ ok: true, data: { games: [] } });
         return;
       }
@@ -162,5 +166,41 @@ describe('multiplayer ack handling', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Leave rejected by server');
     expect(screen.getByRole('heading', { name: 'Game ABC123' })).toBeTruthy();
+  });
+
+  it('pauses joinable polling when tab is hidden', async () => {
+    let visibilityState: VisibilityState = 'visible';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibilityState
+    });
+
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:listJoinable') {
+        listJoinableCalls += 1;
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    await user.click(screen.getByTestId('flow-join'));
+
+    await sleep(30);
+    expect(listJoinableCalls).toBeGreaterThan(0);
+    await act(async () => {
+      visibilityState = 'hidden';
+      document.dispatchEvent(new Event('visibilitychange'));
+      await sleep(350);
+    });
+
+    const pausedCount = listJoinableCalls;
+    await sleep(350);
+    expect(listJoinableCalls).toBe(pausedCount);
   });
 });

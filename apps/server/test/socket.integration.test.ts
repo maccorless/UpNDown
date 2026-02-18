@@ -414,4 +414,41 @@ describe('socket integration', () => {
     host.disconnect();
     guest.disconnect();
   });
+
+  it('rejects malformed payloads with stable error acknowledgements', async () => {
+    const socket = await connect();
+
+    const badCreate = await new Promise<Ack<{ gameState: { gameId: string } }>>((resolve) => {
+      socket.emit(
+        'game:create',
+        {
+          playerName: 'Host'
+        },
+        (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
+      );
+    });
+    expect(badCreate.ok).toBe(false);
+    if (!badCreate.ok) {
+      expect(typeof badCreate.error).toBe('string');
+      expect(badCreate.error.length).toBeGreaterThan(0);
+    }
+
+    const badJoin = await new Promise<Ack<{ gameState: { gameId: string } }>>((resolve) => {
+      socket.emit(
+        'game:join',
+        {
+          gameId: 123,
+          playerName: true
+        },
+        (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
+      );
+    });
+    expect(badJoin.ok).toBe(false);
+    if (!badJoin.ok) {
+      expect(typeof badJoin.error).toBe('string');
+      expect(badJoin.error.length).toBeGreaterThan(0);
+    }
+
+    socket.disconnect();
+  });
 });

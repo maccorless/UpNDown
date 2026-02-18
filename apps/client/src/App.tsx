@@ -56,6 +56,8 @@ const ACK_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 80 : 5000;
 const ACK_TIMEOUT_ERROR = 'Request timed out. Please check your connection and try again.';
 const SOCKET_DISCONNECTED_ERROR = 'Not connected to server. Please wait for reconnect and retry.';
 const SOCKET_REQUEST_ERROR = 'Unable to reach server. Please retry.';
+const JOINABLE_POLL_BASE_MS = import.meta.env.MODE === 'test' ? 120 : 5000;
+const JOINABLE_POLL_MAX_MS = import.meta.env.MODE === 'test' ? 600 : 30000;
 
 interface PersistedSettings {
   solitaire: GameSettings;
@@ -769,8 +771,8 @@ export function App(): JSX.Element {
 
       const failureCount = ok ? 0 : joinablePollFailuresRef.current;
       const nextDelay = ok
-        ? 5000
-        : Math.min(30000, 5000 * (2 ** Math.min(3, failureCount - 1)));
+        ? JOINABLE_POLL_BASE_MS
+        : Math.min(JOINABLE_POLL_MAX_MS, JOINABLE_POLL_BASE_MS * (2 ** Math.min(3, failureCount - 1)));
       schedule(nextDelay);
     };
 
