@@ -584,6 +584,7 @@ export function App(): JSX.Element {
   const [multiplayerFlow, setMultiplayerFlow] = useState<'choose' | 'join'>('choose');
   const [joinableGames, setJoinableGames] = useState<JoinableGameSummary[]>([]);
   const [loadingJoinableGames, setLoadingJoinableGames] = useState(false);
+  const [isPageVisible, setIsPageVisible] = useState(() => document.visibilityState === 'visible');
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
@@ -594,6 +595,7 @@ export function App(): JSX.Element {
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const bmcContainerRef = useRef<HTMLDivElement | null>(null);
+  const joinablePollFailuresRef = useRef(0);
 
   const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
   const enableBmcWidget = import.meta.env.VITE_ENABLE_BMC_WIDGET === 'true';
@@ -726,17 +728,58 @@ export function App(): JSX.Element {
   }, []);
 
   useEffect(() => {
-    if (mode !== 'multiplayer' || multiplayerState || connectionState !== 'connected' || multiplayerFlow !== 'join') {
+    const onVisibilityChange = (): void => {
+      setIsPageVisible(document.visibilityState === 'visible');
+    };
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+  }, []);
+
+  useEffect(() => {
+    if (
+      mode !== 'multiplayer'
+      || multiplayerState
+      || connectionState !== 'connected'
+      || multiplayerFlow !== 'join'
+      || !isPageVisible
+    ) {
       return;
     }
 
-    void refreshJoinableGames();
-    const timer = setInterval(() => {
-      void refreshJoinableGames();
-    }, 5000);
+    joinablePollFailuresRef.current = 0;
+    let timer = 0;
+    let cancelled = false;
 
-    return () => clearInterval(timer);
-  }, [mode, multiplayerState, connectionState, multiplayerFlow]);
+    const schedule = (delayMs: number): void => {
+      timer = window.setTimeout(() => {
+        void tick();
+      }, delayMs);
+    };
+
+    const tick = async (): Promise<void> => {
+      if (cancelled) {
+        return;
+      }
+
+      const ok = await refreshJoinableGames();
+      if (cancelled) {
+        return;
+      }
+
+      const failureCount = ok ? 0 : joinablePollFailuresRef.current;
+      const nextDelay = ok
+        ? 5000
+        : Math.min(30000, 5000 * (2 ** Math.min(3, failureCount - 1)));
+      schedule(nextDelay);
+    };
+
+    void tick();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [mode, multiplayerState, connectionState, multiplayerFlow, isPageVisible]);
 
   useEffect(() => {
     setJoinLookup(null);
@@ -812,20 +855,23 @@ export function App(): JSX.Element {
     }
   };
 
-  const refreshJoinableGames = async (): Promise<void> => {
+  const refreshJoinableGames = async (): Promise<boolean> => {
     if (mode !== 'multiplayer' || multiplayerState) {
-      return;
+      return false;
     }
 
     setLoadingJoinableGames(true);
     try {
       const ack = await requestSocketAck<{ games: JoinableGameSummary[] }>('game:listJoinable', {});
       if (!ack.ok) {
+        joinablePollFailuresRef.current += 1;
         setError(ack.error);
-        return;
+        return false;
       }
       setJoinableGames(ack.data.games);
+      joinablePollFailuresRef.current = 0;
       setError(null);
+      return true;
     } finally {
       setLoadingJoinableGames(false);
     }
