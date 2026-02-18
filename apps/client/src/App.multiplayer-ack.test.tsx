@@ -169,7 +169,7 @@ describe('multiplayer ack handling', () => {
   });
 
   it('pauses joinable polling when tab is hidden', async () => {
-    let visibilityState: VisibilityState = 'visible';
+    let visibilityState: 'visible' | 'hidden' = 'visible';
     Object.defineProperty(document, 'visibilityState', {
       configurable: true,
       get: () => visibilityState
