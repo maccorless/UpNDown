@@ -1354,7 +1354,7 @@ export function App(): JSX.Element {
             </div>
           </section>
         )
-      ) : (
+      ) : mode === 'multiplayer' ? (
         <>
           {!multiplayerState ? (
             <section className="panel lobby" aria-label="multiplayer lobby">
@@ -1584,7 +1584,7 @@ export function App(): JSX.Element {
             )
           )}
         </>
-      )}
+      ) : null}
 
       {error ? (
         <div className="error" role="alert" aria-live="assertive" data-testid="error-banner">
