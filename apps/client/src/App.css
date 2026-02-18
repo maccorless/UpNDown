@@ -40,6 +40,10 @@ body {
   padding-bottom: 128px;
 }
 
+.app.support-mode {
+  padding-bottom: 128px;
+}
+
 .app.board-mode {
   padding: 8px 10px;
   gap: 6px;
@@ -800,6 +804,10 @@ section[aria-label="welcome"] h2 {
   }
 
   .app.landing-mode {
+    padding-bottom: 148px;
+  }
+
+  .app.support-mode {
     padding-bottom: 148px;
   }
 

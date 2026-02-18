@@ -1172,8 +1172,12 @@ export function App(): JSX.Element {
   const isHostInLobby = !!multiplayerState && multiplayerState.gamePhase === 'lobby' && multiplayerState.hostId === playerId;
   const amInMultiplayerGame = !!multiplayerState && !!playerId && multiplayerState.players.some((player) => player.id === playerId);
 
+  const showSupportBar = mode === null
+    || (mode === 'solitaire' && (!solitaireActive || solitaireState.gamePhase === 'won' || solitaireState.gamePhase === 'lost'))
+    || (mode === 'multiplayer' && !!multiplayerState && (multiplayerState.gamePhase === 'won' || multiplayerState.gamePhase === 'lost' || multiplayerState.gamePhase === 'lobby'));
+
   return (
-    <main className={`app ${isBoardMode ? 'board-mode' : ''} ${mode === null ? 'landing-mode' : ''}`}>
+    <main className={`app ${isBoardMode ? 'board-mode' : ''} ${showSupportBar ? 'support-mode' : ''} ${mode === null ? 'landing-mode' : ''}`}>
       <section className="app-header">
         <h1>UpNDown</h1>
         <div className="header-actions">
@@ -1295,7 +1299,7 @@ export function App(): JSX.Element {
         </section>
       ) : null}
 
-      {mode === null ? (
+      {showSupportBar ? (
         <section className="landing-support-bar" aria-label="support">
           <div className="landing-support-inner">
             <p>If you like the game, buy me a cup of coffee.</p>
@@ -1308,7 +1312,9 @@ export function App(): JSX.Element {
             </a>
           </div>
         </section>
-      ) : mode === 'solitaire' ? (
+      ) : null}
+
+      {mode === 'solitaire' ? (
         solitaireActive ? (
         <GameBoard
           mode="solitaire"
