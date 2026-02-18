@@ -475,9 +475,9 @@ button:disabled {
 }
 
 .error {
-  color: #ffd6d6;
-  background: rgba(231, 111, 81, 0.2);
-  border: 1px solid rgba(231, 111, 81, 0.45);
+  color: #5c1414;
+  background: #ffe9e4;
+  border: 1px solid #e38a78;
   border-radius: 8px;
   padding: 8px 10px;
   font-size: 13px;
