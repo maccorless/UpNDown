@@ -1050,11 +1050,16 @@ export function App(): JSX.Element {
       return;
     }
 
-    await emitWithAck<{ gameState: GameState | null }>(
+    const ack = await emitWithAck<{ gameState: GameState | null }>(
       'game:leave',
       { gameId: multiplayerState.gameId },
       'leave'
     );
+
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
 
     setMultiplayerState(null);
     setMultiplayerSelectedCardId(null);

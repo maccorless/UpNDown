@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { GameSettings, GameState } from '@upndown/shared-types';
 
 import { App } from './App.js';
 
@@ -59,6 +60,38 @@ vi.mock('socket.io-client', () => ({
   io: () => socket
 }));
 
+const multiplayerSettings: GameSettings = {
+  minCardValue: 2,
+  maxCardValue: 99,
+  handSize: 7,
+  minPlayers: 2,
+  maxPlayers: 6,
+  minCardsPerTurn: 2,
+  autoRefillHand: false,
+  allowUndo: false,
+  privateGame: false
+};
+
+function createLobbyState(): GameState {
+  return {
+    gameId: 'ABC123',
+    hostId: 'socket-1',
+    players: [{ id: 'socket-1', name: 'Alex', hand: [], isHost: true }],
+    foundationPiles: [
+      { id: 0, type: 'ascending', topCard: { id: 'p0', value: 1 } },
+      { id: 1, type: 'ascending', topCard: { id: 'p1', value: 1 } },
+      { id: 2, type: 'descending', topCard: { id: 'p2', value: 100 } },
+      { id: 3, type: 'descending', topCard: { id: 'p3', value: 100 } }
+    ],
+    drawPile: [],
+    currentPlayerIndex: 0,
+    gamePhase: 'lobby',
+    cardsPlayedThisTurn: 0,
+    settings: multiplayerSettings,
+    isSolitaire: false
+  };
+}
+
 describe('multiplayer ack handling', () => {
   beforeEach(() => {
     socket.disconnect();
@@ -98,5 +131,36 @@ describe('multiplayer ack handling', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Request timed out. Please check your connection and try again.');
     expect(screen.getByTestId('flow-host').textContent).toContain('Host Game');
+  });
+
+  it('keeps multiplayer state when leave ack fails', async () => {
+    const lobbyState = createLobbyState();
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:create') {
+        ack?.({ ok: true, data: { gameState: lobbyState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:leave') {
+        ack?.({ ok: false, error: 'Leave rejected by server' });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+      }
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    await user.click(screen.getByTestId('flow-host'));
+    expect(await screen.findByRole('heading', { name: 'Game ABC123' })).toBeTruthy();
+
+    await user.click(screen.getByTestId('leave-game'));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toContain('Leave rejected by server');
+    expect(screen.getByRole('heading', { name: 'Game ABC123' })).toBeTruthy();
   });
 });
