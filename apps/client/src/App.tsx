@@ -1406,7 +1406,7 @@ export function App(): JSX.Element {
             </button>
             <button
               type="button"
-              className="secondary"
+              className="primary mode-current"
               onClick={() => {
                 setMode('multiplayer');
                 setMultiplayerFlow('choose');
