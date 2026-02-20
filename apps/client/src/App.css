@@ -661,6 +661,21 @@ button:disabled {
   margin: 0;
 }
 
+.host-ended-modal {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 12px;
+  background: #f7fbff;
+  color: #0f2741;
+  border: 2px solid #4f87bf;
+  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
+}
+
+.host-ended-modal h2,
+.host-ended-modal p {
+  margin: 0;
+}
+
 .stats-modal-header h2 {
   margin: 0;
 }

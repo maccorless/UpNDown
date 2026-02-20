@@ -763,6 +763,7 @@ export function App(): JSX.Element {
   const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
   const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
+  const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
@@ -782,6 +783,8 @@ export function App(): JSX.Element {
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
   const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
   const shownNasCheatGameKeyRef = useRef<string | null>(null);
+  const previousMultiplayerSnapshotRef = useRef<{ gameId: string; phase: GameState['gamePhase'] } | null>(null);
+  const suppressHostEndedNoticeRef = useRef(false);
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
@@ -833,6 +836,28 @@ export function App(): JSX.Element {
   useEffect(() => {
     setInviteCopied(false);
   }, [multiplayerState?.gameId]);
+
+  useEffect(() => {
+    if (mode !== 'multiplayer' || !multiplayerState || !playerId) {
+      previousMultiplayerSnapshotRef.current = null;
+      return;
+    }
+
+    const previous = previousMultiplayerSnapshotRef.current;
+    const transitionedToLobby = previous
+      && previous.gameId === multiplayerState.gameId
+      && previous.phase !== 'lobby'
+      && multiplayerState.gamePhase === 'lobby';
+    const amSeated = multiplayerState.players.some((player) => player.id === playerId);
+    if (transitionedToLobby && amSeated && !suppressHostEndedNoticeRef.current) {
+      setHostEndedModalGameId(multiplayerState.gameId);
+    }
+
+    previousMultiplayerSnapshotRef.current = {
+      gameId: multiplayerState.gameId,
+      phase: multiplayerState.gamePhase
+    };
+  }, [mode, multiplayerState, playerId]);
 
   const dismissNasCheatIntro = (): void => {
     setShowNasCheatIntro(false);
@@ -1395,33 +1420,38 @@ export function App(): JSX.Element {
       return;
     }
 
-    const resetAck = await emitWithAck<{ gameState: GameState }>(
-      'game:endGame',
-      { gameId: multiplayerState.gameId },
-      'endgame'
-    );
+    suppressHostEndedNoticeRef.current = true;
+    try {
+      const resetAck = await emitWithAck<{ gameState: GameState }>(
+        'game:endGame',
+        { gameId: multiplayerState.gameId },
+        'endgame'
+      );
 
-    if (!resetAck.ok) {
-      setError(resetAck.error);
-      return;
+      if (!resetAck.ok) {
+        setError(resetAck.error);
+        return;
+      }
+
+      const startAck = await emitWithAck<{ gameState: GameState }>(
+        'game:start',
+        { gameId: multiplayerState.gameId },
+        'start'
+      );
+
+      if (!startAck.ok) {
+        setError(startAck.error);
+        setMultiplayerState(resetAck.data.gameState);
+        return;
+      }
+
+      setError(null);
+      setDismissedStatsModalKey(null);
+      setMultiplayerSelectedCardId(null);
+      setMultiplayerState(startAck.data.gameState);
+    } finally {
+      suppressHostEndedNoticeRef.current = false;
     }
-
-    const startAck = await emitWithAck<{ gameState: GameState }>(
-      'game:start',
-      { gameId: multiplayerState.gameId },
-      'start'
-    );
-
-    if (!startAck.ok) {
-      setError(startAck.error);
-      setMultiplayerState(resetAck.data.gameState);
-      return;
-    }
-
-    setError(null);
-    setDismissedStatsModalKey(null);
-    setMultiplayerSelectedCardId(null);
-    setMultiplayerState(startAck.data.gameState);
   };
 
   const handleLeaveMultiplayer = async (): Promise<void> => {
@@ -1446,7 +1476,35 @@ export function App(): JSX.Element {
     lastMultiplayerHandIdsRef.current = [];
     setJoinGameId('');
     setInviteCopied(false);
+    setHostEndedModalGameId(null);
     setError(null);
+  };
+
+  const resetToLanding = (): void => {
+    setMode(null);
+    setMultiplayerState(null);
+    setMultiplayerSelectedCardId(null);
+    setMultiplayerNewCardIds([]);
+    lastMultiplayerHandIdsRef.current = [];
+    setMultiplayerFlow('choose');
+    setShowJoinById(false);
+    setJoinLookup(null);
+    setJoinGameId('');
+    setInviteCopied(false);
+    setHostEndedModalGameId(null);
+    setError(null);
+  };
+
+  const handleAcknowledgeHostEnded = async (): Promise<void> => {
+    const activeGameId = multiplayerState?.gameId ?? hostEndedModalGameId;
+    if (activeGameId && connectionState === 'connected') {
+      await emitWithAck<{ gameState: GameState | null }>(
+        'game:leave',
+        { gameId: activeGameId },
+        'leave'
+      );
+    }
+    resetToLanding();
   };
 
   const handleCopyInviteLink = async (): Promise<void> => {
@@ -1650,11 +1708,7 @@ export function App(): JSX.Element {
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  setMode(null);
-                  setMultiplayerFlow('choose');
-                  setShowJoinById(false);
-                  setJoinLookup(null);
-                  setError(null);
+                  resetToLanding();
                 }}
               >
                 Change Mode
@@ -2071,6 +2125,30 @@ export function App(): JSX.Element {
             </p>
             <p>You can use this power once per turn.</p>
             <p>Select a card, then tap the Nas Cheat button in your hand controls.</p>
+          </section>
+        </div>
+      ) : null}
+
+      {hostEndedModalGameId ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="panel host-ended-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="host ended the game"
+          >
+            <h2>Host Ended The Game</h2>
+            <p>The host ended game {hostEndedModalGameId}. Return to home to join or host another game.</p>
+            <div className="button-row">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => { void handleAcknowledgeHostEnded(); }}
+                disabled={pendingAction === 'leave'}
+              >
+                {pendingAction === 'leave' ? 'Returning...' : 'Back To Home'}
+              </button>
+            </div>
           </section>
         </div>
       ) : null}

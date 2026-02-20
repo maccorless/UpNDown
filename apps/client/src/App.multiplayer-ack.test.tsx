@@ -171,6 +171,36 @@ function createPlayingNasState(): GameState {
   };
 }
 
+function createPlayingState(): GameState {
+  return {
+    ...createLobbyState(),
+    gamePhase: 'playing',
+    currentPlayerIndex: 0,
+    players: [
+      { id: 'socket-1', name: 'Alex', hand: [{ id: 'c-21', value: 21 }], isHost: true },
+      { id: 'socket-2', name: 'Guest', hand: [{ id: 'c-34', value: 34 }], isHost: false }
+    ],
+    drawPile: [{ id: 'c-55', value: 55 }],
+    cardsPlayedThisTurn: 0,
+    statistics: {
+      turns: 1,
+      startedAtMs: Date.now(),
+      endedAtMs: null,
+      players: {
+        'socket-1': { cardsPlayed: 1, totalMovement: 10, specialPlays: 0, nasCheatsUsed: 0 },
+        'socket-2': { cardsPlayed: 1, totalMovement: 9, specialPlays: 0, nasCheatsUsed: 0 }
+      }
+    },
+    nasCheat: {
+      enabledPlayerIds: [],
+      usedThisTurnByPlayerId: {
+        'socket-1': false,
+        'socket-2': false
+      }
+    }
+  };
+}
+
 describe('multiplayer ack handling', () => {
   beforeEach(() => {
     socket.disconnect();
@@ -244,6 +274,73 @@ describe('multiplayer ack handling', () => {
     const alert = await screen.findByRole('alert');
     expect(alert.textContent).toContain('Leave rejected by server');
     expect(screen.getByRole('heading', { name: 'Game ABC123' })).toBeTruthy();
+  });
+
+  it('shows host-ended modal and returns to landing only after acknowledgement', async () => {
+    const playingState = createPlayingState();
+    const endedLobbyState: GameState = {
+      ...createLobbyState(),
+      gameId: playingState.gameId,
+      hostId: 'socket-1',
+      players: [
+        { id: 'socket-1', name: 'Alex', hand: [], isHost: true },
+        { id: 'socket-2', name: 'Guest', hand: [], isHost: false }
+      ],
+      statistics: {
+        turns: 0,
+        startedAtMs: null,
+        endedAtMs: null,
+        players: {
+          'socket-1': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 },
+          'socket-2': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 }
+        }
+      },
+      nasCheat: {
+        enabledPlayerIds: [],
+        usedThisTurnByPlayerId: {
+          'socket-1': false,
+          'socket-2': false
+        }
+      }
+    };
+    let leaveCalls = 0;
+
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:create') {
+        ack?.({ ok: true, data: { gameState: playingState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:endGame') {
+        ack?.({ ok: true, data: { gameState: endedLobbyState } });
+        return;
+      }
+      if (event === 'game:leave') {
+        leaveCalls += 1;
+        ack?.({ ok: true, data: { gameState: null } });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    await user.click(screen.getByTestId('flow-host'));
+
+    expect(await screen.findByTestId('end-game-top')).toBeTruthy();
+    await user.click(screen.getByTestId('end-game-top'));
+
+    expect(await screen.findByRole('dialog', { name: 'host ended the game' })).toBeTruthy();
+    expect(screen.queryByTestId('mode-solitaire')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Back To Home' }));
+    expect(await screen.findByTestId('mode-solitaire')).toBeTruthy();
+    expect(leaveCalls).toBe(1);
   });
 
   it('pauses joinable polling when tab is hidden', async () => {
