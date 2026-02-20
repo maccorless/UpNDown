@@ -51,6 +51,7 @@ describe('GameBoard', () => {
     );
 
     expect(screen.getByTestId('phase-splash')).toBeTruthy();
+    expect(screen.queryByTestId('phase-banner')).toBeNull();
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByTestId('phase-splash')).toBeNull();
   });

@@ -94,6 +94,18 @@ function createLobbyState(): GameState {
   };
 }
 
+function createEndedState(): GameState {
+  return {
+    ...createLobbyState(),
+    gamePhase: 'won',
+    players: [
+      { id: 'socket-1', name: 'Alex', hand: [], isHost: true },
+      { id: 'socket-2', name: 'Guest', hand: [], isHost: false }
+    ],
+    drawPile: []
+  };
+}
+
 describe('multiplayer ack handling', () => {
   beforeEach(() => {
     socket.disconnect();
@@ -260,5 +272,36 @@ describe('multiplayer ack handling', () => {
     expect((screen.getByLabelText('Player Name') as HTMLInputElement).value).toBe('Alex');
 
     secondRender.unmount();
+  });
+
+  it('shows end-game statistics modal with summary and player rows', async () => {
+    const endedState = createEndedState();
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:create') {
+        ack?.({ ok: true, data: { gameState: endedState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    await user.click(screen.getByTestId('flow-host'));
+
+    expect(await screen.findByRole('dialog', { name: 'end game statistics' })).toBeTruthy();
+    expect(screen.getAllByText('Cards Played').length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: 'Player' })).toBeTruthy();
+    expect(screen.getByText('Alex')).toBeTruthy();
+    expect(screen.getByText('Guest')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog', { name: 'end game statistics' })).toBeNull();
   });
 });

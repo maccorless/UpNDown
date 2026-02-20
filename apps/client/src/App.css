@@ -624,6 +624,80 @@ button:disabled {
   gap: 8px;
 }
 
+.stats-modal {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  background: #f7fbff;
+  color: #0f2741;
+  border: 2px solid #4f87bf;
+  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
+}
+
+.stats-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.stats-modal-header h2 {
+  margin: 0;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 6px 10px;
+  padding: 8px;
+  border: 1px solid #9dc1e5;
+  border-radius: 10px;
+  background: #e9f3ff;
+}
+
+.stats-label {
+  color: #264565;
+  font-weight: 600;
+}
+
+.stats-value {
+  color: #0f2741;
+  font-weight: 800;
+  text-align: right;
+}
+
+.stats-table-wrap {
+  overflow: auto;
+}
+
+.stats-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #ffffff;
+  border: 1px solid #9dc1e5;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.stats-table th,
+.stats-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid #d5e6f8;
+  text-align: left;
+  font-size: 14px;
+}
+
+.stats-table th {
+  background: #e9f3ff;
+  color: #143150;
+}
+
+.stats-table tr:last-child td {
+  border-bottom: 0;
+}
+
 .checkbox-label {
   display: flex;
   align-items: center;
@@ -830,6 +904,14 @@ section[aria-label="welcome"] h2 {
 
   .settings-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .stats-value {
+    text-align: left;
   }
 
   .connection-banner {
