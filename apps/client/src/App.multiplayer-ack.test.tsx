@@ -203,6 +203,7 @@ function createPlayingState(): GameState {
 
 describe('multiplayer ack handling', () => {
   beforeEach(() => {
+    vi.spyOn(window, 'confirm').mockReturnValue(true);
     socket.disconnect();
     listJoinableCalls = 0;
     emitHandler = (event, _payload, ack) => {
@@ -218,6 +219,7 @@ describe('multiplayer ack handling', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     vi.clearAllMocks();
   });
 
@@ -341,6 +343,41 @@ describe('multiplayer ack handling', () => {
     await user.click(screen.getByRole('button', { name: 'Back To Home' }));
     expect(await screen.findByTestId('mode-solitaire')).toBeTruthy();
     expect(leaveCalls).toBe(1);
+  });
+
+  it('warns host before ending an active game and does nothing when canceled', async () => {
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    const playingState = createPlayingState();
+    let endGameCalls = 0;
+
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:create') {
+        ack?.({ ok: true, data: { gameState: playingState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:endGame') {
+        endGameCalls += 1;
+        ack?.({ ok: true, data: { gameState: createLobbyState() } });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    await user.click(screen.getByTestId('flow-host'));
+    await user.click(await screen.findByTestId('end-game-top'));
+
+    expect(window.confirm).toHaveBeenCalled();
+    expect(endGameCalls).toBe(0);
+    expect(screen.queryByRole('dialog', { name: 'host ended the game' })).toBeNull();
   });
 
   it('pauses joinable polling when tab is hidden', async () => {

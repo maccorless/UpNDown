@@ -1399,6 +1399,13 @@ export function App(): JSX.Element {
       return;
     }
 
+    if (multiplayerState.gamePhase === 'playing') {
+      const confirmed = window.confirm('End the active game for everyone and return all players to lobby?');
+      if (!confirmed) {
+        return;
+      }
+    }
+
     const ack = await emitWithAck<{ gameState: GameState }>(
       'game:endGame',
       { gameId: multiplayerState.gameId },
