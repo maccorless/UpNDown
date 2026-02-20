@@ -846,7 +846,7 @@ export function App(): JSX.Element {
     const previous = previousMultiplayerSnapshotRef.current;
     const transitionedToLobby = previous
       && previous.gameId === multiplayerState.gameId
-      && previous.phase !== 'lobby'
+      && previous.phase === 'playing'
       && multiplayerState.gamePhase === 'lobby';
     const amSeated = multiplayerState.players.some((player) => player.id === playerId);
     if (transitionedToLobby && amSeated && !suppressHostEndedNoticeRef.current) {
