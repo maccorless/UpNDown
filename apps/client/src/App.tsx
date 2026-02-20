@@ -27,20 +27,6 @@ interface JoinLookupSummary {
   privateGame: boolean;
 }
 
-interface PlayerStatisticsSummary {
-  cardsPlayed: number;
-  totalMovement: number;
-  specialPlays: number;
-}
-
-interface MatchStatisticsSummary {
-  startedAtMs: number;
-  endedAtMs: number | null;
-  turns: number;
-  playerOrder: string[];
-  playerStats: Record<string, PlayerStatisticsSummary>;
-}
-
 const solitaireSettings: GameSettings = {
   minCardValue: 2,
   maxCardValue: 99,
@@ -108,86 +94,6 @@ function syncGameIdInUrl(gameId: string | null): void {
     url.searchParams.delete(GAME_QUERY_PARAM);
   }
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-}
-
-function createEmptyPlayerStats(): PlayerStatisticsSummary {
-  return {
-    cardsPlayed: 0,
-    totalMovement: 0,
-    specialPlays: 0
-  };
-}
-
-function initializeMatchStatistics(state: GameState): MatchStatisticsSummary {
-  return {
-    startedAtMs: Date.now(),
-    endedAtMs: null,
-    turns: 0,
-    playerOrder: state.players.map((player) => player.id),
-    playerStats: Object.fromEntries(state.players.map((player) => [player.id, createEmptyPlayerStats()]))
-  };
-}
-
-function applyStateTransitionToStatistics(
-  previous: GameState,
-  next: GameState,
-  currentStats: MatchStatisticsSummary | null
-): MatchStatisticsSummary {
-  const baseStats = currentStats ?? initializeMatchStatistics(next);
-  const nextStats: MatchStatisticsSummary = {
-    ...baseStats,
-    playerOrder: next.players.map((player) => player.id),
-    playerStats: { ...baseStats.playerStats }
-  };
-
-  for (const player of next.players) {
-    if (!nextStats.playerStats[player.id]) {
-      nextStats.playerStats[player.id] = createEmptyPlayerStats();
-    }
-  }
-
-  const changedPile = previous.foundationPiles.find((pile) => {
-    const after = next.foundationPiles.find((candidate) => candidate.id === pile.id);
-    return !!after && after.topCard.value !== pile.topCard.value;
-  });
-
-  if (changedPile) {
-    const nextPile = next.foundationPiles.find((candidate) => candidate.id === changedPile.id);
-    if (nextPile) {
-      const actor = previous.isSolitaire
-        ? previous.players[0]
-        : previous.players[previous.currentPlayerIndex];
-      if (actor) {
-        const actorStats = nextStats.playerStats[actor.id] ?? createEmptyPlayerStats();
-        const delta = nextPile.topCard.value - changedPile.topCard.value;
-        const movement = Math.abs(delta);
-        const isBackwardTen = (
-          (changedPile.type === 'ascending' && delta === -10)
-          || (changedPile.type === 'descending' && delta === 10)
-        );
-
-        nextStats.playerStats[actor.id] = {
-          cardsPlayed: actorStats.cardsPlayed + 1,
-          totalMovement: actorStats.totalMovement + movement,
-          specialPlays: actorStats.specialPlays + (isBackwardTen ? 1 : 0)
-        };
-      }
-    }
-  }
-
-  const turnAdvanced = !previous.isSolitaire
-    && previous.currentPlayerIndex !== next.currentPlayerIndex
-    && previous.cardsPlayedThisTurn > 0
-    && next.cardsPlayedThisTurn === 0;
-  if (turnAdvanced) {
-    nextStats.turns += 1;
-  }
-
-  if ((next.gamePhase === 'won' || next.gamePhase === 'lost') && nextStats.endedAtMs === null) {
-    nextStats.endedAtMs = Date.now();
-  }
-
-  return nextStats;
 }
 
 function formatDurationLabel(ms: number): string {
@@ -697,7 +603,7 @@ interface EndGameStatisticsModalProps {
   open: boolean;
   mode: Mode;
   gameState: GameState;
-  statistics: MatchStatisticsSummary;
+  statistics: GameState['statistics'];
   isHost: boolean;
   onClose: () => void;
   onPlayAgain: () => void;
@@ -718,15 +624,22 @@ function EndGameStatisticsModal({
     return null;
   }
 
+  const fallbackPlayerStats = {
+    cardsPlayed: 0,
+    totalMovement: 0,
+    specialPlays: 0
+  };
   const playerRows = gameState.players.map((player) => ({
     ...player,
-    stats: statistics.playerStats[player.id] ?? createEmptyPlayerStats()
+    stats: statistics.players[player.id] ?? fallbackPlayerStats
   }));
   const totalCardsPlayed = playerRows.reduce((sum, row) => sum + row.stats.cardsPlayed, 0);
   const totalMovement = playerRows.reduce((sum, row) => sum + row.stats.totalMovement, 0);
   const totalSpecialPlays = playerRows.reduce((sum, row) => sum + row.stats.specialPlays, 0);
   const averageMovement = totalCardsPlayed > 0 ? (totalMovement / totalCardsPlayed) : 0;
-  const durationMs = (statistics.endedAtMs ?? Date.now()) - statistics.startedAtMs;
+  const durationMs = statistics.startedAtMs
+    ? (statistics.endedAtMs ?? Date.now()) - statistics.startedAtMs
+    : 0;
   const turnsOrPlaysLabel = mode === 'multiplayer'
     ? `${statistics.turns} turns`
     : `${totalCardsPlayed} plays`;
@@ -791,7 +704,14 @@ function EndGameStatisticsModal({
           >
             {mode === 'multiplayer' ? (isHost ? 'Play Again' : 'Host Restarts') : 'Play Again'}
           </button>
-          <button type="button" className="secondary" onClick={onBackToLobby}>Back to Lobby</button>
+          <button
+            type="button"
+            className="secondary"
+            onClick={onBackToLobby}
+            disabled={mode === 'multiplayer' && !isHost}
+          >
+            {mode === 'multiplayer' ? (isHost ? 'Back to Lobby' : 'Host Returns to Lobby') : 'Back to Lobby'}
+          </button>
           <button type="button" className="secondary" onClick={onClose}>Close</button>
         </div>
       </section>
@@ -815,8 +735,6 @@ export function App(): JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [solitaireNewCardIds, setSolitaireNewCardIds] = useState<string[]>([]);
   const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
-  const [solitaireStats, setSolitaireStats] = useState<MatchStatisticsSummary | null>(null);
-  const [multiplayerStats, setMultiplayerStats] = useState<MatchStatisticsSummary | null>(null);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
   const [joinGameId, setJoinGameId] = useState('');
@@ -835,7 +753,6 @@ export function App(): JSX.Element {
 
   const socketRef = useRef<Socket | null>(null);
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
-  const previousMultiplayerStateRef = useRef<GameState | null>(null);
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
@@ -887,34 +804,6 @@ export function App(): JSX.Element {
   useEffect(() => {
     setInviteCopied(false);
   }, [multiplayerState?.gameId]);
-
-  useEffect(() => {
-    const previous = previousMultiplayerStateRef.current;
-
-    if (!multiplayerState) {
-      previousMultiplayerStateRef.current = null;
-      setMultiplayerStats(null);
-      return;
-    }
-
-    if (multiplayerState.gamePhase === 'lobby') {
-      previousMultiplayerStateRef.current = multiplayerState;
-      setMultiplayerStats(null);
-      return;
-    }
-
-    setMultiplayerStats((current) => {
-      if (!current) {
-        return initializeMatchStatistics(multiplayerState);
-      }
-      if (!previous) {
-        return current;
-      }
-      return applyStateTransitionToStatistics(previous, multiplayerState, current);
-    });
-
-    previousMultiplayerStateRef.current = multiplayerState;
-  }, [multiplayerState]);
 
   useEffect(() => {
     if (mode !== 'multiplayer') {
@@ -1194,7 +1083,6 @@ export function App(): JSX.Element {
     const nextState = newSolitaireGame(solitaireConfig);
     setSolitaireActive(true);
     setSolitaireState(nextState);
-    setSolitaireStats(initializeMatchStatistics(nextState));
     setDismissedStatsModalKey(null);
     setSolitaireSelectedCardId(null);
     setSolitaireNewCardIds([]);
@@ -1203,7 +1091,6 @@ export function App(): JSX.Element {
 
   const handleSolitaireEndGame = (): void => {
     setSolitaireActive(false);
-    setSolitaireStats(null);
     setSolitaireSelectedCardId(null);
     setSolitaireNewCardIds([]);
     setError(null);
@@ -1215,7 +1102,6 @@ export function App(): JSX.Element {
     try {
       const next = playCardEngine(solitaireState, SOLO_PLAYER_ID, solitaireSelectedCardId, pileId);
       setSolitaireState(next);
-      setSolitaireStats((current) => applyStateTransitionToStatistics(solitaireState, next, current));
       setSolitaireSelectedCardId(null);
       setError(null);
     } catch (err) {
@@ -1404,6 +1290,40 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
   };
 
+  const handleMultiplayerPlayAgain = async (): Promise<void> => {
+    if (!multiplayerState || multiplayerState.hostId !== playerId) {
+      return;
+    }
+
+    const resetAck = await emitWithAck<{ gameState: GameState }>(
+      'game:endGame',
+      { gameId: multiplayerState.gameId },
+      'endgame'
+    );
+
+    if (!resetAck.ok) {
+      setError(resetAck.error);
+      return;
+    }
+
+    const startAck = await emitWithAck<{ gameState: GameState }>(
+      'game:start',
+      { gameId: multiplayerState.gameId },
+      'start'
+    );
+
+    if (!startAck.ok) {
+      setError(startAck.error);
+      setMultiplayerState(resetAck.data.gameState);
+      return;
+    }
+
+    setError(null);
+    setDismissedStatsModalKey(null);
+    setMultiplayerSelectedCardId(null);
+    setMultiplayerState(startAck.data.gameState);
+  };
+
   const handleLeaveMultiplayer = async (): Promise<void> => {
     if (!multiplayerState) {
       return;
@@ -1559,7 +1479,11 @@ export function App(): JSX.Element {
     : solitaireEnded
       ? `solitaire:${solitaireState.gameId}:${solitaireState.gamePhase}`
       : null;
-  const activeStatsSummary = multiplayerEnded ? multiplayerStats : solitaireEnded ? solitaireStats : null;
+  const activeStatsSummary = multiplayerEnded
+    ? multiplayerState?.statistics ?? null
+    : solitaireEnded
+      ? solitaireState.statistics
+      : null;
   const activeStatsState = multiplayerEnded && multiplayerState ? multiplayerState : solitaireEnded ? solitaireState : null;
   const statsModalOpen = !!activeStatsModalKey
     && !!activeStatsSummary
@@ -2022,7 +1946,7 @@ export function App(): JSX.Element {
               return;
             }
             if (mode === 'multiplayer') {
-              void handleMultiplayerEndGame();
+              void handleMultiplayerPlayAgain();
             }
           }}
           onBackToLobby={() => {
@@ -2032,7 +1956,7 @@ export function App(): JSX.Element {
               return;
             }
             if (mode === 'multiplayer') {
-              void handleLeaveMultiplayer();
+              void handleMultiplayerEndGame();
             }
           }}
         />

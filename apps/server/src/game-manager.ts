@@ -4,6 +4,7 @@ import type {
   GameState,
   GameSettings,
   JoinGamePayload,
+  PlayerStatistics,
   PlayCardPayload,
   Player,
   UpdateSettingsPayload
@@ -29,6 +30,14 @@ export interface JoinLookupSummary {
   playerCount: number;
   maxPlayers: number;
   privateGame: boolean;
+}
+
+function emptyPlayerStats(): PlayerStatistics {
+  return {
+    cardsPlayed: 0,
+    totalMovement: 0,
+    specialPlays: 0
+  };
 }
 
 function generateGameId(): string {
@@ -66,6 +75,14 @@ export class GameManager {
       currentPlayerIndex: 0,
       gamePhase: 'lobby',
       cardsPlayedThisTurn: 0,
+      statistics: {
+        turns: 0,
+        startedAtMs: null,
+        endedAtMs: null,
+        players: {
+          [ownerPlayerId]: emptyPlayerStats()
+        }
+      },
       settings: payload.settings,
       isSolitaire: false
     };
@@ -126,7 +143,14 @@ export class GameManager {
 
     const nextState: GameState = {
       ...gameState,
-      players: [...gameState.players, { id: playerId, name: payload.playerName, hand: [], isHost: false }]
+      players: [...gameState.players, { id: playerId, name: payload.playerName, hand: [], isHost: false }],
+      statistics: {
+        ...gameState.statistics,
+        players: {
+          ...gameState.statistics.players,
+          [playerId]: gameState.statistics.players[playerId] ?? emptyPlayerStats()
+        }
+      }
     };
 
     room.gameState = nextState;
@@ -219,7 +243,13 @@ export class GameManager {
       drawPile: [],
       currentPlayerIndex: 0,
       cardsPlayedThisTurn: 0,
-      gamePhase: 'lobby'
+      gamePhase: 'lobby',
+      statistics: {
+        turns: 0,
+        startedAtMs: null,
+        endedAtMs: null,
+        players: Object.fromEntries(gameState.players.map((player) => [player.id, emptyPlayerStats()]))
+      }
     };
 
     room.gameState = nextState;
@@ -282,7 +312,14 @@ export class GameManager {
       players: players.map((player) => ({
         ...player,
         isHost: player.id === (nextHost?.id ?? gameState.hostId)
-      }))
+      })),
+      statistics: {
+        ...gameState.statistics,
+        players: Object.fromEntries(players.map((player) => [
+          player.id,
+          gameState.statistics.players[player.id] ?? emptyPlayerStats()
+        ]))
+      }
     };
 
     room.gameState = nextState;

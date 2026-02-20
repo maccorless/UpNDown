@@ -24,6 +24,18 @@ const WON_STATE: GameState = {
   currentPlayerIndex: 0,
   gamePhase: 'won',
   cardsPlayedThisTurn: 0,
+  statistics: {
+    turns: 0,
+    startedAtMs: Date.now(),
+    endedAtMs: Date.now(),
+    players: {
+      'solo-player': {
+        cardsPlayed: 0,
+        totalMovement: 0,
+        specialPlays: 0
+      }
+    }
+  },
   settings: {
     minCardValue: 1,
     maxCardValue: 100,

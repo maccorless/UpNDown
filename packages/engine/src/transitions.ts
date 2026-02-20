@@ -1,4 +1,11 @@
-import type { Card, FoundationPile, GameState, GameSettings, Player } from '@upndown/shared-types';
+import type {
+  Card,
+  FoundationPile,
+  GameState,
+  GameSettings,
+  Player,
+  PlayerStatistics
+} from '@upndown/shared-types';
 import { createFoundationPiles } from './init.js';
 import { EngineError } from './errors.js';
 import { isValidPlay, requiredCardsForTurn } from './rules.js';
@@ -19,6 +26,30 @@ interface CreateStartedGameParams {
 
 function clonePlayer(player: Player): Player {
   return { ...player, hand: [...player.hand] };
+}
+
+function emptyPlayerStats(): PlayerStatistics {
+  return {
+    cardsPlayed: 0,
+    totalMovement: 0,
+    specialPlays: 0
+  };
+}
+
+function ensureStatsForPlayers(state: GameState): GameState {
+  const playersStats = { ...state.statistics.players };
+  for (const player of state.players) {
+    if (!playersStats[player.id]) {
+      playersStats[player.id] = emptyPlayerStats();
+    }
+  }
+  return {
+    ...state,
+    statistics: {
+      ...state.statistics,
+      players: playersStats
+    }
+  };
 }
 
 function drawOne(drawPile: Card[]): Card | null {
@@ -97,7 +128,14 @@ function canPlayerSatisfyRequiredPlays(
 function evaluateWin(state: GameState): GameState {
   const allHandsEmpty = state.players.every((player) => player.hand.length === 0);
   if (allHandsEmpty) {
-    return { ...state, gamePhase: 'won' };
+    return {
+      ...state,
+      gamePhase: 'won',
+      statistics: {
+        ...state.statistics,
+        endedAtMs: state.statistics.endedAtMs ?? Date.now()
+      }
+    };
   }
 
   return state;
@@ -122,7 +160,14 @@ function evaluateLossForCurrentPlayer(state: GameState): GameState {
       true
     );
 
-    return canPlayAny ? state : { ...state, gamePhase: 'lost' };
+    return canPlayAny ? state : {
+      ...state,
+      gamePhase: 'lost',
+      statistics: {
+        ...state.statistics,
+        endedAtMs: state.statistics.endedAtMs ?? Date.now()
+      }
+    };
   }
 
   // Multiplayer loss is only when there are zero legal moves and the active player
@@ -142,7 +187,14 @@ function evaluateLossForCurrentPlayer(state: GameState): GameState {
 
   const required = requiredCardsForTurn(state.settings.minCardsPerTurn, state.drawPile.length);
   const canEndTurn = state.cardsPlayedThisTurn >= required;
-  return canEndTurn ? state : { ...state, gamePhase: 'lost' };
+  return canEndTurn ? state : {
+    ...state,
+    gamePhase: 'lost',
+    statistics: {
+      ...state.statistics,
+      endedAtMs: state.statistics.endedAtMs ?? Date.now()
+    }
+  };
 }
 
 function nextPlayerIndexWithCards(players: Player[], fromIndex: number): number {
@@ -211,11 +263,17 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
     currentPlayerIndex: 0,
     gamePhase: 'playing',
     cardsPlayedThisTurn: 0,
+    statistics: {
+      turns: 0,
+      startedAtMs: Date.now(),
+      endedAtMs: null,
+      players: Object.fromEntries(initializedPlayers.map((player) => [player.id, emptyPlayerStats()]))
+    },
     settings,
     isSolitaire
   };
 
-  return evaluateLossForCurrentPlayer(evaluateWin(state));
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(state)));
 }
 
 export function playCard(state: GameState, playerId: string, cardId: string, pileId: number): GameState {
@@ -227,7 +285,11 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     ...state,
     players: state.players.map(clonePlayer),
     foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
-    drawPile: [...state.drawPile]
+    drawPile: [...state.drawPile],
+    statistics: {
+      ...state.statistics,
+      players: { ...state.statistics.players }
+    }
   };
 
   const playerIndex = nextState.players.findIndex((player) => player.id === playerId);
@@ -264,14 +326,28 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     throw new EngineError('INVALID_PLAY', 'Card cannot be played on selected foundation pile');
   }
 
+  const previousTopValue = pile.topCard.value;
   pile.topCard = card;
   nextState.cardsPlayedThisTurn += 1;
+
+  const activeStats = nextState.statistics.players[player.id] ?? emptyPlayerStats();
+  const movementDelta = card.value - previousTopValue;
+  const movement = Math.abs(movementDelta);
+  const isBackwardTen = (
+    (pile.type === 'ascending' && movementDelta === -10)
+    || (pile.type === 'descending' && movementDelta === 10)
+  );
+  nextState.statistics.players[player.id] = {
+    cardsPlayed: activeStats.cardsPlayed + 1,
+    totalMovement: activeStats.totalMovement + movement,
+    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0)
+  };
 
   if (nextState.isSolitaire || nextState.settings.autoRefillHand) {
     drawToHand(player, nextState.drawPile, nextState.settings.handSize);
   }
 
-  return evaluateLossForCurrentPlayer(evaluateWin(nextState));
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
 }
 
 export function endTurn(state: GameState, playerId: string): GameState {
@@ -301,7 +377,12 @@ export function endTurn(state: GameState, playerId: string): GameState {
     players: state.players.map(clonePlayer),
     foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
     drawPile: [...state.drawPile],
-    cardsPlayedThisTurn: 0
+    cardsPlayedThisTurn: 0,
+    statistics: {
+      ...state.statistics,
+      turns: state.statistics.turns + 1,
+      players: { ...state.statistics.players }
+    }
   };
 
   const activePlayer = nextState.players[nextState.currentPlayerIndex];
@@ -315,5 +396,5 @@ export function endTurn(state: GameState, playerId: string): GameState {
 
   nextState.currentPlayerIndex = nextPlayerIndexWithCards(nextState.players, nextState.currentPlayerIndex);
 
-  return evaluateLossForCurrentPlayer(evaluateWin(nextState));
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
 }

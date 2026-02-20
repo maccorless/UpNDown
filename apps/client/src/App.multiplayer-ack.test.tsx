@@ -89,6 +89,18 @@ function createLobbyState(): GameState {
     currentPlayerIndex: 0,
     gamePhase: 'lobby',
     cardsPlayedThisTurn: 0,
+    statistics: {
+      turns: 0,
+      startedAtMs: null,
+      endedAtMs: null,
+      players: {
+        'socket-1': {
+          cardsPlayed: 0,
+          totalMovement: 0,
+          specialPlays: 0
+        }
+      }
+    },
     settings: multiplayerSettings,
     isSolitaire: false
   };
@@ -102,7 +114,16 @@ function createEndedState(): GameState {
       { id: 'socket-1', name: 'Alex', hand: [], isHost: true },
       { id: 'socket-2', name: 'Guest', hand: [], isHost: false }
     ],
-    drawPile: []
+    drawPile: [],
+    statistics: {
+      turns: 0,
+      startedAtMs: Date.now(),
+      endedAtMs: Date.now(),
+      players: {
+        'socket-1': { cardsPlayed: 3, totalMovement: 33, specialPlays: 1 },
+        'socket-2': { cardsPlayed: 2, totalMovement: 18, specialPlays: 0 }
+      }
+    }
   };
 }
 

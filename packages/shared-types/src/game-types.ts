@@ -31,6 +31,19 @@ export interface GameSettings {
   privateGame: boolean;
 }
 
+export interface PlayerStatistics {
+  cardsPlayed: number;
+  totalMovement: number;
+  specialPlays: number;
+}
+
+export interface GameStatistics {
+  turns: number;
+  startedAtMs: number | null;
+  endedAtMs: number | null;
+  players: Record<string, PlayerStatistics>;
+}
+
 export interface GameState {
   gameId: string;
   hostId: string;
@@ -40,6 +53,7 @@ export interface GameState {
   currentPlayerIndex: number;
   gamePhase: GamePhase;
   cardsPlayedThisTurn: number;
+  statistics: GameStatistics;
   settings: GameSettings;
   isSolitaire: boolean;
 }

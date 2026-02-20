@@ -347,28 +347,6 @@ body {
   opacity: 0.96;
 }
 
-.phase-banner {
-  margin-top: 8px;
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  border: 1px solid #3b5677;
-  padding: 4px 10px;
-  font-size: 14px;
-  font-weight: 700;
-  width: fit-content;
-}
-
-.phase-banner.won {
-  background: color-mix(in srgb, var(--good) 28%, #122235);
-  border-color: color-mix(in srgb, var(--good) 45%, #3b5677);
-}
-
-.phase-banner.lost {
-  background: color-mix(in srgb, var(--danger) 24%, #122235);
-  border-color: color-mix(in srgb, var(--danger) 45%, #3b5677);
-}
-
 .button-row {
   display: flex;
   flex-wrap: wrap;
