@@ -282,18 +282,38 @@ describe('multiplayer ack handling', () => {
     expect(listJoinableCalls).toBe(pausedCount);
   });
 
-  it('prefills join by id when opened from a game invite link', async () => {
+  it('auto-joins deep-linked game when player name is already known', async () => {
     window.history.replaceState(null, '', '/?game=Q7M2K9');
+    window.localStorage.setItem('upndown.multiplayer.playerName.v1', 'Alex');
+    const joinedState: GameState = {
+      ...createLobbyState(),
+      gameId: 'Q7M2K9',
+      players: [
+        { id: 'socket-1', name: 'Alex', hand: [], isHost: false },
+        { id: 'socket-host', name: 'Host', hand: [], isHost: true }
+      ],
+      hostId: 'socket-host'
+    };
 
-    const user = userEvent.setup();
+    let joinCalls = 0;
+    emitHandler = (event, payload, ack) => {
+      if (event === 'game:join') {
+        joinCalls += 1;
+        expect(payload).toEqual({ gameId: 'Q7M2K9', playerName: 'Alex' });
+        ack?.({ ok: true, data: { gameState: joinedState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
     render(<App />);
 
-    expect(await screen.findByRole('heading', { name: 'Multiplayer' })).toBeTruthy();
-    expect(screen.getByTestId('show-join-by-id').textContent).toContain('Hide Join by ID');
-    expect((screen.getByLabelText('Private Game ID') as HTMLInputElement).value).toBe('Q7M2K9');
-
-    await user.type(screen.getByLabelText('Player Name'), 'Alex');
-    expect((screen.getByTestId('join-game') as HTMLButtonElement).disabled).toBe(false);
+    expect(await screen.findByRole('heading', { name: 'Game Q7M2K9' })).toBeTruthy();
+    expect(joinCalls).toBe(1);
   });
 
   it('shows a shareable invite link after hosting a lobby game', async () => {

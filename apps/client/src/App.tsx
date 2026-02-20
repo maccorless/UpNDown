@@ -763,7 +763,6 @@ export function App(): JSX.Element {
   const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
   const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
-  const [shownNasCheatGameKey, setShownNasCheatGameKey] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
@@ -781,6 +780,9 @@ export function App(): JSX.Element {
 
   const socketRef = useRef<Socket | null>(null);
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
+  const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
+  const shownNasCheatGameKeyRef = useRef<string | null>(null);
+  const nasCheatIntroTimerRef = useRef<number | null>(null);
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
@@ -833,25 +835,70 @@ export function App(): JSX.Element {
     setInviteCopied(false);
   }, [multiplayerState?.gameId]);
 
+  const dismissNasCheatIntro = (): void => {
+    setShowNasCheatIntro(false);
+    if (nasCheatIntroTimerRef.current) {
+      window.clearTimeout(nasCheatIntroTimerRef.current);
+      nasCheatIntroTimerRef.current = null;
+    }
+  };
+
   useEffect(() => {
     if (mode !== 'multiplayer' || !multiplayerState || !playerId || multiplayerState.gamePhase !== 'playing') {
-      setShowNasCheatIntro(false);
+      dismissNasCheatIntro();
+      if (!multiplayerState || multiplayerState.gamePhase !== 'playing') {
+        shownNasCheatGameKeyRef.current = null;
+      }
       return;
     }
 
     const nasEnabledForMe = multiplayerState.nasCheat.enabledPlayerIds.includes(playerId);
-    const introKey = `${multiplayerState.gameId}:${multiplayerState.statistics.startedAtMs ?? 'none'}`;
-    if (!nasEnabledForMe || shownNasCheatGameKey === introKey) {
+    if (!nasEnabledForMe) {
+      dismissNasCheatIntro();
       return;
     }
 
-    setShownNasCheatGameKey(introKey);
+    const introKey = `${multiplayerState.gameId}:${multiplayerState.statistics.startedAtMs ?? 'none'}`;
+    if (shownNasCheatGameKeyRef.current === introKey) {
+      return;
+    }
+    shownNasCheatGameKeyRef.current = introKey;
     setShowNasCheatIntro(true);
-    const timer = window.setTimeout(() => {
+    if (nasCheatIntroTimerRef.current) {
+      window.clearTimeout(nasCheatIntroTimerRef.current);
+    }
+    nasCheatIntroTimerRef.current = window.setTimeout(() => {
       setShowNasCheatIntro(false);
+      nasCheatIntroTimerRef.current = null;
     }, 5000);
-    return () => window.clearTimeout(timer);
   }, [mode, multiplayerState, playerId]);
+
+  useEffect(() => () => {
+    if (nasCheatIntroTimerRef.current) {
+      window.clearTimeout(nasCheatIntroTimerRef.current);
+      nasCheatIntroTimerRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mode !== 'multiplayer' || multiplayerState || connectionState !== 'connected') {
+      return;
+    }
+
+    const deepLinkGameId = pendingAutoJoinGameIdRef.current;
+    if (!deepLinkGameId) {
+      return;
+    }
+    if (normalizeGameId(joinGameId) !== deepLinkGameId) {
+      return;
+    }
+    if (!playerName.trim()) {
+      return;
+    }
+
+    pendingAutoJoinGameIdRef.current = null;
+    void handleJoinGame(deepLinkGameId);
+  }, [mode, multiplayerState, connectionState, joinGameId, playerName]);
 
   useEffect(() => {
     if (mode !== 'multiplayer') {
@@ -2020,7 +2067,7 @@ export function App(): JSX.Element {
       ) : null}
 
       {showNasCheatIntro ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setShowNasCheatIntro(false)}>
+        <div className="modal-backdrop" role="presentation" onClick={dismissNasCheatIntro}>
           <section
             className="panel nas-cheat-modal"
             role="dialog"
@@ -2035,6 +2082,7 @@ export function App(): JSX.Element {
               and you draw the top card as a replacement.
             </p>
             <p>You can use this power once per turn.</p>
+            <p>Select a card, then tap the Nas Cheat button in your hand controls.</p>
           </section>
         </div>
       ) : null}
