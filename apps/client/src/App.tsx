@@ -861,7 +861,7 @@ export function App(): JSX.Element {
         return;
       }
 
-      const ok = await refreshJoinableGames();
+      const ok = await refreshJoinableGames({ background: true });
       if (cancelled) {
         return;
       }
@@ -928,12 +928,15 @@ export function App(): JSX.Element {
     }
   };
 
-  const refreshJoinableGames = async (): Promise<boolean> => {
+  const refreshJoinableGames = async (options?: { background?: boolean }): Promise<boolean> => {
     if (mode !== 'multiplayer' || multiplayerState) {
       return false;
     }
 
-    setLoadingJoinableGames(true);
+    const background = options?.background ?? false;
+    if (!background) {
+      setLoadingJoinableGames(true);
+    }
     try {
       const ack = await requestSocketAck<{ games: JoinableGameSummary[] }>('game:listJoinable', {});
       if (!ack.ok) {
@@ -946,7 +949,9 @@ export function App(): JSX.Element {
       setError(null);
       return true;
     } finally {
-      setLoadingJoinableGames(false);
+      if (!background) {
+        setLoadingJoinableGames(false);
+      }
     }
   };
 
@@ -1540,7 +1545,7 @@ export function App(): JSX.Element {
                   <div className="joinable-list" aria-label="joinable games">
                     <h3>Public Games</h3>
                     {joinableGames.length === 0 ? (
-                      <div className="pill">No public lobby games right now.</div>
+                      <div className="info-message">No public lobby games right now.</div>
                     ) : (
                       joinableGames.map((game) => (
                         <div key={game.gameId} className="joinable-item">
@@ -1615,7 +1620,7 @@ export function App(): JSX.Element {
                   ) : null}
 
                   {showJoinById && joinLookup ? (
-                    <div className="pill" data-testid="private-lookup-result">
+                    <div className="info-message" data-testid="private-lookup-result">
                       {joinLookup.privateGame ? 'Private' : 'Public'} game • {joinLookup.playerCount}/{joinLookup.maxPlayers} joined
                     </div>
                   ) : null}
@@ -1642,7 +1647,7 @@ export function App(): JSX.Element {
                   {inviteCopied ? 'Copied' : 'Copy Link'}
                 </button>
               </div>
-              {inviteCopied ? <div className="pill">Invite link copied.</div> : null}
+              {inviteCopied ? <div className="info-message">Invite link copied.</div> : null}
               <div className="pill">
                 Players in Lobby: {multiplayerState.players.length}/{multiplayerState.settings.maxPlayers}
               </div>
@@ -1665,7 +1670,7 @@ export function App(): JSX.Element {
                     {pendingAction === 'start' ? 'Starting...' : 'Start Game'}
                   </button>
                 ) : (
-                  <div className="pill">Only host can start the game.</div>
+                  <div className="info-message">Only host can start the game.</div>
                 )}
                 <button
                   type="button"

@@ -157,6 +157,20 @@ body {
   font-size: 12px;
 }
 
+.info-message {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  background: #103257;
+  border: 1px solid #0a2746;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #f4f9ff;
+}
+
 .panel {
   background: rgba(236, 246, 255, 0.92);
   border: 1px solid rgba(93, 132, 176, 0.35);
