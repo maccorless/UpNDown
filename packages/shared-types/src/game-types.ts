@@ -35,6 +35,7 @@ export interface PlayerStatistics {
   cardsPlayed: number;
   totalMovement: number;
   specialPlays: number;
+  nasCheatsUsed: number;
 }
 
 export interface GameStatistics {
@@ -42,6 +43,11 @@ export interface GameStatistics {
   startedAtMs: number | null;
   endedAtMs: number | null;
   players: Record<string, PlayerStatistics>;
+}
+
+export interface NasCheatState {
+  enabledPlayerIds: string[];
+  usedThisTurnByPlayerId: Record<string, boolean>;
 }
 
 export interface GameState {
@@ -54,6 +60,7 @@ export interface GameState {
   gamePhase: GamePhase;
   cardsPlayedThisTurn: number;
   statistics: GameStatistics;
+  nasCheat: NasCheatState;
   settings: GameSettings;
   isSolitaire: boolean;
 }
@@ -73,6 +80,11 @@ export interface PlayCardPayload {
   gameId: string;
   cardId: string;
   pileId: number;
+}
+
+export interface NasCheatPayload {
+  gameId: string;
+  cardId: string;
 }
 
 export interface UpdateSettingsPayload {

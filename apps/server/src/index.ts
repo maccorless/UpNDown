@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   createGamePayloadSchema,
   joinGamePayloadSchema,
+  nasCheatPayloadSchema,
   playCardPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
@@ -32,10 +33,11 @@ interface RateLimitRule {
   windowMs: number;
 }
 
-const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard', RateLimitRule> = {
+const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard' | 'game:nasCheat', RateLimitRule> = {
   'game:join': { limit: 10, windowMs: 10_000 },
   'game:lookup': { limit: 20, windowMs: 10_000 },
-  'game:playCard': { limit: 60, windowMs: 10_000 }
+  'game:playCard': { limit: 60, windowMs: 10_000 },
+  'game:nasCheat': { limit: 30, windowMs: 10_000 }
 };
 
 function parseAllowedOrigins(raw: string | undefined): string[] {
@@ -254,6 +256,25 @@ export function createRealtimeServer(port?: number) {
       } catch (err) {
         const message = normalizeError(err, 'Unable to play card');
         log('warn', 'game.play_failed', { socketId: socket.id, error: message });
+        ack?.({ ok: false, error: message });
+      }
+    });
+
+    socket.on('game:nasCheat', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:nasCheat')) {
+        const message = 'Too many cheat attempts. Please wait a moment and try again.';
+        log('warn', 'game.nas_cheat_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
+      try {
+        const parsed = nasCheatPayloadSchema.parse(payload);
+        const gameState = manager.nasCheat(socket.id, parsed);
+        io.to(gameState.gameId).emit('game:updated', gameState);
+        ack?.({ ok: true, data: { gameState } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to use Nas cheat');
+        log('warn', 'game.nas_cheat_failed', { socketId: socket.id, error: message });
         ack?.({ ok: false, error: message });
       }
     });

@@ -97,8 +97,15 @@ function createLobbyState(): GameState {
         'socket-1': {
           cardsPlayed: 0,
           totalMovement: 0,
-          specialPlays: 0
+          specialPlays: 0,
+          nasCheatsUsed: 0
         }
+      }
+    },
+    nasCheat: {
+      enabledPlayerIds: [],
+      usedThisTurnByPlayerId: {
+        'socket-1': false
       }
     },
     settings: multiplayerSettings,
@@ -120,8 +127,45 @@ function createEndedState(): GameState {
       startedAtMs: Date.now(),
       endedAtMs: Date.now(),
       players: {
-        'socket-1': { cardsPlayed: 3, totalMovement: 33, specialPlays: 1 },
-        'socket-2': { cardsPlayed: 2, totalMovement: 18, specialPlays: 0 }
+        'socket-1': { cardsPlayed: 3, totalMovement: 33, specialPlays: 1, nasCheatsUsed: 2 },
+        'socket-2': { cardsPlayed: 2, totalMovement: 18, specialPlays: 0, nasCheatsUsed: 0 }
+      }
+    },
+    nasCheat: {
+      enabledPlayerIds: ['socket-1'],
+      usedThisTurnByPlayerId: {
+        'socket-1': true,
+        'socket-2': false
+      }
+    }
+  };
+}
+
+function createPlayingNasState(): GameState {
+  return {
+    ...createEndedState(),
+    gamePhase: 'playing',
+    currentPlayerIndex: 0,
+    players: [
+      { id: 'socket-1', name: 'nas', hand: [{ id: 'c-21', value: 21 }], isHost: true },
+      { id: 'socket-2', name: 'Guest', hand: [{ id: 'c-34', value: 34 }], isHost: false }
+    ],
+    drawPile: [{ id: 'c-55', value: 55 }],
+    cardsPlayedThisTurn: 0,
+    statistics: {
+      turns: 1,
+      startedAtMs: Date.now(),
+      endedAtMs: null,
+      players: {
+        'socket-1': { cardsPlayed: 1, totalMovement: 10, specialPlays: 0, nasCheatsUsed: 0 },
+        'socket-2': { cardsPlayed: 1, totalMovement: 9, specialPlays: 0, nasCheatsUsed: 0 }
+      }
+    },
+    nasCheat: {
+      enabledPlayerIds: ['socket-1'],
+      usedThisTurnByPlayerId: {
+        'socket-1': false,
+        'socket-2': false
       }
     }
   };
@@ -318,6 +362,8 @@ describe('multiplayer ack handling', () => {
 
     expect(await screen.findByRole('dialog', { name: 'end game statistics' })).toBeTruthy();
     expect(screen.getAllByText('Cards Played').length).toBeGreaterThan(0);
+    expect(screen.getByText('Nascheats Used')).toBeTruthy();
+    expect(screen.getByRole('columnheader', { name: 'Nascheats' })).toBeTruthy();
     expect(screen.getByRole('columnheader', { name: 'Player' })).toBeTruthy();
     expect(screen.getByText('Alex')).toBeTruthy();
     expect(screen.getByText('Guest')).toBeTruthy();
@@ -325,4 +371,35 @@ describe('multiplayer ack handling', () => {
     await user.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog', { name: 'end game statistics' })).toBeNull();
   });
+
+  it('shows nas cheat intro modal for nas player at game start and hides after 5 seconds', async () => {
+    const playingState = createPlayingNasState();
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:create') {
+        ack?.({ ok: true, data: { gameState: playingState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'nas');
+    await user.click(screen.getByTestId('flow-host'));
+
+    expect(await screen.findByRole('dialog', { name: 'nas cheat mode enabled' })).toBeTruthy();
+    expect(screen.getByTestId('nas-cheat')).toBeTruthy();
+
+    await act(async () => {
+      await sleep(5100);
+    });
+
+    expect(screen.queryByRole('dialog', { name: 'nas cheat mode enabled' })).toBeNull();
+  }, 10000);
 });

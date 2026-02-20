@@ -96,6 +96,68 @@ describe('socket integration', () => {
     guest.disconnect();
   });
 
+  it('allows nas player to use nas cheat once per turn', async () => {
+    const host = await connect();
+    const guest = await connect();
+
+    const createResponse = await new Promise<Ack<{ gameState: { gameId: string } }>>((resolve) => {
+      host.emit(
+        'game:create',
+        {
+          playerName: 'nas',
+          isSolitaire: false,
+          settings: {
+            minCardValue: 2,
+            maxCardValue: 99,
+            handSize: 7,
+            minPlayers: 2,
+            maxPlayers: 6,
+            minCardsPerTurn: 2,
+            autoRefillHand: false,
+            allowUndo: false,
+            privateGame: false
+          }
+        },
+        (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
+      );
+    });
+
+    expect(createResponse.ok).toBe(true);
+    if (!createResponse.ok) return;
+    const gameId = createResponse.data.gameState.gameId;
+
+    await new Promise<Ack<{ gameState: { players: Array<{ id: string }> } }>>((resolve) => {
+      guest.emit('game:join', { gameId, playerName: 'Guest' }, (ack: Ack<{ gameState: { players: Array<{ id: string }> } }>) => resolve(ack));
+    });
+
+    const startResponse = await new Promise<Ack<{ gameState: { players: Array<{ hand: Array<{ id: string }> }> } }>>((resolve) => {
+      host.emit('game:start', { gameId }, (ack: Ack<{ gameState: { players: Array<{ hand: Array<{ id: string }> }> } }>) => resolve(ack));
+    });
+    expect(startResponse.ok).toBe(true);
+    if (!startResponse.ok) return;
+
+    const cardId = startResponse.data.gameState.players[0]?.hand[0]?.id;
+    if (!cardId) {
+      throw new Error('missing host card');
+    }
+
+    const cheatResponse = await new Promise<Ack<{ gameState: { statistics: { players: Record<string, { nasCheatsUsed: number }> }; nasCheat: { usedThisTurnByPlayerId: Record<string, boolean> } } }>>((resolve) => {
+      host.emit('game:nasCheat', { gameId, cardId }, (ack: Ack<{ gameState: { statistics: { players: Record<string, { nasCheatsUsed: number }> }; nasCheat: { usedThisTurnByPlayerId: Record<string, boolean> } } }>) => resolve(ack));
+    });
+    expect(cheatResponse.ok).toBe(true);
+    if (!cheatResponse.ok) return;
+    expect(cheatResponse.data.gameState.statistics.players[host.id]?.nasCheatsUsed).toBe(1);
+    expect(cheatResponse.data.gameState.nasCheat.usedThisTurnByPlayerId[host.id]).toBe(true);
+
+    const secondCheatResponse = await new Promise<Ack<{ gameState: { gameId: string } }>>((resolve) => {
+      host.emit('game:nasCheat', { gameId, cardId }, (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack));
+    });
+    expect(secondCheatResponse.ok).toBe(false);
+
+    host.disconnect();
+    guest.disconnect();
+  });
+
   it('rejects non-host start attempts', async () => {
     const host = await connect();
     const guest = await connect();

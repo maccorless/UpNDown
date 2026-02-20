@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Card, GameSettings } from '@upndown/shared-types';
 import { buildDeck } from '../src/init.js';
 import { EngineError } from '../src/errors.js';
-import { createStartedGameState, endTurn, playCard } from '../src/transitions.js';
+import { createStartedGameState, endTurn, playCard, useNasCheat } from '../src/transitions.js';
 
 const settings: GameSettings = {
   minCardValue: 2,
@@ -346,5 +346,71 @@ describe('solitaire loss detection', () => {
 
     const next = playCard(blocked, 'solo', 'c-12', 2);
     expect(next.gamePhase).toBe('lost');
+  });
+});
+
+describe('nas cheat mode', () => {
+  it('allows nas player to trade one card once per turn and tracks usage', () => {
+    const state = createStartedGameState({
+      gameId: 'ABC123',
+      hostId: 'p1',
+      players: [
+        { id: 'p1', name: 'nas' },
+        { id: 'p2', name: 'Player 2' }
+      ],
+      settings,
+      isSolitaire: false,
+      deck: buildDeck(settings)
+    });
+
+    const tradedCardId = state.players[0]!.hand[0]!.id;
+    const beforeHandSize = state.players[0]!.hand.length;
+    const next = useNasCheat(state, 'p1', tradedCardId);
+
+    expect(next.players[0]!.hand.length).toBe(beforeHandSize);
+    expect(next.nasCheat.usedThisTurnByPlayerId.p1).toBe(true);
+    expect(next.statistics.players.p1?.nasCheatsUsed).toBe(1);
+    expect(next.players[0]!.hand.some((cardInHand) => cardInHand.id === tradedCardId)).toBe(false);
+    expect(next.drawPile.some((cardInDraw) => cardInDraw.id === tradedCardId)).toBe(true);
+  });
+
+  it('rejects second cheat in the same turn and resets cheat usage on end turn', () => {
+    const state = createStartedGameState({
+      gameId: 'ABC123',
+      hostId: 'p1',
+      players: [
+        { id: 'p1', name: 'nas' },
+        { id: 'p2', name: 'Player 2' }
+      ],
+      settings,
+      isSolitaire: false,
+      deck: buildDeck(settings)
+    });
+
+    const firstCardId = state.players[0]!.hand[0]!.id;
+    const afterCheat = useNasCheat(state, 'p1', firstCardId);
+    const secondCardId = afterCheat.players[0]!.hand[0]!.id;
+    expect(() => useNasCheat(afterCheat, 'p1', secondCardId)).toThrowError(EngineError);
+
+    const canEndTurnState = { ...afterCheat, cardsPlayedThisTurn: settings.minCardsPerTurn };
+    const ended = endTurn(canEndTurnState, 'p1');
+    expect(ended.nasCheat.usedThisTurnByPlayerId.p1).toBe(false);
+  });
+
+  it('rejects nas cheat attempts from non-nas players', () => {
+    const state = createStartedGameState({
+      gameId: 'ABC123',
+      hostId: 'p1',
+      players: [
+        { id: 'p1', name: 'Host' },
+        { id: 'p2', name: 'Player 2' }
+      ],
+      settings,
+      isSolitaire: false,
+      deck: buildDeck(settings)
+    });
+
+    const cardId = state.players[0]!.hand[0]!.id;
+    expect(() => useNasCheat(state, 'p1', cardId)).toThrowError(EngineError);
   });
 });

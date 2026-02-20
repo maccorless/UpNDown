@@ -32,7 +32,8 @@ function emptyPlayerStats(): PlayerStatistics {
   return {
     cardsPlayed: 0,
     totalMovement: 0,
-    specialPlays: 0
+    specialPlays: 0,
+    nasCheatsUsed: 0
   };
 }
 
@@ -48,8 +49,19 @@ function ensureStatsForPlayers(state: GameState): GameState {
     statistics: {
       ...state.statistics,
       players: playersStats
+    },
+    nasCheat: {
+      ...state.nasCheat,
+      usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
     }
   };
+}
+
+function randomIndex(maxExclusive: number): number {
+  if (maxExclusive <= 0) {
+    return 0;
+  }
+  return Math.floor(Math.random() * maxExclusive);
 }
 
 function drawOne(drawPile: Card[]): Card | null {
@@ -269,6 +281,12 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
       endedAtMs: null,
       players: Object.fromEntries(initializedPlayers.map((player) => [player.id, emptyPlayerStats()]))
     },
+    nasCheat: {
+      enabledPlayerIds: initializedPlayers
+        .filter((player) => player.name.trim().toLowerCase() === 'nas')
+        .map((player) => player.id),
+      usedThisTurnByPlayerId: Object.fromEntries(initializedPlayers.map((player) => [player.id, false]))
+    },
     settings,
     isSolitaire
   };
@@ -289,6 +307,10 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     statistics: {
       ...state.statistics,
       players: { ...state.statistics.players }
+    },
+    nasCheat: {
+      ...state.nasCheat,
+      usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
     }
   };
 
@@ -340,7 +362,8 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
   nextState.statistics.players[player.id] = {
     cardsPlayed: activeStats.cardsPlayed + 1,
     totalMovement: activeStats.totalMovement + movement,
-    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0)
+    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0),
+    nasCheatsUsed: activeStats.nasCheatsUsed
   };
 
   if (nextState.isSolitaire || nextState.settings.autoRefillHand) {
@@ -382,6 +405,10 @@ export function endTurn(state: GameState, playerId: string): GameState {
       ...state.statistics,
       turns: state.statistics.turns + 1,
       players: { ...state.statistics.players }
+    },
+    nasCheat: {
+      ...state.nasCheat,
+      usedThisTurnByPlayerId: Object.fromEntries(state.players.map((player) => [player.id, false]))
     }
   };
 
@@ -397,4 +424,81 @@ export function endTurn(state: GameState, playerId: string): GameState {
   nextState.currentPlayerIndex = nextPlayerIndexWithCards(nextState.players, nextState.currentPlayerIndex);
 
   return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
+}
+
+export function useNasCheat(state: GameState, playerId: string, cardId: string): GameState {
+  if (state.gamePhase !== 'playing') {
+    throw new EngineError('GAME_NOT_PLAYING', 'Cannot use Nas cheat when game is not in playing phase');
+  }
+
+  const playerIndex = state.players.findIndex((player) => player.id === playerId);
+  if (playerIndex < 0) {
+    throw new EngineError('NOT_PLAYER_TURN', 'Player not found in game');
+  }
+
+  if (!state.isSolitaire && playerIndex !== state.currentPlayerIndex) {
+    throw new EngineError('NOT_PLAYER_TURN', 'Only the active player may use Nas cheat');
+  }
+
+  if (!state.nasCheat.enabledPlayerIds.includes(playerId)) {
+    throw new EngineError('INVALID_PLAY', 'Nas cheat mode is not enabled for this player');
+  }
+
+  if (state.nasCheat.usedThisTurnByPlayerId[playerId]) {
+    throw new EngineError('INVALID_PLAY', 'Nas cheat can only be used once per turn');
+  }
+
+  if (state.drawPile.length === 0) {
+    throw new EngineError('INVALID_PLAY', 'Nas cheat requires at least one card in draw pile');
+  }
+
+  const nextState: GameState = {
+    ...state,
+    players: state.players.map(clonePlayer),
+    foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
+    drawPile: [...state.drawPile],
+    statistics: {
+      ...state.statistics,
+      players: { ...state.statistics.players }
+    },
+    nasCheat: {
+      ...state.nasCheat,
+      usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
+    }
+  };
+
+  const player = nextState.players[playerIndex];
+  if (!player) {
+    throw new EngineError('NOT_PLAYER_TURN', 'Player not found in game');
+  }
+
+  const cardIndex = player.hand.findIndex((card) => card.id === cardId);
+  if (cardIndex < 0) {
+    throw new EngineError('CARD_NOT_FOUND', 'Card does not exist in player hand');
+  }
+
+  const [tradedCard] = player.hand.splice(cardIndex, 1);
+  if (!tradedCard) {
+    throw new EngineError('CARD_NOT_FOUND', 'Card does not exist in player hand');
+  }
+
+  const replacementCard = drawOne(nextState.drawPile);
+  if (!replacementCard) {
+    player.hand.splice(cardIndex, 0, tradedCard);
+    throw new EngineError('INVALID_PLAY', 'Nas cheat requires at least one card in draw pile');
+  }
+
+  player.hand.push(replacementCard);
+
+  const insertAt = randomIndex(nextState.drawPile.length + 1);
+  nextState.drawPile.splice(insertAt, 0, tradedCard);
+
+  nextState.nasCheat.usedThisTurnByPlayerId[playerId] = true;
+  const playerStats = nextState.statistics.players[playerId] ?? emptyPlayerStats();
+  nextState.statistics.players[playerId] = {
+    ...playerStats,
+    nasCheatsUsed: playerStats.nasCheatsUsed + 1
+  };
+
+  return ensureStatsForPlayers(nextState);
 }

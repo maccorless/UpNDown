@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createGamePayloadSchema, gameSettingsSchema, joinGamePayloadSchema, updateSettingsPayloadSchema } from '../src/schemas.js';
+import {
+  createGamePayloadSchema,
+  gameSettingsSchema,
+  joinGamePayloadSchema,
+  nasCheatPayloadSchema,
+  updateSettingsPayloadSchema
+} from '../src/schemas.js';
 
 const validSettings = {
   minCardValue: 2,
@@ -86,5 +92,15 @@ describe('updateSettingsPayloadSchema', () => {
       gameId: 'Q7M2K9',
       settings: { ...validSettings, minPlayers: 1, maxPlayers: 1 }
     }).success).toBe(false);
+  });
+});
+
+describe('nasCheatPayloadSchema', () => {
+  it('accepts a valid nas cheat payload', () => {
+    expect(nasCheatPayloadSchema.safeParse({ gameId: 'Q7M2K9', cardId: 'c-42' }).success).toBe(true);
+  });
+
+  it('rejects malformed nas cheat payloads', () => {
+    expect(nasCheatPayloadSchema.safeParse({ gameId: 'abc', cardId: '' }).success).toBe(false);
   });
 });

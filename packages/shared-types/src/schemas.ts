@@ -86,6 +86,11 @@ export const playCardPayloadSchema = z.object({
   pileId: z.number().int().min(0).max(3)
 });
 
+export const nasCheatPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  cardId: z.string().min(1)
+});
+
 export const updateSettingsPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
   settings: gameSettingsSchema

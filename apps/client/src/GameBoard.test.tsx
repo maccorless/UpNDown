@@ -32,8 +32,15 @@ const WON_STATE: GameState = {
       'solo-player': {
         cardsPlayed: 0,
         totalMovement: 0,
-        specialPlays: 0
+        specialPlays: 0,
+        nasCheatsUsed: 0
       }
+    }
+  },
+  nasCheat: {
+    enabledPlayerIds: [],
+    usedThisTurnByPlayerId: {
+      'solo-player': false
     }
   },
   settings: {

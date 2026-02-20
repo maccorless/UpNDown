@@ -1,9 +1,10 @@
-import { buildDeck, createStartedGameState, endTurn, playCard, shuffle } from '@upndown/engine';
+import { buildDeck, createStartedGameState, endTurn, playCard, shuffle, useNasCheat } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
   GameSettings,
   JoinGamePayload,
+  NasCheatPayload,
   PlayerStatistics,
   PlayCardPayload,
   Player,
@@ -36,7 +37,8 @@ function emptyPlayerStats(): PlayerStatistics {
   return {
     cardsPlayed: 0,
     totalMovement: 0,
-    specialPlays: 0
+    specialPlays: 0,
+    nasCheatsUsed: 0
   };
 }
 
@@ -81,6 +83,12 @@ export class GameManager {
         endedAtMs: null,
         players: {
           [ownerPlayerId]: emptyPlayerStats()
+        }
+      },
+      nasCheat: {
+        enabledPlayerIds: [],
+        usedThisTurnByPlayerId: {
+          [ownerPlayerId]: false
         }
       },
       settings: payload.settings,
@@ -150,6 +158,13 @@ export class GameManager {
           ...gameState.statistics.players,
           [playerId]: gameState.statistics.players[playerId] ?? emptyPlayerStats()
         }
+      },
+      nasCheat: {
+        ...gameState.nasCheat,
+        usedThisTurnByPlayerId: {
+          ...gameState.nasCheat.usedThisTurnByPlayerId,
+          [playerId]: false
+        }
       }
     };
 
@@ -216,6 +231,14 @@ export class GameManager {
     return nextState;
   }
 
+  nasCheat(playerId: string, payload: NasCheatPayload): GameState {
+    const room = this.requireRoom(payload.gameId);
+    const nextState = useNasCheat(room.gameState, playerId, payload.cardId);
+    room.gameState = nextState;
+    room.updatedAtMs = Date.now();
+    return nextState;
+  }
+
   endTurn(playerId: string, gameId: string): GameState {
     const room = this.requireRoom(gameId);
     const nextState = endTurn(room.gameState, playerId);
@@ -249,6 +272,10 @@ export class GameManager {
         startedAtMs: null,
         endedAtMs: null,
         players: Object.fromEntries(gameState.players.map((player) => [player.id, emptyPlayerStats()]))
+      },
+      nasCheat: {
+        enabledPlayerIds: [],
+        usedThisTurnByPlayerId: Object.fromEntries(gameState.players.map((player) => [player.id, false]))
       }
     };
 
@@ -318,6 +345,14 @@ export class GameManager {
         players: Object.fromEntries(players.map((player) => [
           player.id,
           gameState.statistics.players[player.id] ?? emptyPlayerStats()
+        ]))
+      },
+      nasCheat: {
+        ...gameState.nasCheat,
+        enabledPlayerIds: gameState.nasCheat.enabledPlayerIds.filter((id) => players.some((player) => player.id === id)),
+        usedThisTurnByPlayerId: Object.fromEntries(players.map((player) => [
+          player.id,
+          gameState.nasCheat.usedThisTurnByPlayerId[player.id] ?? false
         ]))
       }
     };

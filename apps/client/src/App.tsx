@@ -8,7 +8,7 @@ const SOLO_PLAYER_ID = 'solo-player';
 
 type Mode = 'solitaire' | 'multiplayer';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
-type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | null;
+type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'nascheat' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | null;
 
 type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -209,6 +209,8 @@ interface GameBoardProps {
   setSelectedCardId: (cardId: string | null) => void;
   onPlayPile: (pileId: number) => void;
   onEndTurn?: () => void;
+  onNasCheat?: () => void;
+  canUseNasCheat?: boolean;
   playerId?: string | null;
   interactionDisabled?: boolean;
   newCardIds?: string[];
@@ -222,6 +224,8 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     setSelectedCardId,
     onPlayPile,
     onEndTurn,
+    onNasCheat,
+    canUseNasCheat,
     playerId,
     interactionDisabled,
     newCardIds = []
@@ -341,6 +345,17 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                 data-testid="end-turn"
               >
                 End Turn
+              </button>
+            ) : null}
+            {onNasCheat ? (
+              <button
+                type="button"
+                className="secondary"
+                onClick={onNasCheat}
+                disabled={inputsDisabled || !canUseNasCheat}
+                data-testid="nas-cheat"
+              >
+                Nas Cheat
               </button>
             ) : null}
           </div>
@@ -627,7 +642,8 @@ function EndGameStatisticsModal({
   const fallbackPlayerStats = {
     cardsPlayed: 0,
     totalMovement: 0,
-    specialPlays: 0
+    specialPlays: 0,
+    nasCheatsUsed: 0
   };
   const playerRows = gameState.players.map((player) => ({
     ...player,
@@ -636,6 +652,8 @@ function EndGameStatisticsModal({
   const totalCardsPlayed = playerRows.reduce((sum, row) => sum + row.stats.cardsPlayed, 0);
   const totalMovement = playerRows.reduce((sum, row) => sum + row.stats.totalMovement, 0);
   const totalSpecialPlays = playerRows.reduce((sum, row) => sum + row.stats.specialPlays, 0);
+  const totalNasCheatsUsed = playerRows.reduce((sum, row) => sum + row.stats.nasCheatsUsed, 0);
+  const hasNasCheatMode = gameState.nasCheat.enabledPlayerIds.length > 0;
   const averageMovement = totalCardsPlayed > 0 ? (totalMovement / totalCardsPlayed) : 0;
   const durationMs = statistics.startedAtMs
     ? (statistics.endedAtMs ?? Date.now()) - statistics.startedAtMs
@@ -663,6 +681,12 @@ function EndGameStatisticsModal({
           <div className="stats-value">{totalCardsPlayed}</div>
           <div className="stats-label">Backward-10 Plays</div>
           <div className="stats-value">{totalSpecialPlays}</div>
+          {hasNasCheatMode ? (
+            <>
+              <div className="stats-label">Nascheats Used</div>
+              <div className="stats-value">{totalNasCheatsUsed}</div>
+            </>
+          ) : null}
           <div className="stats-label">Total Movement</div>
           <div className="stats-value">{totalMovement}</div>
           <div className="stats-label">Avg Movement / Card</div>
@@ -676,6 +700,7 @@ function EndGameStatisticsModal({
                 <th scope="col">Player</th>
                 <th scope="col">Cards Played</th>
                 <th scope="col">Backward-10</th>
+                {hasNasCheatMode ? <th scope="col">Nascheats</th> : null}
                 <th scope="col">Avg Move / Card</th>
               </tr>
             </thead>
@@ -687,6 +712,7 @@ function EndGameStatisticsModal({
                     <td>{row.name}</td>
                     <td>{row.stats.cardsPlayed}</td>
                     <td>{row.stats.specialPlays}</td>
+                    {hasNasCheatMode ? <td>{row.stats.nasCheatsUsed}</td> : null}
                     <td>{playerAverage.toFixed(1)}</td>
                   </tr>
                 );
@@ -736,6 +762,8 @@ export function App(): JSX.Element {
   const [solitaireNewCardIds, setSolitaireNewCardIds] = useState<string[]>([]);
   const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
+  const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
+  const [shownNasCheatGameKey, setShownNasCheatGameKey] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
@@ -804,6 +832,26 @@ export function App(): JSX.Element {
   useEffect(() => {
     setInviteCopied(false);
   }, [multiplayerState?.gameId]);
+
+  useEffect(() => {
+    if (mode !== 'multiplayer' || !multiplayerState || !playerId || multiplayerState.gamePhase !== 'playing') {
+      setShowNasCheatIntro(false);
+      return;
+    }
+
+    const nasEnabledForMe = multiplayerState.nasCheat.enabledPlayerIds.includes(playerId);
+    const introKey = `${multiplayerState.gameId}:${multiplayerState.statistics.startedAtMs ?? 'none'}`;
+    if (!nasEnabledForMe || shownNasCheatGameKey === introKey) {
+      return;
+    }
+
+    setShownNasCheatGameKey(introKey);
+    setShowNasCheatIntro(true);
+    const timer = window.setTimeout(() => {
+      setShowNasCheatIntro(false);
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [mode, multiplayerState, playerId]);
 
   useEffect(() => {
     if (mode !== 'multiplayer') {
@@ -1250,6 +1298,30 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
   };
 
+  const handleMultiplayerNasCheat = async (): Promise<void> => {
+    if (!multiplayerState || !multiplayerSelectedCardId) {
+      return;
+    }
+
+    const ack = await emitWithAck<{ gameState: GameState }>(
+      'game:nasCheat',
+      {
+        gameId: multiplayerState.gameId,
+        cardId: multiplayerSelectedCardId
+      },
+      'nascheat'
+    );
+
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+
+    setError(null);
+    setMultiplayerSelectedCardId(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
   const handleMultiplayerEndTurn = async (): Promise<void> => {
     if (!multiplayerState) return;
 
@@ -1442,6 +1514,17 @@ export function App(): JSX.Element {
   const multiplayerInteractionDisabled = pendingAction !== null || connectionState !== 'connected';
   const multiplayerGameActive = !!multiplayerState && multiplayerState.gamePhase !== 'lobby';
   const isHost = !!multiplayerState && multiplayerState.hostId === playerId;
+  const isNasCheatActiveForMe = !!multiplayerState
+    && !!playerId
+    && multiplayerState.nasCheat.enabledPlayerIds.includes(playerId);
+  const canUseNasCheat = !!multiplayerState
+    && !!playerId
+    && multiplayerState.gamePhase === 'playing'
+    && multiplayerState.players[multiplayerState.currentPlayerIndex]?.id === playerId
+    && multiplayerState.drawPile.length > 0
+    && !!multiplayerSelectedCardId
+    && isNasCheatActiveForMe
+    && !multiplayerState.nasCheat.usedThisTurnByPlayerId[playerId];
   const settingsLockedByActiveGame = (mode === 'solitaire' && solitaireActive) || (mode === 'multiplayer' && multiplayerGameActive);
   const canChangeMode = (mode === 'solitaire' && !solitaireActive) || (mode === 'multiplayer' && !multiplayerState);
   const createSettingsError = validateCreateSettings(multiplayerCreateSettings);
@@ -1878,9 +1961,13 @@ export function App(): JSX.Element {
                 onEndTurn={() => {
                   void handleMultiplayerEndTurn();
                 }}
+                canUseNasCheat={canUseNasCheat}
                 playerId={playerId}
                 interactionDisabled={multiplayerInteractionDisabled}
                 newCardIds={multiplayerNewCardIds}
+                {...(isNasCheatActiveForMe
+                  ? { onNasCheat: () => { void handleMultiplayerNasCheat(); } }
+                  : {})}
               />
             ) : (
               <section className="panel lobby" aria-label="seat lost">
@@ -1930,6 +2017,26 @@ export function App(): JSX.Element {
           onSave={() => { void handleSaveSettings(); }}
           onChange={setSettingsDraft}
         />
+      ) : null}
+
+      {showNasCheatIntro ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setShowNasCheatIntro(false)}>
+          <section
+            className="panel nas-cheat-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="nas cheat mode enabled"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2>Nas Cheat Mode Enabled</h2>
+            <p>
+              Each turn, you can swap exactly one card from your hand.
+              The selected card is shuffled back into the draw pile at a random position,
+              and you draw the top card as a replacement.
+            </p>
+            <p>You can use this power once per turn.</p>
+          </section>
+        </div>
       ) : null}
 
       {statsModalOpen && activeStatsSummary && activeStatsState ? (
