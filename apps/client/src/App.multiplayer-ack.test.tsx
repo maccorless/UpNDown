@@ -107,6 +107,7 @@ describe('multiplayer ack handling', () => {
       ack?.({ ok: false, error: `Unhandled event: ${event}` });
     };
     window.localStorage.clear();
+    window.history.replaceState(null, '', '/');
   });
 
   afterEach(() => {
@@ -202,5 +203,45 @@ describe('multiplayer ack handling', () => {
     const pausedCount = listJoinableCalls;
     await sleep(350);
     expect(listJoinableCalls).toBe(pausedCount);
+  });
+
+  it('prefills join by id when opened from a game invite link', async () => {
+    window.history.replaceState(null, '', '/?game=Q7M2K9');
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    expect(await screen.findByRole('heading', { name: 'Multiplayer' })).toBeTruthy();
+    expect(screen.getByTestId('show-join-by-id').textContent).toContain('Hide Join by ID');
+    expect((screen.getByLabelText('Private Game ID') as HTMLInputElement).value).toBe('Q7M2K9');
+
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    expect((screen.getByTestId('join-game') as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('shows a shareable invite link after hosting a lobby game', async () => {
+    const lobbyState = createLobbyState();
+    emitHandler = (event, _payload, ack) => {
+      if (event === 'game:create') {
+        ack?.({ ok: true, data: { gameState: lobbyState, playerId: 'socket-1' } });
+        return;
+      }
+      if (event === 'game:listJoinable') {
+        ack?.({ ok: true, data: { games: [] } });
+        return;
+      }
+      ack?.({ ok: false, error: `Unhandled event: ${event}` });
+    };
+
+    const user = userEvent.setup();
+    render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    await user.click(screen.getByTestId('flow-host'));
+
+    const inviteInput = await screen.findByTestId('invite-link-input');
+    expect((inviteInput as HTMLInputElement).value).toBe(`${window.location.origin}/?game=ABC123`);
+    expect(window.location.search).toContain('game=ABC123');
   });
 });

@@ -58,10 +58,41 @@ const SOCKET_DISCONNECTED_ERROR = 'Not connected to server. Please wait for reco
 const SOCKET_REQUEST_ERROR = 'Unable to reach server. Please retry.';
 const JOINABLE_POLL_BASE_MS = import.meta.env.MODE === 'test' ? 120 : 5000;
 const JOINABLE_POLL_MAX_MS = import.meta.env.MODE === 'test' ? 600 : 30000;
+const GAME_QUERY_PARAM = 'game';
 
 interface PersistedSettings {
   solitaire: GameSettings;
   multiplayer: GameSettings;
+}
+
+function normalizeGameId(raw: string | null | undefined): string | null {
+  if (!raw) {
+    return null;
+  }
+
+  const normalized = raw.trim().toUpperCase();
+  return /^[A-Z0-9]{6}$/.test(normalized) ? normalized : null;
+}
+
+function readGameIdFromLocation(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  return normalizeGameId(params.get(GAME_QUERY_PARAM));
+}
+
+function buildInviteLink(gameId: string): string {
+  const url = new URL(window.location.href);
+  url.searchParams.set(GAME_QUERY_PARAM, gameId);
+  return url.toString();
+}
+
+function syncGameIdInUrl(gameId: string | null): void {
+  const url = new URL(window.location.href);
+  if (gameId) {
+    url.searchParams.set(GAME_QUERY_PARAM, gameId);
+  } else {
+    url.searchParams.delete(GAME_QUERY_PARAM);
+  }
+  window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 function normalizeSolitaireSettings(settings: GameSettings): GameSettings {
@@ -571,6 +602,7 @@ export function App(): JSX.Element {
   const [playerName, setPlayerName] = useState('');
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const [joinLookup, setJoinLookup] = useState<JoinLookupSummary | null>(null);
   const [multiplayerFlow, setMultiplayerFlow] = useState<'choose' | 'join'>('choose');
   const [joinableGames, setJoinableGames] = useState<JoinableGameSummary[]>([]);
@@ -583,6 +615,7 @@ export function App(): JSX.Element {
   const [error, setError] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
@@ -601,6 +634,39 @@ export function App(): JSX.Element {
     }
     return socketRef.current;
   };
+
+  useEffect(() => {
+    const deepLinkedGameId = pendingDeepLinkGameIdRef.current;
+    if (!deepLinkedGameId) {
+      return;
+    }
+
+    setMode('multiplayer');
+    setMultiplayerFlow('join');
+    setShowJoinById(true);
+    setJoinGameId(deepLinkedGameId);
+    setJoinLookup(null);
+    setError(null);
+    pendingDeepLinkGameIdRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    if (mode === null) {
+      return;
+    }
+
+    const joinFlowGameId = mode === 'multiplayer' && showJoinById
+      ? normalizeGameId(joinGameId)
+      : null;
+    const lobbyGameId = mode === 'multiplayer' && multiplayerState?.gamePhase === 'lobby'
+      ? multiplayerState.gameId
+      : null;
+    syncGameIdInUrl(lobbyGameId ?? joinFlowGameId);
+  }, [mode, showJoinById, joinGameId, multiplayerState]);
+
+  useEffect(() => {
+    setInviteCopied(false);
+  }, [multiplayerState?.gameId]);
 
   useEffect(() => {
     if (mode !== 'multiplayer') {
@@ -928,6 +994,7 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
     setMultiplayerNewCardIds([]);
+    setInviteCopied(false);
     lastMultiplayerHandIdsRef.current = [];
   };
 
@@ -964,6 +1031,7 @@ export function App(): JSX.Element {
     setMultiplayerNewCardIds([]);
     setShowJoinById(false);
     setJoinLookup(null);
+    setInviteCopied(false);
     lastMultiplayerHandIdsRef.current = [];
   };
 
@@ -1095,7 +1163,30 @@ export function App(): JSX.Element {
     setMultiplayerNewCardIds([]);
     lastMultiplayerHandIdsRef.current = [];
     setJoinGameId('');
+    setInviteCopied(false);
     setError(null);
+  };
+
+  const handleCopyInviteLink = async (): Promise<void> => {
+    if (!multiplayerState) {
+      return;
+    }
+
+    const inviteLink = buildInviteLink(multiplayerState.gameId);
+    if (!navigator.clipboard?.writeText) {
+      setInviteCopied(false);
+      setError('Clipboard unavailable. Copy the invite URL manually.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(inviteLink);
+      setInviteCopied(true);
+      setError(null);
+    } catch {
+      setInviteCopied(false);
+      setError('Could not copy invite link. Copy the invite URL manually.');
+    }
   };
 
   const handleOpenSettings = (): void => {
@@ -1511,6 +1602,22 @@ export function App(): JSX.Element {
           ) : multiplayerState.gamePhase === 'lobby' ? (
             <section className="panel lobby" aria-label="waiting room">
               <h2>Game {multiplayerState.gameId}</h2>
+              <div className="invite-share">
+                <label htmlFor="invite-link-input">
+                  Invite Link
+                  <input id="invite-link-input" value={buildInviteLink(multiplayerState.gameId)} readOnly data-testid="invite-link-input" />
+                </label>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={() => { void handleCopyInviteLink(); }}
+                  disabled={multiplayerInteractionDisabled}
+                  data-testid="copy-invite-link"
+                >
+                  {inviteCopied ? 'Copied' : 'Copy Link'}
+                </button>
+              </div>
+              {inviteCopied ? <div className="pill">Invite link copied.</div> : null}
               <div className="pill">
                 Players in Lobby: {multiplayerState.players.length}/{multiplayerState.settings.maxPlayers}
               </div>

@@ -528,6 +528,13 @@ button:disabled {
   gap: 10px;
 }
 
+.invite-share {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
 .lobby-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(180px, 1fr));
@@ -791,6 +798,10 @@ section[aria-label="welcome"] h2 {
   }
 
   .private-join {
+    grid-template-columns: 1fr;
+  }
+
+  .invite-share {
     grid-template-columns: 1fr;
   }
 
