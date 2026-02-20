@@ -244,4 +244,21 @@ describe('multiplayer ack handling', () => {
     expect((inviteInput as HTMLInputElement).value).toBe(`${window.location.origin}/?game=ABC123`);
     expect(window.location.search).toContain('game=ABC123');
   });
+
+  it('remembers multiplayer player name across app remounts', async () => {
+    const user = userEvent.setup();
+    const firstRender = render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await user.type(screen.getByLabelText('Player Name'), 'Alex');
+    expect((screen.getByLabelText('Player Name') as HTMLInputElement).value).toBe('Alex');
+
+    firstRender.unmount();
+    const secondRender = render(<App />);
+
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    expect((screen.getByLabelText('Player Name') as HTMLInputElement).value).toBe('Alex');
+
+    secondRender.unmount();
+  });
 });

@@ -52,6 +52,7 @@ const multiplayerSettings: GameSettings = {
 };
 
 const SETTINGS_STORAGE_KEY = 'upndown.settings.v1';
+const PLAYER_NAME_STORAGE_KEY = 'upndown.multiplayer.playerName.v1';
 const ACK_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 80 : 5000;
 const ACK_TIMEOUT_ERROR = 'Request timed out. Please check your connection and try again.';
 const SOCKET_DISCONNECTED_ERROR = 'Not connected to server. Please wait for reconnect and retry.';
@@ -141,6 +142,26 @@ function readPersistedSettings(): PersistedSettings | null {
 function writePersistedSettings(settings: PersistedSettings): void {
   try {
     window.localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+  } catch {
+    // Ignore storage write failures (private mode/quota/etc).
+  }
+}
+
+function readPersistedPlayerName(): string {
+  try {
+    const raw = window.localStorage.getItem(PLAYER_NAME_STORAGE_KEY);
+    if (!raw) {
+      return '';
+    }
+    return raw.slice(0, 32);
+  } catch {
+    return '';
+  }
+}
+
+function writePersistedPlayerName(playerName: string): void {
+  try {
+    window.localStorage.setItem(PLAYER_NAME_STORAGE_KEY, playerName);
   } catch {
     // Ignore storage write failures (private mode/quota/etc).
   }
@@ -599,7 +620,7 @@ export function App(): JSX.Element {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [solitaireNewCardIds, setSolitaireNewCardIds] = useState<string[]>([]);
   const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
-  const [playerName, setPlayerName] = useState('');
+  const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -762,6 +783,10 @@ export function App(): JSX.Element {
       multiplayer: multiplayerCreateSettings
     });
   }, [solitaireConfig, multiplayerCreateSettings]);
+
+  useEffect(() => {
+    writePersistedPlayerName(playerName);
+  }, [playerName]);
 
   useEffect(() => {
     const onStorage = (event: StorageEvent): void => {
