@@ -19,6 +19,8 @@
 body {
   margin: 0;
   font-family: 'Avenir Next', 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
   background:
     radial-gradient(circle at 12% 10%, #ffffff 0%, rgba(255, 255, 255, 0.45) 22%, transparent 45%),
     radial-gradient(circle at 90% 8%, #d9f4ff 0%, rgba(217, 244, 255, 0.35) 28%, transparent 52%),
@@ -144,17 +146,18 @@ body {
 .pill {
   display: inline-flex;
   align-items: center;
-  background: var(--panel2);
-  border: 1px solid #87a6c8;
+  background: #cfe2f8;
+  border: 1px solid #6a8fb8;
   border-radius: 999px;
-  padding: 5px 9px;
-  font-size: 12px;
-  color: #173252;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #0d2b49;
 }
 
 .pill.mini {
-  padding: 4px 8px;
-  font-size: 12px;
+  padding: 5px 8px;
+  font-size: 13px;
 }
 
 .info-message {
@@ -162,13 +165,13 @@ body {
   align-items: center;
   width: fit-content;
   max-width: 100%;
-  background: #103257;
-  border: 1px solid #0a2746;
+  background: #082441;
+  border: 1px solid #031628;
   border-radius: 10px;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 7px 11px;
+  font-size: 14px;
   font-weight: 600;
-  color: #f4f9ff;
+  color: #ffffff;
 }
 
 .panel {
@@ -209,7 +212,7 @@ body {
 
 .players-panel h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .players-panel-header {
@@ -272,7 +275,7 @@ body {
   color: #173252;
   text-align: center;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 
@@ -326,7 +329,7 @@ body {
   letter-spacing: 0.16em;
   text-transform: uppercase;
   font-weight: 800;
-  font-size: 11px;
+  font-size: 12px;
   opacity: 0.92;
 }
 
@@ -339,7 +342,7 @@ body {
 
 .phase-splash-subtitle {
   margin-top: 4px;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   opacity: 0.96;
 }
@@ -351,7 +354,7 @@ body {
   border-radius: 999px;
   border: 1px solid #3b5677;
   padding: 4px 10px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
   width: fit-content;
 }
@@ -376,6 +379,7 @@ button {
   border: 0;
   border-radius: 8px;
   padding: 10px 12px;
+  font-size: 16px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -412,7 +416,7 @@ button:disabled {
   margin: 2px 0 0;
   text-align: center;
   color: #375877;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .landing-support-bar {
@@ -439,7 +443,7 @@ button:disabled {
 .landing-support-inner p {
   margin: 0;
   color: #204666;
-  font-size: 14px;
+  font-size: 16px;
 }
 
 .coffee-button-image {
@@ -494,7 +498,8 @@ button:disabled {
   border: 1px solid #e38a78;
   border-radius: 8px;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: 15px;
+  font-weight: 600;
 }
 
 .lobby {
@@ -511,7 +516,7 @@ button:disabled {
 
 .choice-card {
   min-height: 44px;
-  font-size: 15px;
+  font-size: 17px;
 }
 
 .joinable-list {
@@ -521,6 +526,7 @@ button:disabled {
 
 .joinable-list h3 {
   margin: 0;
+  font-size: 17px;
 }
 
 .joinable-item {
@@ -533,6 +539,7 @@ button:disabled {
   padding: 6px 8px;
   background: #deedff;
   border-color: #a8c4e3;
+  font-size: 15px;
 }
 
 .private-join {
@@ -644,16 +651,18 @@ button:disabled {
 label {
   display: grid;
   gap: 6px;
-  font-size: 13px;
-  color: #d7e0ea;
+  font-size: 16px;
+  color: #274563;
+  font-weight: 600;
 }
 
 input {
   border: 1px solid #89accc;
   border-radius: 8px;
-  padding: 7px 9px;
+  padding: 9px 11px;
   background: #f7fbff;
   color: #112741;
+  font-size: 16px;
 }
 
 input::placeholder {
@@ -676,7 +685,7 @@ input::placeholder {
   padding: 6px 8px;
   background: #e6f1ff;
   border-color: #a7c0dc;
-  font-size: 12px;
+  font-size: 15px;
 }
 
 section[aria-label="welcome"] {
@@ -745,12 +754,12 @@ section[aria-label="welcome"] h2 {
   }
 
   .players-panel h2 {
-    font-size: 12px;
+    font-size: 14px;
   }
 
   .player-line {
     padding: 5px 6px;
-    font-size: 11px;
+    font-size: 13px;
   }
 
   .pile-grid {
@@ -800,7 +809,7 @@ section[aria-label="welcome"] h2 {
   }
 
   .phase-splash-subtitle {
-    font-size: 12px;
+    font-size: 13px;
   }
 
   .lobby-grid {
@@ -844,7 +853,7 @@ section[aria-label="welcome"] h2 {
   }
 
   .landing-support-inner p {
-    font-size: 13px;
+    font-size: 14px;
   }
 
   .coffee-button-image {
