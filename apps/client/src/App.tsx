@@ -183,13 +183,6 @@ function sortByValue(cards: Card[]): Card[] {
   return [...cards].sort((a, b) => a.value - b.value);
 }
 
-function phaseLabel(phase: GameState['gamePhase']): string {
-  if (phase === 'won') return 'Won';
-  if (phase === 'lost') return 'Lost';
-  if (phase === 'playing') return 'Playing';
-  return 'Lobby';
-}
-
 function canPlayOnPile(selectedCard: Card | null, pileTop: Card, pileType: 'ascending' | 'descending'): boolean {
   if (!selectedCard) {
     return false;
@@ -344,12 +337,6 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             ) : null}
           </div>
         </div>
-        {gameState.gamePhase !== 'playing' ? (
-          <div className={`phase-banner ${gameState.gamePhase}`} data-testid="phase-banner">
-            {gameState.gamePhase === 'won' ? 'Game Won' : gameState.gamePhase === 'lost' ? 'Game Lost' : phaseLabel(gameState.gamePhase)}
-          </div>
-        ) : null}
-
         <div className={`cards-fan ${isCompactHand ? 'compact' : ''}`}>
           {sortedHand.map((card) => (
             <button
@@ -1345,7 +1332,7 @@ export function App(): JSX.Element {
           {mode === 'multiplayer' && multiplayerGameActive ? (
             <button
               type="button"
-              className={isHost ? 'danger' : 'secondary'}
+              className="danger"
               onClick={() => { void handleMultiplayerEndGame(); }}
               disabled={multiplayerInteractionDisabled || !isHost}
               data-testid="end-game-top"
@@ -1370,15 +1357,17 @@ export function App(): JSX.Element {
               </button>
             ) : null
           ) : null}
-          <button
-            type="button"
-            className="secondary"
-            onClick={handleOpenSettings}
-            disabled={(mode === 'multiplayer' && connectionState === 'connecting') || settingsLockedByActiveGame}
-            data-testid="open-settings"
-          >
-            Settings
-          </button>
+          {mode ? (
+            <button
+              type="button"
+              className="secondary"
+              onClick={handleOpenSettings}
+              disabled={mode === 'multiplayer' && connectionState === 'connecting'}
+              data-testid="open-settings"
+            >
+              Settings
+            </button>
+          ) : null}
         </div>
       </section>
 
