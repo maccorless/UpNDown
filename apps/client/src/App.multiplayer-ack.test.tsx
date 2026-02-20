@@ -392,7 +392,7 @@ describe('multiplayer ack handling', () => {
     expect(screen.queryByRole('dialog', { name: 'end game statistics' })).toBeNull();
   });
 
-  it('shows nas cheat intro modal for nas player at game start and hides after 5 seconds', async () => {
+  it('shows nas cheat intro modal for nas player and closes only when X is clicked', async () => {
     const playingState = createPlayingNasState();
     emitHandler = (event, _payload, ack) => {
       if (event === 'game:create') {
@@ -420,6 +420,8 @@ describe('multiplayer ack handling', () => {
       await sleep(5100);
     });
 
+    expect(screen.getByRole('dialog', { name: 'nas cheat mode enabled' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Close Nas Cheat Info' }));
     expect(screen.queryByRole('dialog', { name: 'nas cheat mode enabled' })).toBeNull();
   }, 10000);
 });

@@ -782,7 +782,6 @@ export function App(): JSX.Element {
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
   const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
   const shownNasCheatGameKeyRef = useRef<string | null>(null);
-  const nasCheatIntroTimerRef = useRef<number | null>(null);
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
@@ -837,10 +836,6 @@ export function App(): JSX.Element {
 
   const dismissNasCheatIntro = (): void => {
     setShowNasCheatIntro(false);
-    if (nasCheatIntroTimerRef.current) {
-      window.clearTimeout(nasCheatIntroTimerRef.current);
-      nasCheatIntroTimerRef.current = null;
-    }
   };
 
   useEffect(() => {
@@ -864,21 +859,7 @@ export function App(): JSX.Element {
     }
     shownNasCheatGameKeyRef.current = introKey;
     setShowNasCheatIntro(true);
-    if (nasCheatIntroTimerRef.current) {
-      window.clearTimeout(nasCheatIntroTimerRef.current);
-    }
-    nasCheatIntroTimerRef.current = window.setTimeout(() => {
-      setShowNasCheatIntro(false);
-      nasCheatIntroTimerRef.current = null;
-    }, 5000);
   }, [mode, multiplayerState, playerId]);
-
-  useEffect(() => () => {
-    if (nasCheatIntroTimerRef.current) {
-      window.clearTimeout(nasCheatIntroTimerRef.current);
-      nasCheatIntroTimerRef.current = null;
-    }
-  }, []);
 
   useEffect(() => {
     if (mode !== 'multiplayer' || multiplayerState || connectionState !== 'connected') {
@@ -2067,14 +2048,21 @@ export function App(): JSX.Element {
       ) : null}
 
       {showNasCheatIntro ? (
-        <div className="modal-backdrop" role="presentation" onClick={dismissNasCheatIntro}>
+        <div className="modal-backdrop" role="presentation">
           <section
             className="panel nas-cheat-modal"
             role="dialog"
             aria-modal="true"
             aria-label="nas cheat mode enabled"
-            onClick={(e) => e.stopPropagation()}
           >
+            <button
+              type="button"
+              className="nas-cheat-close"
+              aria-label="Close Nas Cheat Info"
+              onClick={dismissNasCheatIntro}
+            >
+              ×
+            </button>
             <h2>Nas Cheat Mode Enabled</h2>
             <p>
               Each turn, you can swap exactly one card from your hand.
