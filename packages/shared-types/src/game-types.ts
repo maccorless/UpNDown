@@ -65,6 +65,17 @@ export interface GameState {
   isSolitaire: boolean;
 }
 
+export type ReactionType = 'like' | 'love' | 'really_love';
+
+export type PileReactions = Partial<Record<number, ReactionType>>;
+export type ReactionState = Record<string, PileReactions>;
+
+export interface SetReactionPayload {
+  gameId: string;
+  pileId: number;
+  reactionType: ReactionType | null;
+}
+
 export interface CreateGamePayload {
   playerName: string;
   settings: GameSettings;
@@ -90,4 +101,9 @@ export interface NasCheatPayload {
 export interface UpdateSettingsPayload {
   gameId: string;
   settings: GameSettings;
+}
+
+export interface KickPlayerPayload {
+  gameId: string;
+  targetPlayerId: string;
 }

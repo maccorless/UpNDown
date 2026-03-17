@@ -104,4 +104,15 @@ export const updateSettingsPayloadSchema = z.object({
   }
 });
 
+export const kickPlayerPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  targetPlayerId: z.string().min(1)
+});
+
+export const setReactionPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  pileId: z.number().int().min(0).max(3),
+  reactionType: z.enum(['like', 'love', 'really_love']).nullable()
+});
+
 export type GameSettingsInput = z.infer<typeof gameSettingsSchema>;

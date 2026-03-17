@@ -4,10 +4,13 @@ import type {
   GameState,
   GameSettings,
   JoinGamePayload,
+  KickPlayerPayload,
   NasCheatPayload,
   PlayerStatistics,
   PlayCardPayload,
   Player,
+  ReactionState,
+  ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
@@ -16,6 +19,7 @@ interface GameRoom {
   gameState: GameState;
   createdAtMs: number;
   updatedAtMs: number;
+  turnUndoStack: GameState[];
 }
 
 export interface JoinableGameSummary {
@@ -53,6 +57,107 @@ function generateGameId(): string {
 
 export class GameManager {
   private readonly rooms = new Map<string, GameRoom>();
+  private readonly reactions = new Map<string, Map<string, Map<number, ReactionType>>>();
+
+  getReactions(gameId: string): ReactionState {
+    const gameReactions = this.reactions.get(gameId);
+    if (!gameReactions) return {};
+    const result: ReactionState = {};
+    for (const [playerId, pileMap] of gameReactions) {
+      result[playerId] = {};
+      for (const [pileId, reaction] of pileMap) {
+        result[playerId][pileId] = reaction;
+      }
+    }
+    return result;
+  }
+
+  setReaction(gameId: string, playerId: string, pileId: number, reactionType: ReactionType | null): void {
+    const room = this.requireRoom(gameId);
+    if (!room.gameState.players.some((p) => p.id === playerId)) {
+      throw new Error('Player not in game');
+    }
+    if (room.gameState.gamePhase !== 'playing') {
+      throw new Error('Reactions are only allowed during an active game');
+    }
+    const currentPlayer = room.gameState.players[room.gameState.currentPlayerIndex];
+    if (currentPlayer?.id === playerId) {
+      throw new Error('Cannot react during your own turn');
+    }
+
+    if (!this.reactions.has(gameId)) {
+      this.reactions.set(gameId, new Map());
+    }
+    const gameReactions = this.reactions.get(gameId)!;
+
+    if (reactionType === null) {
+      const playerPiles = gameReactions.get(playerId);
+      if (playerPiles) {
+        playerPiles.delete(pileId);
+        if (playerPiles.size === 0) gameReactions.delete(playerId);
+      }
+    } else {
+      if (!gameReactions.has(playerId)) gameReactions.set(playerId, new Map());
+      gameReactions.get(playerId)!.set(pileId, reactionType);
+    }
+  }
+
+  clearPlayerReactions(gameId: string, playerId: string): void {
+    this.reactions.get(gameId)?.delete(playerId);
+  }
+
+  clearAllReactions(gameId: string): void {
+    this.reactions.delete(gameId);
+  }
+
+  rejoinPlayer(gameId: string, oldPlayerId: string, newPlayerId: string): GameState {
+    const room = this.requireRoom(gameId);
+    const { gameState } = room;
+    const player = gameState.players.find((p) => p.id === oldPlayerId);
+    if (!player) {
+      throw new Error('Player not found in game');
+    }
+
+    // Swap player id
+    player.id = newPlayerId;
+
+    // Swap hostId if this player is host
+    if (gameState.hostId === oldPlayerId) {
+      gameState.hostId = newPlayerId;
+    }
+
+    // Swap in statistics.players
+    if (gameState.statistics.players[oldPlayerId]) {
+      gameState.statistics.players[newPlayerId] = gameState.statistics.players[oldPlayerId];
+      delete gameState.statistics.players[oldPlayerId];
+    }
+
+    // Swap in nasCheat maps
+    if (oldPlayerId in gameState.nasCheat.usedThisTurnByPlayerId) {
+      gameState.nasCheat.usedThisTurnByPlayerId[newPlayerId] = gameState.nasCheat.usedThisTurnByPlayerId[oldPlayerId] ?? false;
+      delete gameState.nasCheat.usedThisTurnByPlayerId[oldPlayerId];
+    }
+    const nasIdx = gameState.nasCheat.enabledPlayerIds.indexOf(oldPlayerId);
+    if (nasIdx >= 0) {
+      gameState.nasCheat.enabledPlayerIds[nasIdx] = newPlayerId;
+    }
+
+    // Swap reactions
+    const gameReactions = this.reactions.get(gameId);
+    if (gameReactions?.has(oldPlayerId)) {
+      gameReactions.set(newPlayerId, gameReactions.get(oldPlayerId)!);
+      gameReactions.delete(oldPlayerId);
+    }
+
+    room.updatedAtMs = Date.now();
+    return gameState;
+  }
+
+  getSpecialPlays(gameId: string, playerId: string): number {
+    const room = this.rooms.get(gameId);
+    if (!room) return 0;
+    return room.gameState.statistics.players[playerId]?.specialPlays ?? 0;
+  }
 
   createGame(ownerPlayerId: string, payload: CreateGamePayload): GameState {
     if (payload.isSolitaire) {
@@ -96,7 +201,7 @@ export class GameManager {
     };
 
     const now = Date.now();
-    this.rooms.set(gameId, { gameState: state, createdAtMs: now, updatedAtMs: now });
+    this.rooms.set(gameId, { gameState: state, createdAtMs: now, updatedAtMs: now, turnUndoStack: [] });
     return state;
   }
 
@@ -219,16 +324,36 @@ export class GameManager {
     });
 
     room.gameState = started;
+    room.turnUndoStack = [];
     room.updatedAtMs = Date.now();
     return started;
   }
 
   playCard(playerId: string, payload: PlayCardPayload): GameState {
     const room = this.requireRoom(payload.gameId);
+    room.turnUndoStack.push(structuredClone(room.gameState));
     const nextState = playCard(room.gameState, playerId, payload.cardId, payload.pileId);
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
     return nextState;
+  }
+
+  undoLastPlay(playerId: string, gameId: string): GameState {
+    const room = this.requireRoom(gameId);
+    if (room.gameState.gamePhase !== 'playing') {
+      throw new Error('Cannot undo outside of active game');
+    }
+    const currentPlayer = room.gameState.players[room.gameState.currentPlayerIndex];
+    if (currentPlayer?.id !== playerId) {
+      throw new Error('Can only undo during your own turn');
+    }
+    if (room.turnUndoStack.length === 0) {
+      throw new Error('Nothing to undo');
+    }
+    const previous = room.turnUndoStack.pop()!;
+    room.gameState = previous;
+    room.updatedAtMs = Date.now();
+    return previous;
   }
 
   nasCheat(playerId: string, payload: NasCheatPayload): GameState {
@@ -243,6 +368,7 @@ export class GameManager {
     const room = this.requireRoom(gameId);
     const nextState = endTurn(room.gameState, playerId);
     room.gameState = nextState;
+    room.turnUndoStack = [];
     room.updatedAtMs = Date.now();
     return nextState;
   }
@@ -362,6 +488,87 @@ export class GameManager {
     return nextState;
   }
 
+  kickPlayer(hostPlayerId: string, payload: KickPlayerPayload): GameState {
+    const room = this.requireRoom(payload.gameId);
+    const { gameState } = room;
+
+    if (gameState.gamePhase === 'won' || gameState.gamePhase === 'lost') {
+      throw new Error('Cannot kick players after the game has ended');
+    }
+
+    if (gameState.hostId !== hostPlayerId) {
+      throw new Error('Only host can kick players');
+    }
+
+    if (payload.targetPlayerId === hostPlayerId) {
+      throw new Error('Cannot kick yourself');
+    }
+
+    const kickedPlayerIndex = gameState.players.findIndex((p) => p.id === payload.targetPlayerId);
+    if (kickedPlayerIndex === -1) {
+      throw new Error('Player not found in game');
+    }
+
+    const kickedPlayer = gameState.players[kickedPlayerIndex]!;
+    const players = gameState.players.filter((p) => p.id !== payload.targetPlayerId);
+
+    // Return kicked player's cards to draw pile in random order
+    let drawPile = [...gameState.drawPile];
+    if (kickedPlayer.hand.length > 0) {
+      const returnedCards = [...kickedPlayer.hand];
+      drawPile = [...drawPile, ...returnedCards];
+      drawPile = shuffle(drawPile);
+    }
+
+    // Fix currentPlayerIndex if we're in an active game
+    let currentPlayerIndex = gameState.currentPlayerIndex;
+    if (gameState.gamePhase === 'playing') {
+      if (kickedPlayerIndex < currentPlayerIndex) {
+        // Kicked player was before current — shift index back
+        currentPlayerIndex -= 1;
+      } else if (kickedPlayerIndex === currentPlayerIndex) {
+        // Kicked player was the active player — keep same index but wrap if needed
+        if (currentPlayerIndex >= players.length) {
+          currentPlayerIndex = 0;
+        }
+      }
+      // If kicked player was after current, no adjustment needed
+    }
+
+    // Reset cardsPlayedThisTurn if the kicked player was the active player
+    const cardsPlayedThisTurn = kickedPlayerIndex === gameState.currentPlayerIndex
+      ? 0
+      : gameState.cardsPlayedThisTurn;
+
+    const nextState: GameState = {
+      ...gameState,
+      players,
+      drawPile,
+      currentPlayerIndex,
+      cardsPlayedThisTurn,
+      statistics: {
+        ...gameState.statistics,
+        players: Object.fromEntries(players.map((player) => [
+          player.id,
+          gameState.statistics.players[player.id] ?? emptyPlayerStats()
+        ]))
+      },
+      nasCheat: {
+        ...gameState.nasCheat,
+        enabledPlayerIds: gameState.nasCheat.enabledPlayerIds.filter((id) => id !== payload.targetPlayerId),
+        usedThisTurnByPlayerId: Object.fromEntries(players.map((player) => [
+          player.id,
+          gameState.nasCheat.usedThisTurnByPlayerId[player.id] ?? false
+        ]))
+      }
+    };
+
+    room.gameState = nextState;
+    room.turnUndoStack = [];
+    room.updatedAtMs = Date.now();
+    return nextState;
+  }
+
   removeDisconnectedPlayer(playerId: string): Array<{ gameId: string; gameState: GameState | null }> {
     const updates: Array<{ gameId: string; gameState: GameState | null }> = [];
 
@@ -414,6 +621,7 @@ export class GameManager {
       const ttlMs = room.gameState.gamePhase === 'lobby' ? lobbyTtlMs : activeTtlMs;
       if (ageMs >= ttlMs) {
         this.rooms.delete(gameId);
+        this.reactions.delete(gameId);
         deleted.push(gameId);
       }
     }

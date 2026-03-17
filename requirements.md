@@ -58,9 +58,10 @@ A cooperative multiplayer card game where players work together to play all thei
 - **Status**: ✅ **Implemented**
 
 #### Undo Functionality
-- Players can undo the last card played if enabled in settings
-- Configurable option in game settings
-- **Status**: 🔄 **Planned** (UI exists, backend implementation needed)
+- Players can undo card plays within their current turn (one at a time, back to start of turn)
+- Once "End Turn" is clicked, undo history is cleared — no cross-turn undo
+- Works in both multiplayer (server-side snapshot stack) and solitaire (client-side)
+- **Status**: ✅ **Implemented**
 
 ### 2.3 Win/Loss Conditions
 
@@ -77,12 +78,15 @@ A cooperative multiplayer card game where players work together to play all thei
 
 ### 2.4 Player Communication
 
-#### Foundation Pile Preferences (Future)
-- Players can mark piles as "like", "really like", or "love" when not their turn
+#### Foundation Pile Preferences
+- Players can mark individual piles as "like" (👍), "love" (❤️), or "really love" (🔥) when not their turn
 - Purely communicative - no mechanical effect
 - Signals to other players that they have beneficial cards for that pile
+- Click your indicator to cycle: off → like → love → really love → off
+- Each player has a fixed indicator slot per pile (players 1-3 left, 4-6 right)
 - Preferences reset when player's turn starts
-- **Status**: 🔄 **Planned** (code structure exists, needs activation)
+- Cannot set reactions during your own turn
+- **Status**: ✅ **Implemented**
 
 #### In-Game Chat (Future)
 - Real-time chat system for player coordination
@@ -149,10 +153,12 @@ A cooperative multiplayer card game where players work together to play all thei
   - ✅ Turn indicator showing active player
   - ✅ Draw pile count
   - ✅ Game status (playing/won/lost)
-  - 🔄 Game ID during gameplay (planned)
-  - 🔄 Turn sequence/order (planned)
+  - ✅ Game ID during gameplay (copyable invite link)
+  - ✅ Turn sequence display (dot strip showing turn order and "Your turn in X")
+  - ✅ Pile preference indicators (like/love/really love per pile)
+  - ✅ Backward-10 special play animation (golden flash + floating label)
+  - ✅ End game confirmation modal (prevents accidental game termination)
   - 🔄 Chat interface (planned)
-  - 🔄 Pile preference indicators (planned)
 
 #### Color Scheme
 - **Dark Theme**:
@@ -184,8 +190,10 @@ Immediate updates via Socket.IO for:
 - ✅ Game state changes (win/loss)
 - ✅ Player joining/leaving
 - ✅ Game start
+- ✅ Foundation pile preferences (real-time broadcast)
+- ✅ Backward-10 special play notifications
+- ✅ Undo play synchronization
 - 🔄 Chat messages (future)
-- 🔄 Foundation pile preferences (future)
 
 **Status**: ✅ **Core real-time features implemented**
 
@@ -219,31 +227,30 @@ Immediate updates via Socket.IO for:
 10. Player elimination handling (skip players without cards)
 11. Comprehensive statistics tracking and display
 12. Dark theme UI with visual feedback
-13. User guide (USER_GUIDE.html)
+13. User guide (how-to-play.html)
 14. Firebase null-safety with defensive array handling
 15. Player hand visibility (own cards only, card counts for others)
+16. Undo within turn (server-side snapshot stack, clears on end turn)
+17. Foundation pile preferences (like/love/really love per pile, real-time sync)
+18. Turn sequence display (dot strip with turn distance indicator)
+19. Backward-10 special play animation (golden flash + floating "🔥 -10! 🔥" label)
+20. End game confirmation modal (prevents accidental termination of active games)
+21. Game ID displayed during gameplay with one-click invite link copy
+22. Player kick (lobby): Host can remove players via ✕ button; kicked player is notified and returned to home
 
 ### Planned Features 🔄
 
-#### High Priority
-1. **Undo Functionality**: Allow players to undo last card played
-2. **Foundation Pile Preferences**: Like/really like/love communication system
-3. **Display Game ID**: Show game ID in UI during gameplay for easy sharing
-4. **Turn Sequence Display**: Visual indicator of player order
-
 #### Medium Priority
-5. **Special Play Visuals**: Highlight backward-10 moves with special effects
-6. **Separate Firebase Instances**: Dev and prod database separation
-7. **In-game Chat System**: Real-time text communication
-8. **Player Kick/Timeout**: Remove inactive players from game
+2. **Separate Firebase Instances**: Dev and prod database separation
+3. **Peek at Hands**: Allow players to view others' hands (with permission)
+4. **Drag-and-Drop Cards**: Enhanced card movement interaction
+5. **Mobile Responsive Design**: Optimize for tablets and phones
 
 #### Lower Priority
-9. **Peek at Hands**: Allow players to view others' hands (with permission)
-10. **Drag-and-Drop Cards**: Enhanced card movement interaction
-11. **Mobile Responsive Design**: Optimize for tablets and phones
-12. **Patterned Cards**: Visual card designs beyond numbered cards
-13. **Achievement System**: Track and reward player accomplishments
-14. **Game History & Replay**: Review past games
+6. **In-game Chat System**: Real-time text communication
+7. **Patterned Cards**: Visual card designs beyond numbered cards
+8. **Achievement System**: Track and reward player accomplishments
+9. **Game History & Replay**: Review past games
 
 ### Explicitly Not Planned ❌
 - Mid-game joining (disrupts cooperative balance)
@@ -268,8 +275,14 @@ All Clients → Update Local State
 - `game:start` - Start game
 - `game:playCard` - Play a card
 - `game:endTurn` - End current turn
-- `game:checkStatus` - Check win/loss status
-- `game:setPilePreference` - Set pile preference (structure exists)
+- `game:endGame` - Host ends active game
+- `game:undoPlay` - Undo last card play within current turn
+- `game:setReaction` - Set pile preference (like/love/really love)
+- `game:nasCheat` - Use Nas Cheat ability
+- `game:reactionsUpdated` - Broadcast reaction state changes (server → clients)
+- `game:specialPlay` - Broadcast backward-10 move notification (server → clients)
+- `game:kickPlayer` - Host kicks a player from the lobby
+- `game:kicked` - Notify kicked player (server → kicked client)
 
 ### Game State Management
 - **Server**: Single source of truth in Firebase

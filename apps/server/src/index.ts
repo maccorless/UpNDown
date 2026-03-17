@@ -6,8 +6,10 @@ import { z } from 'zod';
 import {
   createGamePayloadSchema,
   joinGamePayloadSchema,
+  kickPlayerPayloadSchema,
   nasCheatPayloadSchema,
   playCardPayloadSchema,
+  setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
 import { GameManager } from './game-manager.js';
@@ -33,11 +35,14 @@ interface RateLimitRule {
   windowMs: number;
 }
 
-const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard' | 'game:nasCheat', RateLimitRule> = {
+const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard' | 'game:nasCheat' | 'game:setReaction' | 'game:undoPlay' | 'game:kickPlayer', RateLimitRule> = {
   'game:join': { limit: 10, windowMs: 10_000 },
   'game:lookup': { limit: 20, windowMs: 10_000 },
   'game:playCard': { limit: 60, windowMs: 10_000 },
-  'game:nasCheat': { limit: 30, windowMs: 10_000 }
+  'game:nasCheat': { limit: 30, windowMs: 10_000 },
+  'game:setReaction': { limit: 20, windowMs: 10_000 },
+  'game:undoPlay': { limit: 30, windowMs: 10_000 },
+  'game:kickPlayer': { limit: 10, windowMs: 10_000 }
 };
 
 function parseAllowedOrigins(raw: string | undefined): string[] {
@@ -162,6 +167,25 @@ export function createRealtimeServer(port?: number) {
     log('info', 'socket.connected', { socketId: socket.id });
     socket.emit('server:ready', { message: 'connected', playerId: socket.id });
 
+    socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
+      try {
+        const { gameId, previousPlayerId } = payload as { gameId: string; previousPlayerId: string };
+        if (!gameId || !previousPlayerId) {
+          ack?.({ ok: false, error: 'Missing gameId or previousPlayerId' });
+          return;
+        }
+        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id);
+        socket.join(gameId);
+        io.to(gameId).emit('game:updated', gameState);
+        log('info', 'game.rejoined', { socketId: socket.id, previousId: previousPlayerId, gameId });
+        ack?.({ ok: true, data: { gameState, playerId: socket.id } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to rejoin game');
+        log('warn', 'game.rejoin_failed', { socketId: socket.id, error: message });
+        ack?.({ ok: false, error: message });
+      }
+    });
+
     socket.on('game:create', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
       try {
         const parsed = createGamePayloadSchema.parse(payload);
@@ -231,7 +255,9 @@ export function createRealtimeServer(port?: number) {
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.startGame(socket.id, parsed.gameId);
+        manager.clearAllReactions(gameState.gameId);
         io.to(gameState.gameId).emit('game:updated', gameState);
+        io.to(gameState.gameId).emit('game:reactionsUpdated', {});
         log('info', 'game.started', { socketId: socket.id, gameId: gameState.gameId });
         ack?.({ ok: true, data: { gameState } });
       } catch (err) {
@@ -250,7 +276,12 @@ export function createRealtimeServer(port?: number) {
       }
       try {
         const parsed = playCardPayloadSchema.parse(payload);
+        const oldSpecialPlays = manager.getSpecialPlays(parsed.gameId, socket.id);
         const gameState = manager.playCard(socket.id, parsed);
+        const newSpecialPlays = gameState.statistics.players[socket.id]?.specialPlays ?? 0;
+        if (newSpecialPlays > oldSpecialPlays) {
+          io.to(gameState.gameId).emit('game:specialPlay', { pileId: parsed.pileId, playerId: socket.id });
+        }
         io.to(gameState.gameId).emit('game:updated', gameState);
         ack?.({ ok: true, data: { gameState } });
       } catch (err) {
@@ -283,11 +314,34 @@ export function createRealtimeServer(port?: number) {
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.endTurn(socket.id, parsed.gameId);
+        const newCurrentPlayerId = gameState.players[gameState.currentPlayerIndex]?.id;
+        if (newCurrentPlayerId) {
+          manager.clearPlayerReactions(gameState.gameId, newCurrentPlayerId);
+        }
+        const reactions = manager.getReactions(gameState.gameId);
         io.to(gameState.gameId).emit('game:updated', gameState);
+        io.to(gameState.gameId).emit('game:reactionsUpdated', reactions);
         ack?.({ ok: true, data: { gameState } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to end turn');
         log('warn', 'game.end_turn_failed', { socketId: socket.id, error: message });
+        ack?.({ ok: false, error: message });
+      }
+    });
+
+    socket.on('game:undoPlay', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:undoPlay')) {
+        ack?.({ ok: false, error: 'Too many undo attempts. Slow down!' });
+        return;
+      }
+      try {
+        const parsed = gameIdSchema.parse(payload);
+        const gameState = manager.undoLastPlay(socket.id, parsed.gameId);
+        io.to(gameState.gameId).emit('game:updated', gameState);
+        ack?.({ ok: true, data: { gameState } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to undo');
+        log('warn', 'game.undo_failed', { socketId: socket.id, error: message });
         ack?.({ ok: false, error: message });
       }
     });
@@ -319,19 +373,66 @@ export function createRealtimeServer(port?: number) {
       }
     });
 
+    socket.on('game:kickPlayer', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:kickPlayer')) {
+        ack?.({ ok: false, error: 'Too many kick attempts. Slow down!' });
+        return;
+      }
+      try {
+        const parsed = kickPlayerPayloadSchema.parse(payload);
+        const gameState = manager.kickPlayer(socket.id, parsed);
+        // Notify the kicked player
+        io.to(parsed.targetPlayerId).emit('game:kicked', { gameId: parsed.gameId });
+        // Force the kicked player's socket to leave the room
+        const kickedSocket = io.sockets.sockets.get(parsed.targetPlayerId);
+        if (kickedSocket) {
+          kickedSocket.leave(parsed.gameId);
+        }
+        // Broadcast updated state to remaining players
+        io.to(gameState.gameId).emit('game:updated', gameState);
+        log('info', 'game.player_kicked', { socketId: socket.id, gameId: parsed.gameId, kickedPlayerId: parsed.targetPlayerId });
+        ack?.({ ok: true, data: { gameState } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to kick player');
+        log('warn', 'game.kick_failed', { socketId: socket.id, error: message });
+        ack?.({ ok: false, error: message });
+      }
+    });
+
     socket.on('game:leave', (payload, ack?: Ack<{ gameState: unknown | null }>) => {
       try {
         const parsed = gameIdSchema.parse(payload);
+        manager.clearPlayerReactions(parsed.gameId, socket.id);
         const gameState = manager.leaveGame(socket.id, parsed.gameId);
         socket.leave(parsed.gameId);
         if (gameState) {
+          const reactions = manager.getReactions(parsed.gameId);
           io.to(parsed.gameId).emit('game:updated', gameState);
+          io.to(parsed.gameId).emit('game:reactionsUpdated', reactions);
         }
         log('info', 'game.left', { socketId: socket.id, gameId: parsed.gameId });
         ack?.({ ok: true, data: { gameState } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to leave game');
         log('warn', 'game.leave_failed', { socketId: socket.id, error: message });
+        ack?.({ ok: false, error: message });
+      }
+    });
+
+    socket.on('game:setReaction', (payload, ack?: Ack<Record<string, never>>) => {
+      if (!passesRateLimit(socket.id, 'game:setReaction')) {
+        ack?.({ ok: false, error: 'Too many reactions. Slow down!' });
+        return;
+      }
+      try {
+        const parsed = setReactionPayloadSchema.parse(payload);
+        manager.setReaction(parsed.gameId, socket.id, parsed.pileId, parsed.reactionType);
+        const reactions = manager.getReactions(parsed.gameId);
+        io.to(parsed.gameId).emit('game:reactionsUpdated', reactions);
+        ack?.({ ok: true, data: {} });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to set reaction');
+        log('warn', 'game.set_reaction_failed', { socketId: socket.id, error: message });
         ack?.({ ok: false, error: message });
       }
     });

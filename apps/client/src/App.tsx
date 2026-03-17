@@ -1,5 +1,5 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
-import { gameSettingsSchema, type Card, type GameSettings, type GameState } from '@upndown/shared-types';
+import { gameSettingsSchema, type Card, type GameSettings, type GameState, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import './App.css';
@@ -8,7 +8,7 @@ const SOLO_PLAYER_ID = 'solo-player';
 
 type Mode = 'solitaire' | 'multiplayer';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
-type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'nascheat' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | null;
+type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'nascheat' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | 'undo' | null;
 
 type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -214,6 +214,26 @@ interface GameBoardProps {
   playerId?: string | null;
   interactionDisabled?: boolean;
   newCardIds?: string[];
+  onSetReaction?: (pileId: number, reactionType: ReactionType | null) => void;
+  gameReactions?: ReactionState;
+  specialPlayPileId?: number | null | undefined;
+  onUndo?: (() => void) | undefined;
+  canUndo?: boolean | undefined;
+  onKickPlayer?: ((targetPlayerId: string) => void) | undefined;
+  isHost?: boolean | undefined;
+}
+
+const REACTION_EMOJI: Record<ReactionType, string> = {
+  like: '👍',
+  love: '❤️',
+  really_love: '🔥'
+};
+
+function nextReaction(current: ReactionType | null): ReactionType | null {
+  if (current === null) return 'like';
+  if (current === 'like') return 'love';
+  if (current === 'love') return 'really_love';
+  return null;
 }
 
 export function GameBoard(props: GameBoardProps): JSX.Element {
@@ -228,7 +248,14 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     canUseNasCheat,
     playerId,
     interactionDisabled,
-    newCardIds = []
+    newCardIds = [],
+    onSetReaction,
+    gameReactions = {},
+    specialPlayPileId: specialPlayPileIdProp = null,
+    onUndo,
+    canUndo,
+    onKickPlayer,
+    isHost: isHostProp
   } = props;
 
   const me = mode === 'solitaire'
@@ -251,6 +278,9 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     && isMyTurn
     && gameState.cardsPlayedThisTurn >= requiredPlaysThisTurn;
   const [dismissedPhaseSplash, setDismissedPhaseSplash] = useState(false);
+  const [gameIdCopied, setGameIdCopied] = useState(false);
+  const [kickConfirmPlayerId, setKickConfirmPlayerId] = useState<string | null>(null);
+  const kickConfirmPlayer = kickConfirmPlayerId ? gameState.players.find((p) => p.id === kickConfirmPlayerId) : null;
 
   useEffect(() => {
     if (gameState.gamePhase === 'playing' || gameState.gamePhase === 'lobby') {
@@ -288,49 +318,203 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
         <div className="pile-grid">
           {gameState.foundationPiles.map((pile) => {
             const highlighted = canPlayOnPile(selectedCard, pile.topCard, pile.type);
+
+            const leftPlayers = mode === 'multiplayer' ? gameState.players.slice(0, 3) : [];
+            const rightPlayers = mode === 'multiplayer' ? gameState.players.slice(3, 6) : [];
+            const isMyTurn = gameState.players[gameState.currentPlayerIndex]?.id === playerId;
+            const canReact = mode === 'multiplayer'
+              && gameState.gamePhase === 'playing'
+              && !isMyTurn
+              && !!onSetReaction;
+
+            const renderSlot = (player: typeof gameState.players[0], playerNum: number): JSX.Element => {
+              const reaction = gameReactions[player.id]?.[pile.id] ?? null;
+              const isMine = player.id === playerId;
+              const slotCanClick = isMine && canReact;
+              return (
+                <div
+                  key={player.id}
+                  role="button"
+                  tabIndex={slotCanClick ? 0 : -1}
+                  className={`reaction-slot${reaction ? ' active' : ''}${isMine ? ' mine' : ''}${slotCanClick ? ' clickable' : ''}`}
+                  onClick={slotCanClick ? (e) => { e.stopPropagation(); onSetReaction(pile.id, nextReaction(reaction)); } : undefined}
+                  onKeyDown={slotCanClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onSetReaction(pile.id, nextReaction(reaction)); } } : undefined}
+                  aria-label={reaction
+                    ? `Player ${playerNum} reacted ${reaction.replace('_', ' ')} to this pile`
+                    : `Player ${playerNum}`}
+                  title={isMine && !isMyTurn && gameState.gamePhase === 'playing'
+                    ? 'Click to react'
+                    : undefined}
+                >
+                  {reaction ? REACTION_EMOJI[reaction] : playerNum}
+                </div>
+              );
+            };
+
+            const pileTypeClass = pile.type === 'ascending' ? 'asc' : 'desc';
+            const hasReactionCols = leftPlayers.length > 0 || rightPlayers.length > 0;
+            const isSpecialFlash = specialPlayPileIdProp === pile.id;
+            const specialLabel = pile.type === 'ascending' ? '🔥 -10! 🔥' : '🔥 +10! 🔥';
+
             return (
-              <button
+              <div
                 key={pile.id}
-                type="button"
-                className={`pile ${pile.type === 'ascending' ? 'asc' : 'desc'} ${highlighted ? 'highlight' : ''}`}
-                onClick={() => onPlayPile(pile.id)}
-                data-testid={`pile-${pile.id}`}
-                disabled={inputsDisabled}
-                aria-label={`Foundation ${pile.type} with top card ${pile.topCard.value}`}
+                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''} ${hasReactionCols ? 'with-reactions' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}`}
               >
-                <span className="pile-tag">{pile.type === 'ascending' ? 'Ascending' : 'Descending'}</span>
-                <span className="top-card" data-testid={`pile-top-${pile.id}`}>{pile.topCard.value}</span>
-                <span className="pile-hint">
-                  {pile.type === 'ascending'
-                    ? `>${pile.topCard.value} or ${pile.topCard.value - 10}`
-                    : `<${pile.topCard.value} or ${pile.topCard.value + 10}`}
-                </span>
-              </button>
+                {isSpecialFlash && (
+                  <span className="backward-ten-label">{specialLabel}</span>
+                )}
+                {hasReactionCols && (
+                  <div className="reaction-col left">
+                    {leftPlayers.map((player, i) => renderSlot(player, i + 1))}
+                  </div>
+                )}
+                <button
+                  type="button"
+                  className="pile"
+                  onClick={() => onPlayPile(pile.id)}
+                  data-testid={`pile-${pile.id}`}
+                  disabled={inputsDisabled}
+                  aria-label={`Foundation ${pile.type} with top card ${pile.topCard.value}`}
+                >
+                  <span className="pile-tag">{pile.type === 'ascending' ? 'Ascending' : 'Descending'}</span>
+                  <span className="top-card" data-testid={`pile-top-${pile.id}`}>{pile.topCard.value}</span>
+                  <span className="pile-hint">
+                    {pile.type === 'ascending'
+                      ? `>${pile.topCard.value} or ${pile.topCard.value - 10}`
+                      : `<${pile.topCard.value} or ${pile.topCard.value + 10}`}
+                  </span>
+                </button>
+                {hasReactionCols && (
+                  <div className="reaction-col right">
+                    {rightPlayers.map((player, i) => renderSlot(player, i + 4))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
       </section>
 
-      {mode === 'multiplayer' ? (
-        <section className="panel players-panel" aria-label="players list">
-          <div className="players-panel-header">
-            <h2>Players</h2>
-            <div className="pill mini">{gameState.players.length}</div>
-          </div>
-          <div className="players-list">
-            {gameState.players.map((player, index) => (
-              <div
-                key={player.id}
-                className={`player-line ${index === gameState.currentPlayerIndex ? 'active' : ''}`}
-                aria-current={index === gameState.currentPlayerIndex ? 'true' : undefined}
+      {mode === 'multiplayer' ? (() => {
+        const myIndex = gameState.players.findIndex((p) => p.id === playerId);
+        const currentIdx = gameState.currentPlayerIndex;
+        const count = gameState.players.length;
+        const turnsUntilMine = myIndex >= 0
+          ? (myIndex - currentIdx + count) % count
+          : -1;
+        const turnLabel = gameState.gamePhase === 'playing'
+          ? turnsUntilMine === 0
+            ? 'Your turn'
+            : turnsUntilMine === 1
+              ? 'You\'re next'
+              : `Your turn in ${turnsUntilMine}`
+          : null;
+
+        return (
+          <section className="panel players-panel" aria-label="players list">
+            <div className="players-panel-header">
+              <h2>Players</h2>
+              <div className="pill mini">{gameState.players.length}</div>
+              <button
+                type="button"
+                className="pill mini game-id-pill"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(buildInviteLink(gameState.gameId));
+                    setGameIdCopied(true);
+                    setTimeout(() => setGameIdCopied(false), 1500);
+                  } catch { /* clipboard unavailable */ }
+                }}
+                title="Click to copy invite link"
               >
-                <span>{index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}</span>
-                <span>{player.hand.length} cards</span>
+                {gameIdCopied ? 'Copied!' : `Game: ${gameState.gameId}`}
+              </button>
+            </div>
+            {gameState.gamePhase === 'playing' && (
+              <div className="turn-sequence" aria-label="turn order">
+                <div className="turn-dots">
+                  {gameState.players.map((player, index) => {
+                    const isCurrent = index === currentIdx;
+                    const isMe = player.id === playerId;
+                    return (
+                      <span key={player.id} className="turn-step">
+                        {index > 0 && <span className="turn-connector" />}
+                        <span
+                          className={`turn-dot${isCurrent ? ' current' : ''}${isMe ? ' me' : ''}`}
+                          title={`${player.name}${isCurrent ? ' (playing)' : ''}`}
+                        >
+                          {index + 1}
+                        </span>
+                      </span>
+                    );
+                  })}
+                </div>
+                {turnLabel && <span className="turn-label">{turnLabel}</span>}
               </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
+            )}
+            <div className="players-list">
+              {gameState.players.map((player, index) => (
+                <div
+                  key={player.id}
+                  className={`player-line ${index === gameState.currentPlayerIndex ? 'active' : ''}`}
+                  aria-current={index === gameState.currentPlayerIndex ? 'true' : undefined}
+                >
+                  <span>{index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}</span>
+                  <span className="player-line-right">
+                    <span>{player.hand.length} cards</span>
+                    {isHostProp && onKickPlayer && player.id !== playerId && !player.isHost ? (
+                      <button
+                        type="button"
+                        className="kick-btn"
+                        onClick={() => setKickConfirmPlayerId(player.id)}
+                        title={`Remove ${player.name}`}
+                        data-testid={`kick-ingame-${player.id}`}
+                      >
+                        ✕
+                      </button>
+                    ) : null}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {kickConfirmPlayer && onKickPlayer ? (
+              <div className="modal-backdrop" role="presentation" onClick={() => setKickConfirmPlayerId(null)}>
+                <section
+                  className="panel end-game-confirm-modal"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="confirm kick player"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <h2>Kick Player?</h2>
+                  <p>Remove <strong>{kickConfirmPlayer.name}</strong> from the game? Their {kickConfirmPlayer.hand.length} cards will be returned to the draw pile.</p>
+                  <div className="button-row">
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => {
+                        onKickPlayer(kickConfirmPlayer.id);
+                        setKickConfirmPlayerId(null);
+                      }}
+                    >
+                      Kick Player
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      onClick={() => setKickConfirmPlayerId(null)}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </section>
+              </div>
+            ) : null}
+          </section>
+        );
+      })() : null}
 
       <section className="panel hand-panel" aria-label="your hand">
         <div className="hand-header">
@@ -345,6 +529,17 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                 data-testid="end-turn"
               >
                 End Turn
+              </button>
+            ) : null}
+            {onUndo ? (
+              <button
+                type="button"
+                className="secondary"
+                onClick={onUndo}
+                disabled={inputsDisabled || !canUndo}
+                data-testid="undo"
+              >
+                Undo
               </button>
             ) : null}
             {onNasCheat ? (
@@ -379,6 +574,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
           ))}
         </div>
       </section>
+
     </div>
   );
 }
@@ -753,9 +949,15 @@ export function App(): JSX.Element {
 
   const [solitaireState, setSolitaireState] = useState<GameState>(() => newSolitaireGame(solitaireSettings));
   const [solitaireSelectedCardId, setSolitaireSelectedCardId] = useState<string | null>(null);
+  const [solitaireSpecialPlayPileId, setSolitaireSpecialPlayPileId] = useState<number | null>(null);
+  const solitaireSpecialPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [solitaireUndoStack, setSolitaireUndoStack] = useState<GameState[]>([]);
 
   const [multiplayerState, setMultiplayerState] = useState<GameState | null>(null);
   const [multiplayerSelectedCardId, setMultiplayerSelectedCardId] = useState<string | null>(null);
+  const [gameReactions, setGameReactions] = useState<ReactionState>({});
+  const [specialPlayPileId, setSpecialPlayPileId] = useState<number | null>(null);
+  const specialPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [multiplayerCreateSettings, setMultiplayerCreateSettings] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [settingsDraft, setSettingsDraft] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -764,6 +966,7 @@ export function App(): JSX.Element {
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
   const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
   const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
+  const [kickedFromGameId, setKickedFromGameId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
@@ -788,6 +991,8 @@ export function App(): JSX.Element {
   const lastSolitaireHandIdsRef = useRef<string[]>([]);
   const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
+  const activeGameIdRef = useRef<string | null>(null);
+  const previousPlayerIdRef = useRef<string | null>(null);
 
   const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
 
@@ -916,7 +1121,25 @@ export function App(): JSX.Element {
 
     const onConnect = (): void => {
       setConnectionState('connected');
-      setPlayerId(socket.id ?? null);
+      const newId = socket.id ?? null;
+      const oldId = previousPlayerIdRef.current;
+      const gameId = activeGameIdRef.current;
+
+      // If we had an active game and our socket ID changed, rejoin
+      if (gameId && oldId && newId && oldId !== newId) {
+        socket.emit('game:rejoin', { gameId, previousPlayerId: oldId },
+          (response: { ok: boolean; data?: { gameState: GameState; playerId: string }; error?: string }) => {
+            if (response?.ok && response.data) {
+              setMultiplayerState(response.data.gameState);
+              setPlayerId(response.data.playerId);
+              previousPlayerIdRef.current = response.data.playerId;
+            }
+          }
+        );
+      }
+
+      setPlayerId(newId);
+      previousPlayerIdRef.current = newId;
     };
 
     const onDisconnect = (): void => {
@@ -931,10 +1154,32 @@ export function App(): JSX.Element {
       setMultiplayerState(state);
     };
 
+    const onReactionsUpdated = (reactions: ReactionState): void => {
+      setGameReactions(reactions);
+    };
+
+    const onSpecialPlay = (data: { pileId: number }): void => {
+      setSpecialPlayPileId(data.pileId);
+      if (specialPlayTimerRef.current) clearTimeout(specialPlayTimerRef.current);
+      specialPlayTimerRef.current = setTimeout(() => setSpecialPlayPileId(null), 1500);
+    };
+
+    const onKicked = (data: { gameId: string }): void => {
+      setKickedFromGameId(data.gameId);
+      setMultiplayerState(null);
+      setMultiplayerSelectedCardId(null);
+      setMultiplayerNewCardIds([]);
+      lastMultiplayerHandIdsRef.current = [];
+      activeGameIdRef.current = null;
+    };
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onConnectError);
     socket.on('game:updated', onUpdated);
+    socket.on('game:reactionsUpdated', onReactionsUpdated);
+    socket.on('game:specialPlay', onSpecialPlay);
+    socket.on('game:kicked', onKicked);
 
     if (!socket.connected) {
       socket.connect();
@@ -945,8 +1190,13 @@ export function App(): JSX.Element {
       socket.off('disconnect', onDisconnect);
       socket.off('connect_error', onConnectError);
       socket.off('game:updated', onUpdated);
+      socket.off('game:reactionsUpdated', onReactionsUpdated);
+      socket.off('game:specialPlay', onSpecialPlay);
+      socket.off('game:kicked', onKicked);
       socket.disconnect();
       setConnectionState('disconnected');
+      setGameReactions({});
+      setSpecialPlayPileId(null);
     };
   }, [mode]);
 
@@ -1187,6 +1437,7 @@ export function App(): JSX.Element {
     setDismissedStatsModalKey(null);
     setSolitaireSelectedCardId(null);
     setSolitaireNewCardIds([]);
+    setSolitaireUndoStack([]);
     setError(null);
   };
 
@@ -1194,6 +1445,7 @@ export function App(): JSX.Element {
     setSolitaireActive(false);
     setSolitaireSelectedCardId(null);
     setSolitaireNewCardIds([]);
+    setSolitaireUndoStack([]);
     setError(null);
   };
 
@@ -1201,13 +1453,34 @@ export function App(): JSX.Element {
     if (!solitaireSelectedCardId) return;
 
     try {
+      const oldSpecialPlays = solitaireState.statistics.players[SOLO_PLAYER_ID]?.specialPlays ?? 0;
       const next = playCardEngine(solitaireState, SOLO_PLAYER_ID, solitaireSelectedCardId, pileId);
+      const newSpecialPlays = next.statistics.players[SOLO_PLAYER_ID]?.specialPlays ?? 0;
+
+      setSolitaireUndoStack((stack) => [...stack, solitaireState]);
       setSolitaireState(next);
       setSolitaireSelectedCardId(null);
       setError(null);
+
+      if (newSpecialPlays > oldSpecialPlays) {
+        setSolitaireSpecialPlayPileId(pileId);
+        if (solitaireSpecialPlayTimerRef.current) clearTimeout(solitaireSpecialPlayTimerRef.current);
+        solitaireSpecialPlayTimerRef.current = setTimeout(() => setSolitaireSpecialPlayPileId(null), 1500);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to play card.');
     }
+  };
+
+  const handleSolitaireUndo = (): void => {
+    setSolitaireUndoStack((stack) => {
+      if (stack.length === 0) return stack;
+      const prev = stack[stack.length - 1]!;
+      setSolitaireState(prev);
+      setSolitaireSelectedCardId(null);
+      setError(null);
+      return stack.slice(0, -1);
+    });
   };
 
   const handleCreateGame = async (): Promise<void> => {
@@ -1240,6 +1513,8 @@ export function App(): JSX.Element {
     }
 
     setPlayerId(ack.data.playerId);
+    previousPlayerIdRef.current = ack.data.playerId;
+    activeGameIdRef.current = ack.data.gameState.gameId;
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
     setMultiplayerNewCardIds([]);
@@ -1275,6 +1550,8 @@ export function App(): JSX.Element {
 
     setJoinGameId(gameId);
     setPlayerId(ack.data.playerId);
+    previousPlayerIdRef.current = ack.data.playerId;
+    activeGameIdRef.current = ack.data.gameState.gameId;
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
     setMultiplayerNewCardIds([]);
@@ -1394,17 +1671,54 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
   };
 
-  const handleMultiplayerEndGame = async (): Promise<void> => {
-    if (!multiplayerState) {
+  const handleMultiplayerUndo = async (): Promise<void> => {
+    if (!multiplayerState) return;
+
+    const ack = await emitWithAck<{ gameState: GameState }>(
+      'game:undoPlay',
+      { gameId: multiplayerState.gameId },
+      'undo'
+    );
+
+    if (!ack.ok) {
+      setError(ack.error);
       return;
     }
 
-    if (multiplayerState.gamePhase === 'playing') {
-      const confirmed = window.confirm('End the active game for everyone and return all players to lobby?');
-      if (!confirmed) {
-        return;
-      }
+    setError(null);
+    setMultiplayerSelectedCardId(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
+  const handleKickPlayer = async (targetPlayerId: string): Promise<void> => {
+    if (!multiplayerState) return;
+
+    const ack = await emitWithAck<{ gameState: GameState }>(
+      'game:kickPlayer',
+      { gameId: multiplayerState.gameId, targetPlayerId },
+      'leave'
+    );
+
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
     }
+
+    setError(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
+  const sendSetReaction = (pileId: number, reactionType: ReactionType | null): void => {
+    const socket = getSocket();
+    if (!socket.connected || !multiplayerState) return;
+    socket.emit('game:setReaction', { gameId: multiplayerState.gameId, pileId, reactionType });
+  };
+
+  const [showEndGameConfirm, setShowEndGameConfirm] = useState(false);
+
+  const executeEndGame = async (): Promise<void> => {
+    if (!multiplayerState) return;
+    setShowEndGameConfirm(false);
 
     const ack = await emitWithAck<{ gameState: GameState }>(
       'game:endGame',
@@ -1420,6 +1734,17 @@ export function App(): JSX.Element {
     setError(null);
     setMultiplayerSelectedCardId(null);
     setMultiplayerState(ack.data.gameState);
+  };
+
+  const handleMultiplayerEndGame = async (): Promise<void> => {
+    if (!multiplayerState) return;
+
+    if (multiplayerState.gamePhase === 'playing') {
+      setShowEndGameConfirm(true);
+      return;
+    }
+
+    await executeEndGame();
   };
 
   const handleMultiplayerPlayAgain = async (): Promise<void> => {
@@ -1493,12 +1818,15 @@ export function App(): JSX.Element {
     setMultiplayerSelectedCardId(null);
     setMultiplayerNewCardIds([]);
     lastMultiplayerHandIdsRef.current = [];
+    activeGameIdRef.current = null;
+    previousPlayerIdRef.current = null;
     setMultiplayerFlow('choose');
     setShowJoinById(false);
     setJoinLookup(null);
     setJoinGameId('');
     setInviteCopied(false);
     setHostEndedModalGameId(null);
+    setKickedFromGameId(null);
     setError(null);
   };
 
@@ -1705,6 +2033,7 @@ export function App(): JSX.Element {
               onClick={() => { void handleMultiplayerEndGame(); }}
               disabled={multiplayerInteractionDisabled || !isHost}
               data-testid="end-game-top"
+              title={!isHost ? 'Only the game host can end the game' : undefined}
             >
               End Game
             </button>
@@ -1718,7 +2047,7 @@ export function App(): JSX.Element {
                   resetToLanding();
                 }}
               >
-                Change Mode
+                {mode === 'solitaire' ? 'Change to Multiplayer' : 'Change to Solitaire'}
               </button>
             ) : null
           ) : null}
@@ -1817,6 +2146,9 @@ export function App(): JSX.Element {
           setSelectedCardId={setSolitaireSelectedCardId}
           onPlayPile={handleSolitairePlayCard}
           newCardIds={solitaireNewCardIds}
+          specialPlayPileId={solitaireSpecialPlayPileId}
+          onUndo={solitaireUndoStack.length > 0 ? handleSolitaireUndo : undefined}
+          canUndo={solitaireUndoStack.length > 0}
         />
         ) : (
           <section className="panel lobby" aria-label="solitaire ended">
@@ -2009,6 +2341,18 @@ export function App(): JSX.Element {
                 {multiplayerState.players.map((player, index) => (
                   <div className="player-line" key={player.id}>
                     <span>{index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}</span>
+                    {isHostInLobby && player.id !== playerId && !player.isHost ? (
+                      <button
+                        type="button"
+                        className="kick-btn"
+                        onClick={() => { void handleKickPlayer(player.id); }}
+                        disabled={!!pendingAction}
+                        title={`Remove ${player.name}`}
+                        data-testid={`kick-${player.id}`}
+                      >
+                        ✕
+                      </button>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -2054,6 +2398,15 @@ export function App(): JSX.Element {
                 playerId={playerId}
                 interactionDisabled={multiplayerInteractionDisabled}
                 newCardIds={multiplayerNewCardIds}
+                onSetReaction={sendSetReaction}
+                gameReactions={gameReactions}
+                specialPlayPileId={specialPlayPileId}
+                onUndo={multiplayerState?.cardsPlayedThisTurn && multiplayerState.cardsPlayedThisTurn > 0
+                  ? () => { void handleMultiplayerUndo(); }
+                  : undefined}
+                canUndo={(multiplayerState?.cardsPlayedThisTurn ?? 0) > 0}
+                onKickPlayer={isHost ? (targetId: string) => { void handleKickPlayer(targetId); } : undefined}
+                isHost={!!isHost}
                 {...(isNasCheatActiveForMe
                   ? { onNasCheat: () => { void handleMultiplayerNasCheat(); } }
                   : {})}
@@ -2108,6 +2461,37 @@ export function App(): JSX.Element {
         />
       ) : null}
 
+      {showEndGameConfirm ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="panel end-game-confirm-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="confirm end game"
+          >
+            <h2>End Game?</h2>
+            <p>This will end the active game for all players and return everyone to the lobby.</p>
+            <div className="button-row">
+              <button
+                type="button"
+                className="danger"
+                onClick={() => { void executeEndGame(); }}
+                disabled={pendingAction === 'endgame'}
+              >
+                {pendingAction === 'endgame' ? 'Ending...' : 'End Game'}
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setShowEndGameConfirm(false)}
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       {showNasCheatIntro ? (
         <div className="modal-backdrop" role="presentation">
           <section
@@ -2154,6 +2538,32 @@ export function App(): JSX.Element {
                 disabled={pendingAction === 'leave'}
               >
                 {pendingAction === 'leave' ? 'Returning...' : 'Back To Home'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {kickedFromGameId ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="panel host-ended-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="kicked from game"
+          >
+            <h2>Kicked From Game</h2>
+            <p>The host removed you from game {kickedFromGameId}.</p>
+            <div className="button-row">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setKickedFromGameId(null);
+                  resetToLanding();
+                }}
+              >
+                Back To Home
               </button>
             </div>
           </section>
