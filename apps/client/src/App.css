@@ -203,7 +203,7 @@ body {
 
 .players-panel {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
   max-height: none;
   min-height: 132px;
   align-self: start;
@@ -218,8 +218,88 @@ body {
 .players-panel-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 6px;
+}
+
+.game-id-pill {
+  margin-left: auto;
+  cursor: pointer;
+  letter-spacing: 0.5px;
+  transition: background 0.15s, color 0.15s;
+  border: none;
+  font-family: inherit;
+}
+
+.game-id-pill:hover {
+  background: rgba(0, 180, 216, 0.25);
+  color: #e0f7fa;
+}
+
+/* Turn sequence strip — inside the players panel */
+.turn-sequence {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 4px 8px;
+}
+
+.turn-dots {
+  display: flex;
+  align-items: center;
+}
+
+.turn-step {
+  display: flex;
+  align-items: center;
+}
+
+.turn-connector {
+  display: block;
+  width: 12px;
+  height: 2px;
+  background: rgba(169, 180, 194, 0.25);
+  border-radius: 1px;
+}
+
+.turn-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(169, 180, 194, 0.15);
+  color: rgba(169, 180, 194, 0.6);
+  border: 2px solid transparent;
+  flex-shrink: 0;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.turn-dot.current {
+  background: var(--good);
+  color: #0d1b2a;
+  border-color: var(--good);
+  box-shadow: 0 0 6px rgba(91, 199, 174, 0.5);
+}
+
+.turn-dot.me {
+  border-color: rgba(0, 180, 216, 0.7);
+  color: rgba(200, 220, 240, 0.9);
+}
+
+.turn-dot.current.me {
+  border-color: #fff;
+  box-shadow: 0 0 8px rgba(91, 199, 174, 0.6);
+}
+
+.turn-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(169, 180, 194, 0.8);
+  white-space: nowrap;
 }
 
 .gameboard-multi > .foundation-panel {
@@ -244,30 +324,103 @@ body {
   min-height: 0;
 }
 
-.pile {
+/* pile-unit is the colored container (holds reaction columns + pile button) */
+.pile-unit {
   min-height: clamp(128px, 22vh, 180px);
   border-radius: 12px;
   border: 2px solid transparent;
-  padding: 8px;
+  padding: 4px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.pile-unit.asc {
+  background: color-mix(in srgb, var(--asc) 24%, #0d1b2a);
+  border-color: #5bc7ae;
+}
+
+.pile-unit.desc {
+  background: color-mix(in srgb, var(--desc) 22%, #0d1b2a);
+  border-color: #ee6f6d;
+}
+
+.pile-unit.highlight {
+  box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.45) inset;
+}
+
+/* Reaction indicator columns flanking the card inside the colored area */
+.reaction-col {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  width: 22px;
+  flex-shrink: 0;
+  padding: 2px 0;
+}
+
+.reaction-slot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(255, 255, 255, 0.2);
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.3);
+  cursor: default;
+  padding: 0;
+  line-height: 1;
+  transition: border-color 0.15s, background 0.15s, transform 0.1s;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.reaction-slot.active {
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+  color: inherit;
+}
+
+.reaction-slot.mine {
+  border-color: rgba(255, 255, 255, 0.35);
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.reaction-slot.mine.active {
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.reaction-slot.clickable {
+  cursor: pointer;
+}
+
+.reaction-slot.clickable:hover {
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.15);
+}
+
+/* The pile button is now transparent inside the colored pile-unit */
+.pile {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  padding: 6px 4px;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
   align-content: stretch;
   gap: 8px;
   overflow: hidden;
-}
-
-.pile.asc {
-  background: color-mix(in srgb, var(--asc) 24%, #0d1b2a);
-  border-color: #5bc7ae;
-}
-
-.pile.desc {
-  background: color-mix(in srgb, var(--desc) 22%, #0d1b2a);
-  border-color: #ee6f6d;
-}
-
-.pile.highlight {
-  box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.45) inset;
 }
 
 .pile-tag,
@@ -661,6 +814,21 @@ button:disabled {
   margin: 0;
 }
 
+.end-game-confirm-modal {
+  width: min(420px, 90%);
+  display: grid;
+  gap: 12px;
+  background: #f7fbff;
+  color: #0f2741;
+  border: 2px solid #c44;
+  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
+}
+
+.end-game-confirm-modal h2,
+.end-game-confirm-modal p {
+  margin: 0;
+}
+
 .host-ended-modal {
   width: min(560px, 100%);
   display: grid;
@@ -831,6 +999,38 @@ section[aria-label="welcome"] h2 {
   border-color: var(--good);
 }
 
+.player-line-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.kick-btn {
+  background: transparent;
+  border: none;
+  color: #e75b63;
+  font-size: 11px;
+  padding: 0 3px;
+  cursor: pointer;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s;
+  flex-shrink: 0;
+}
+
+.player-line:hover .kick-btn {
+  opacity: 0.6;
+}
+
+.kick-btn:hover {
+  opacity: 1 !important;
+}
+
+.kick-btn:disabled {
+  opacity: 0 !important;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .app {
     padding: 10px;
@@ -851,13 +1051,14 @@ section[aria-label="welcome"] h2 {
     grid-template-rows: minmax(0, 1fr) auto auto;
     grid-template-areas:
       "foundation"
-      "players"
-      "hand";
+      "hand"
+      "players";
   }
 
   .players-panel {
-    max-height: 96px;
+    max-height: none;
     padding: 6px;
+    overflow: visible;
   }
 
   .players-panel h2 {
@@ -869,6 +1070,20 @@ section[aria-label="welcome"] h2 {
     font-size: 13px;
   }
 
+  .turn-dot {
+    width: 20px;
+    height: 20px;
+    font-size: 10px;
+  }
+
+  .turn-connector {
+    width: 8px;
+  }
+
+  .turn-label {
+    font-size: 10px;
+  }
+
   .pile-grid {
     grid-template-columns: repeat(4, minmax(72px, 140px));
     grid-auto-rows: minmax(clamp(104px, 18vh, 124px), 1fr);
@@ -877,10 +1092,28 @@ section[aria-label="welcome"] h2 {
     justify-content: center;
   }
 
-  .pile {
+  .pile-unit {
     min-height: clamp(104px, 18vh, 124px);
-    padding: 5px;
+    padding: 3px;
+  }
+
+  .pile {
+    padding: 4px;
     gap: 4px;
+  }
+
+  .reaction-col {
+    width: 18px;
+  }
+
+  .reaction-slot {
+    width: 18px;
+    height: 18px;
+    font-size: 8px;
+  }
+
+  .reaction-slot.active {
+    font-size: 11px;
   }
 
   .pile-tag,
@@ -999,7 +1232,7 @@ section[aria-label="welcome"] h2 {
     gap: 6px;
   }
 
-  .pile {
+  .pile-unit {
     min-height: clamp(108px, 17vh, 148px);
   }
 
@@ -1020,6 +1253,89 @@ section[aria-label="welcome"] h2 {
 
   .phase-splash-title {
     font-size: clamp(22px, 4vh, 32px);
+  }
+}
+
+/* Hide reaction columns on very small screens to preserve pile readability */
+@media (max-width: 480px) {
+  .reaction-col {
+    display: none;
+  }
+}
+
+/* Backward-10 special play flash — big celebratory effect */
+.pile-unit.backward-ten-flash {
+  position: relative;
+  z-index: 10;
+}
+
+.pile-unit.backward-ten-flash > .pile {
+  animation: backward-ten-pulse 1.8s ease-out;
+}
+
+.backward-ten-label {
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 15px;
+  font-weight: 800;
+  color: #ffd700;
+  text-shadow: 0 0 8px rgba(255, 215, 0, 0.9), 0 0 16px rgba(255, 140, 0, 0.6);
+  animation: backward-ten-label 1.8s ease-out forwards;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 11;
+}
+
+@keyframes backward-ten-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 215, 0, 1), inset 0 0 20px rgba(255, 215, 0, 0.6);
+    border-color: #ffd700;
+  }
+  8% {
+    box-shadow: 0 0 30px 12px rgba(255, 215, 0, 0.9), 0 0 60px 20px rgba(255, 140, 0, 0.4), inset 0 0 30px rgba(255, 215, 0, 0.7);
+    border-color: #ffd700;
+    transform: scale(1.08);
+  }
+  20% {
+    box-shadow: 0 0 20px 8px rgba(255, 215, 0, 0.7), 0 0 40px 15px rgba(255, 140, 0, 0.3), inset 0 0 20px rgba(255, 215, 0, 0.4);
+    border-color: #ffc107;
+    transform: scale(1.03);
+  }
+  35% {
+    box-shadow: 0 0 30px 10px rgba(255, 215, 0, 0.6), 0 0 50px 18px rgba(255, 140, 0, 0.25), inset 0 0 25px rgba(255, 215, 0, 0.5);
+    border-color: #ffd700;
+    transform: scale(1.06);
+  }
+  55% {
+    box-shadow: 0 0 15px 5px rgba(255, 215, 0, 0.4), inset 0 0 12px rgba(255, 215, 0, 0.2);
+    border-color: #ffc107;
+    transform: scale(1.0);
+  }
+  100% {
+    box-shadow: none;
+    border-color: inherit;
+    transform: scale(1.0);
+  }
+}
+
+@keyframes backward-ten-label {
+  0% {
+    opacity: 0;
+    top: 4px;
+  }
+  10% {
+    opacity: 1;
+    top: -12px;
+  }
+  60% {
+    opacity: 1;
+    top: -16px;
+  }
+  100% {
+    opacity: 0;
+    top: -24px;
   }
 }
 

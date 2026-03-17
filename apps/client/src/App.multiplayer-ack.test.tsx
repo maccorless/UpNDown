@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameSettings, GameState } from '@upndown/shared-types';
@@ -338,6 +338,12 @@ describe('multiplayer ack handling', () => {
     expect(await screen.findByTestId('end-game-top')).toBeTruthy();
     await user.click(screen.getByTestId('end-game-top'));
 
+    // Confirm end game via the custom modal
+    const confirmModal = await screen.findByRole('dialog', { name: 'confirm end game' });
+    expect(confirmModal).toBeTruthy();
+    const confirmBtn = within(confirmModal).getByRole('button', { name: 'End Game' });
+    await user.click(confirmBtn);
+
     expect(await screen.findByRole('dialog', { name: 'host ended the game' })).toBeTruthy();
     expect(screen.queryByTestId('mode-solitaire')).toBeNull();
     await user.click(screen.getByRole('button', { name: 'Back To Home' }));
@@ -346,7 +352,6 @@ describe('multiplayer ack handling', () => {
   });
 
   it('warns host before ending an active game and does nothing when canceled', async () => {
-    vi.mocked(window.confirm).mockReturnValueOnce(false);
     const playingState = createPlayingState();
     let endGameCalls = 0;
 
@@ -375,8 +380,13 @@ describe('multiplayer ack handling', () => {
     await user.click(screen.getByTestId('flow-host'));
     await user.click(await screen.findByTestId('end-game-top'));
 
-    expect(window.confirm).toHaveBeenCalled();
+    // Confirmation modal appears — click Cancel
+    const confirmModal = await screen.findByRole('dialog', { name: 'confirm end game' });
+    expect(confirmModal).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Cancel' }));
+
     expect(endGameCalls).toBe(0);
+    expect(screen.queryByRole('dialog', { name: 'confirm end game' })).toBeNull();
     expect(screen.queryByRole('dialog', { name: 'host ended the game' })).toBeNull();
   });
 

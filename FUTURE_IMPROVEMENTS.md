@@ -126,19 +126,28 @@ private async saveGameState(gameId: string, gameState: GameState): Promise<void>
 
 ---
 
+## Recently Implemented ✅
+
+The following features were previously planned and are now implemented:
+
+- **Undo within turn**: Players can undo card plays one at a time during their turn. Server-side snapshot stack clears on end turn. Works in both multiplayer and solitaire.
+- **Foundation pile preferences**: Players can react with like (👍), love (❤️), or really love (🔥) on individual piles. Indicators flank each pile card. Reactions persist until the player's turn starts.
+- **Turn sequence display**: Horizontal dot strip showing turn order with "Your turn in X" label. Green dot = current player, blue border = you.
+- **Special play animation**: Backward-10 moves trigger a celebratory golden flash + floating "🔥 -10! 🔥" label on the affected pile, visible to all players.
+- **End game confirmation**: Custom themed modal replaces browser `confirm()` dialog when ending an active game.
+- **Player kick (lobby)**: Host can remove players from the game lobby via ✕ button. Kicked player receives a modal notification and is returned to the home screen.
+
 ## Other Improvements
 
 - **In-game chat**: Real-time communication during games
-- **Special play animations**: Visual highlight for backward-10 moves
 - **Mobile responsiveness**: Optimize UI for touch devices
 - **Game history**: Track past games and statistics
 - **Leaderboards**: Compare statistics across players
-- **Reconnection handling**: Resume game after disconnect
+- **Reconnection handling**: Resume game after disconnect (rejoin room on reconnect)
 - **Game replay**: Watch recorded games
-- **Undo in multiplayer**: Configurable undo for multiplayer games
 - **Custom card designs**: Theme support for cards and piles
 
 ---
 
-**Last Updated**: 2025-11-12
+**Last Updated**: 2026-03-16
 **Status**: Planning / Future Work
