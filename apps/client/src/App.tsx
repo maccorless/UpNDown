@@ -979,10 +979,14 @@ export function App(): JSX.Element {
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [pendingLobbyState, setPendingLobbyState] = useState<GameState | null>(null);
 
   const [error, setError] = useState<string | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  // Kept in sync every render so event handlers can read current playerId without stale closures
+  const playerIdRef = useRef<string | null>(null);
+  playerIdRef.current = playerId;
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
   const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
   const shownNasCheatGameKeyRef = useRef<string | null>(null);
@@ -1151,7 +1155,25 @@ export function App(): JSX.Element {
     };
 
     const onUpdated = (state: GameState): void => {
-      setMultiplayerState(state);
+      // If a new game starts while a pending lobby transition is held, clear it
+      if (state.gamePhase !== 'lobby') {
+        setPendingLobbyState(null);
+      }
+      setMultiplayerState((prev) => {
+        // Non-host players should not be auto-navigated to lobby when the host
+        // ends the session after a natural game end (won/lost). Hold the state
+        // and let them choose to join or leave.
+        if (
+          prev &&
+          (prev.gamePhase === 'won' || prev.gamePhase === 'lost') &&
+          state.gamePhase === 'lobby' &&
+          state.hostId !== playerIdRef.current
+        ) {
+          setPendingLobbyState(state);
+          return prev;
+        }
+        return state;
+      });
     };
 
     const onReactionsUpdated = (reactions: ReactionState): void => {
@@ -1167,6 +1189,7 @@ export function App(): JSX.Element {
     const onKicked = (data: { gameId: string }): void => {
       setKickedFromGameId(data.gameId);
       setMultiplayerState(null);
+      setPendingLobbyState(null);
       setMultiplayerSelectedCardId(null);
       setMultiplayerNewCardIds([]);
       lastMultiplayerHandIdsRef.current = [];
@@ -1803,6 +1826,7 @@ export function App(): JSX.Element {
     }
 
     setMultiplayerState(null);
+    setPendingLobbyState(null);
     setMultiplayerSelectedCardId(null);
     setMultiplayerNewCardIds([]);
     lastMultiplayerHandIdsRef.current = [];
@@ -1815,6 +1839,7 @@ export function App(): JSX.Element {
   const resetToLanding = (): void => {
     setMode(null);
     setMultiplayerState(null);
+    setPendingLobbyState(null);
     setMultiplayerSelectedCardId(null);
     setMultiplayerNewCardIds([]);
     lastMultiplayerHandIdsRef.current = [];
@@ -2421,6 +2446,7 @@ export function App(): JSX.Element {
                     className="secondary"
                     onClick={() => {
                       setMultiplayerState(null);
+                      setPendingLobbyState(null);
                       setMultiplayerSelectedCardId(null);
                       setJoinGameId('');
                     }}
@@ -2538,6 +2564,44 @@ export function App(): JSX.Element {
                 disabled={pendingAction === 'leave'}
               >
                 {pendingAction === 'leave' ? 'Returning...' : 'Back To Home'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {pendingLobbyState ? (
+        <div className="modal-backdrop" role="presentation">
+          <section
+            className="panel host-ended-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="host returned to lobby"
+          >
+            <h2>Back to Lobby?</h2>
+            <p>The host has returned to the lobby. Join them for another round, or leave.</p>
+            <div className="button-row">
+              <button
+                type="button"
+                className="primary"
+                onClick={() => {
+                  setMultiplayerState(pendingLobbyState);
+                  setPendingLobbyState(null);
+                  setMultiplayerSelectedCardId(null);
+                }}
+              >
+                Back to Lobby
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => {
+                  setPendingLobbyState(null);
+                  void handleLeaveMultiplayer();
+                }}
+                disabled={pendingAction === 'leave'}
+              >
+                {pendingAction === 'leave' ? 'Leaving...' : 'Leave'}
               </button>
             </div>
           </section>
