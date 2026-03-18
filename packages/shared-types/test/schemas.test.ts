@@ -16,7 +16,8 @@ const validSettings = {
   minCardsPerTurn: 2,
   autoRefillHand: true,
   allowUndo: false,
-  privateGame: false
+  privateGame: false,
+  allowCardLookup: false
 };
 
 describe('gameSettingsSchema', () => {

@@ -1,10 +1,20 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
-import { gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { playCardSound, playLoseSound, playSpecialPlaySound, playTurnStartSound, playWinSound } from './sounds.js';
+import { gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import './App.css';
 
 const SOLO_PLAYER_ID = 'solo-player';
+
+const PLAYER_COLOR_HEX: Record<PlayerColor, string> = {
+  red:    '#e05555',
+  orange: '#e08c30',
+  green:  '#4db86a',
+  cyan:   '#30b8d8',
+  purple: '#8855cc',
+  pink:   '#d855aa'
+};
 
 type Mode = 'solitaire' | 'multiplayer';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -55,6 +65,16 @@ const multiplayerSettings: GameSettings = {
 
 const SETTINGS_STORAGE_KEY = 'upndown.settings.v1';
 const PLAYER_NAME_STORAGE_KEY = 'upndown.multiplayer.playerName.v1';
+const SOUNDS_STORAGE_KEY = 'upndown.sounds.v1';
+
+function readSoundsEnabled(): boolean {
+  try {
+    const raw = window.localStorage.getItem(SOUNDS_STORAGE_KEY);
+    return raw === null ? true : raw === 'true';
+  } catch {
+    return true;
+  }
+}
 const ACK_TIMEOUT_MS = import.meta.env.MODE === 'test' ? 80 : 5000;
 const ACK_TIMEOUT_ERROR = 'Request timed out. Please check your connection and try again.';
 const SOCKET_DISCONNECTED_ERROR = 'Not connected to server. Please wait for reconnect and retry.';
@@ -182,7 +202,7 @@ function newSolitaireGame(settings: GameSettings): GameState {
   return createStartedGameState({
     gameId: 'SOLITAIRE',
     hostId: SOLO_PLAYER_ID,
-    players: [{ id: SOLO_PLAYER_ID, name: 'You' }],
+    players: [{ id: SOLO_PLAYER_ID, name: 'You', color: 'cyan' as const }],
     settings,
     isSolitaire: true,
     deck
@@ -215,7 +235,6 @@ interface GameBoardProps {
   canUseNasCheat?: boolean;
   playerId?: string | null;
   interactionDisabled?: boolean;
-  newCardIds?: string[];
   onSetReaction?: (pileId: number, reactionType: ReactionType | null) => void;
   gameReactions?: ReactionState;
   specialPlayPileId?: number | null | undefined;
@@ -250,7 +269,6 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     canUseNasCheat,
     playerId,
     interactionDisabled,
-    newCardIds = [],
     onSetReaction,
     gameReactions = {},
     specialPlayPileId: specialPlayPileIdProp = null,
@@ -271,6 +289,17 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
   const sortedHand = sortByValue(me.hand);
   const selectedCard = sortedHand.find((card) => card.id === selectedCardId) ?? null;
   const isCompactHand = sortedHand.length >= 8;
+
+  const unplayableIds = gameState.gamePhase === 'playing'
+    ? new Set(
+        sortedHand
+          .filter((card) =>
+            card.id !== selectedCardId &&
+            gameState.foundationPiles.every((pile) => !isValidPlay(card, pile))
+          )
+          .map((card) => card.id)
+      )
+    : new Set<string>();
   const activePlayer = gameState.players[gameState.currentPlayerIndex];
   const isMyTurn = mode === 'solitaire' ? true : activePlayer?.id === playerId;
   const inputsDisabled = !!interactionDisabled || (mode === 'multiplayer' && !isMyTurn) || gameState.gamePhase !== 'playing';
@@ -339,6 +368,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                   role="button"
                   tabIndex={slotCanClick ? 0 : -1}
                   className={`reaction-slot${reaction ? ' active' : ''}${isMine ? ' mine' : ''}${slotCanClick ? ' clickable' : ''}`}
+                  style={player.color ? { '--player-color': PLAYER_COLOR_HEX[player.color] } as React.CSSProperties : undefined}
                   onClick={slotCanClick ? (e) => { e.stopPropagation(); onSetReaction(pile.id, nextReaction(reaction)); } : undefined}
                   onKeyDown={slotCanClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onSetReaction(pile.id, nextReaction(reaction)); } } : undefined}
                   aria-label={reaction
@@ -444,6 +474,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                         {index > 0 && <span className="turn-connector" />}
                         <span
                           className={`turn-dot${isCurrent ? ' current' : ''}${isMe ? ' me' : ''}`}
+                          style={player.color ? { '--player-color': PLAYER_COLOR_HEX[player.color] } as React.CSSProperties : undefined}
                           title={`${player.name}${isCurrent ? ' (playing)' : ''}`}
                         >
                           {index + 1}
@@ -462,7 +493,10 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                   className={`player-line ${index === gameState.currentPlayerIndex ? 'active' : ''}`}
                   aria-current={index === gameState.currentPlayerIndex ? 'true' : undefined}
                 >
-                  <span>{index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}</span>
+                  <span>
+                    {player.color && <span className="player-color-pip" style={{ background: PLAYER_COLOR_HEX[player.color] }} aria-hidden="true" />}
+                    {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}
+                  </span>
                   <span className="player-line-right">
                     <span>{player.hand.length} cards</span>
                     {isHostProp && onKickPlayer && player.id !== playerId && !player.isHost ? (
@@ -562,7 +596,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             <button
               key={card.id}
               type="button"
-              className={`card ${selectedCardId === card.id ? 'selected' : ''} ${newCardIds.includes(card.id) ? 'new-dealt' : ''}`}
+              className={`card ${selectedCardId === card.id ? 'selected' : ''} ${unplayableIds.has(card.id) ? 'card-unplayable' : ''}`}
               onClick={() => {
                 if (inputsDisabled) return;
                 setSelectedCardId(card.id);
@@ -600,6 +634,51 @@ function validateCreateSettings(settings: GameSettings): string | null {
   return null;
 }
 
+type PresetName = 'trivial' | 'easy' | 'normal' | 'hard';
+
+interface DifficultyPreset {
+  label: string;
+  maxCardValue: number;
+  handSize: number;
+  minCardsPerTurn: number;
+  autoRefillHand: boolean;
+}
+
+const DIFFICULTY_PRESETS: Record<PresetName, DifficultyPreset> = {
+  trivial: { label: 'Trivial', maxCardValue: 29, handSize: 9, minCardsPerTurn: 1, autoRefillHand: true },
+  easy:    { label: 'Easy',    maxCardValue: 59, handSize: 8, minCardsPerTurn: 1, autoRefillHand: true },
+  normal:  { label: 'Normal',  maxCardValue: 99, handSize: 7, minCardsPerTurn: 2, autoRefillHand: false },
+  hard:    { label: 'Hard',    maxCardValue: 99, handSize: 6, minCardsPerTurn: 3, autoRefillHand: false },
+};
+
+const PRESET_MIN_CARD = 2;
+
+function detectPreset(settings: GameSettings): PresetName | null {
+  if (settings.minCardValue !== PRESET_MIN_CARD) return null;
+  for (const [name, preset] of Object.entries(DIFFICULTY_PRESETS) as [PresetName, DifficultyPreset][]) {
+    if (
+      settings.maxCardValue === preset.maxCardValue &&
+      settings.handSize === preset.handSize &&
+      settings.minCardsPerTurn === preset.minCardsPerTurn &&
+      settings.autoRefillHand === preset.autoRefillHand
+    ) {
+      return name;
+    }
+  }
+  return null;
+}
+
+function applyPreset(settings: GameSettings, preset: DifficultyPreset): GameSettings {
+  return {
+    ...settings,
+    minCardValue: PRESET_MIN_CARD,
+    maxCardValue: preset.maxCardValue,
+    handSize: preset.handSize,
+    minCardsPerTurn: preset.minCardsPerTurn,
+    autoRefillHand: preset.autoRefillHand
+  };
+}
+
 const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCardsPerTurn' | 'minPlayers' | 'maxPlayers' | 'autoRefillHand' | 'privateGame' | 'allowCardLookup', string> = {
   minCardValue: 'Minimum card value included in the deck. Increasing this reduces deck size, which generally makes the game easier.',
   maxCardValue: 'Maximum card value included in the deck. Increasing this increases deck size, which generally makes the game harder.',
@@ -621,6 +700,8 @@ interface SettingsDialogProps {
   onClose: () => void;
   onSave?: () => void;
   onChange: (settings: GameSettings) => void;
+  enableSounds: boolean;
+  onToggleSounds: (val: boolean) => void;
 }
 
 function SettingsDialog({
@@ -631,7 +712,9 @@ function SettingsDialog({
   validationError,
   onClose,
   onSave,
-  onChange
+  onChange,
+  enableSounds,
+  onToggleSounds
 }: SettingsDialogProps): JSX.Element | null {
   if (!open) {
     return null;
@@ -657,6 +740,20 @@ function SettingsDialog({
           <h2>Game Settings</h2>
           <div className="pill">{editable ? 'Edit Mode (Host)' : 'View Only'}</div>
         </div>
+        {editable ? (
+          <div className="preset-row" role="group" aria-label="difficulty presets">
+            {(Object.entries(DIFFICULTY_PRESETS) as [PresetName, DifficultyPreset][]).map(([name, preset]) => (
+              <button
+                key={name}
+                type="button"
+                className={`preset-btn ${detectPreset(settings) === name ? 'preset-btn-active' : ''}`}
+                onClick={() => onChange(applyPreset(settings, preset))}
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <div className="settings-grid">
           <label htmlFor="settings-min-card" className={!fieldEditable(true) ? 'field-disabled' : ''}>
             Min Card Value
@@ -815,6 +912,18 @@ function SettingsDialog({
         {validationError ? <div className="error">{validationError}</div> : null}
         {!editable ? <div className="pill">Only the game master can edit settings.</div> : null}
         {isSolitaire ? <div className="pill">In Solitaire, players and turn-min fields are informational only.</div> : null}
+        <div className="settings-preferences">
+          <label htmlFor="settings-sounds" className="checkbox-label">
+            <input
+              id="settings-sounds"
+              type="checkbox"
+              checked={enableSounds}
+              onChange={(e) => onToggleSounds(e.target.checked)}
+            />
+            Sound effects
+            <span className="info-dot" title="Plays soft audio cues for card plays, special moves, turn starts, and game outcomes. Stored locally — not a game setting." aria-label="Sound effects preference">i</span>
+          </label>
+        </div>
         <div className="button-row">
           <button type="button" className="secondary" onClick={onClose}>Close</button>
           {editable ? (
@@ -979,8 +1088,6 @@ export function App(): JSX.Element {
   const [multiplayerCreateSettings, setMultiplayerCreateSettings] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [settingsDraft, setSettingsDraft] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [solitaireNewCardIds, setSolitaireNewCardIds] = useState<string[]>([]);
-  const [multiplayerNewCardIds, setMultiplayerNewCardIds] = useState<string[]>([]);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
   const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
   const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
@@ -1000,6 +1107,9 @@ export function App(): JSX.Element {
   const [pendingLobbyState, setPendingLobbyState] = useState<GameState | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+  const [enableSounds, setEnableSounds] = useState(() => readSoundsEnabled());
+  const enableSoundsRef = useRef(enableSounds);
+  enableSoundsRef.current = enableSounds;
   const [cardLookupOpen, setCardLookupOpen] = useState(false);
   const [cardLookupValue, setCardLookupValue] = useState('');
   const [cardLookupToast, setCardLookupToast] = useState<CardLookupResult | null>(null);
@@ -1014,8 +1124,6 @@ export function App(): JSX.Element {
   const shownNasCheatGameKeyRef = useRef<string | null>(null);
   const previousMultiplayerSnapshotRef = useRef<{ gameId: string; phase: GameState['gamePhase'] } | null>(null);
   const suppressHostEndedNoticeRef = useRef(false);
-  const lastSolitaireHandIdsRef = useRef<string[]>([]);
-  const lastMultiplayerHandIdsRef = useRef<string[]>([]);
   const joinablePollFailuresRef = useRef(0);
   const activeGameIdRef = useRef<string | null>(null);
   const previousPlayerIdRef = useRef<string | null>(null);
@@ -1213,8 +1321,6 @@ export function App(): JSX.Element {
       setMultiplayerState(null);
       setPendingLobbyState(null);
       setMultiplayerSelectedCardId(null);
-      setMultiplayerNewCardIds([]);
-      lastMultiplayerHandIdsRef.current = [];
       activeGameIdRef.current = null;
     };
 
@@ -1253,36 +1359,6 @@ export function App(): JSX.Element {
     };
   }, [mode]);
 
-  useEffect(() => {
-    const handIds = (solitaireState.players[0]?.hand ?? []).map((card) => card.id);
-    const drawnIds = handIds.filter((id) => !lastSolitaireHandIdsRef.current.includes(id));
-    setSolitaireNewCardIds((current) => (
-      drawnIds.length > 0 ? drawnIds : current.filter((id) => handIds.includes(id))
-    ));
-    lastSolitaireHandIdsRef.current = handIds;
-  }, [solitaireState]);
-
-  useEffect(() => {
-    if (!multiplayerState || !playerId) {
-      lastMultiplayerHandIdsRef.current = [];
-      setMultiplayerNewCardIds([]);
-      return;
-    }
-
-    const me = multiplayerState.players.find((player) => player.id === playerId);
-    if (!me) {
-      lastMultiplayerHandIdsRef.current = [];
-      setMultiplayerNewCardIds([]);
-      return;
-    }
-
-    const handIds = me.hand.map((card) => card.id);
-    const drawnIds = handIds.filter((id) => !lastMultiplayerHandIdsRef.current.includes(id));
-    setMultiplayerNewCardIds((current) => (
-      drawnIds.length > 0 ? drawnIds : current.filter((id) => handIds.includes(id))
-    ));
-    lastMultiplayerHandIdsRef.current = handIds;
-  }, [multiplayerState, playerId]);
 
   useEffect(() => {
     if (mode === 'solitaire') {
@@ -1424,6 +1500,38 @@ export function App(): JSX.Element {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [mode, multiplayerState, solitaireState]);
 
+  // Sound: win / lose
+  const prevPhaseRef = useRef<string | null>(null);
+  useEffect(() => {
+    const phase = (mode === 'multiplayer' ? multiplayerState?.gamePhase : solitaireActive ? solitaireState.gamePhase : null) ?? null;
+    if (enableSoundsRef.current && prevPhaseRef.current !== phase) {
+      if (phase === 'won') playWinSound();
+      else if (phase === 'lost') playLoseSound();
+    }
+    prevPhaseRef.current = phase;
+  }, [mode, multiplayerState?.gamePhase, solitaireState.gamePhase, solitaireActive]);
+
+  // Sound: your turn starts (multiplayer only)
+  const prevCurrentPlayerRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (mode !== 'multiplayer' || !multiplayerState || !playerId) return;
+    const currentId = multiplayerState.players[multiplayerState.currentPlayerIndex]?.id ?? null;
+    if (enableSoundsRef.current && currentId === playerId && currentId !== prevCurrentPlayerRef.current && multiplayerState.gamePhase === 'playing') {
+      playTurnStartSound();
+    }
+    prevCurrentPlayerRef.current = currentId;
+  }, [mode, multiplayerState, playerId]);
+
+  // Sound: special play flash
+  const prevSpecialPlayRef = useRef<number | null>(null);
+  useEffect(() => {
+    const pileId = mode === 'multiplayer' ? specialPlayPileId : solitaireSpecialPlayPileId;
+    if (enableSoundsRef.current && pileId !== null && pileId !== prevSpecialPlayRef.current) {
+      playSpecialPlaySound();
+    }
+    prevSpecialPlayRef.current = pileId ?? null;
+  }, [mode, specialPlayPileId, solitaireSpecialPlayPileId]);
+
   const requestSocketAck = <T,>(event: string, payload: unknown): Promise<Ack<T>> => {
     const socket = getSocket();
     if (!socket.connected) {
@@ -1509,7 +1617,6 @@ export function App(): JSX.Element {
     setSolitaireState(nextState);
     setDismissedStatsModalKey(null);
     setSolitaireSelectedCardId(null);
-    setSolitaireNewCardIds([]);
     setSolitaireUndoStack([]);
     setError(null);
   };
@@ -1517,7 +1624,6 @@ export function App(): JSX.Element {
   const handleSolitaireEndGame = (): void => {
     setSolitaireActive(false);
     setSolitaireSelectedCardId(null);
-    setSolitaireNewCardIds([]);
     setSolitaireUndoStack([]);
     setError(null);
   };
@@ -1534,6 +1640,7 @@ export function App(): JSX.Element {
       setSolitaireState(next);
       setSolitaireSelectedCardId(null);
       setError(null);
+      if (enableSoundsRef.current) playCardSound();
 
       if (newSpecialPlays > oldSpecialPlays) {
         setSolitaireSpecialPlayPileId(pileId);
@@ -1590,9 +1697,7 @@ export function App(): JSX.Element {
     activeGameIdRef.current = ack.data.gameState.gameId;
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
-    setMultiplayerNewCardIds([]);
     setInviteCopied(false);
-    lastMultiplayerHandIdsRef.current = [];
   };
 
   const handleJoinGame = async (forcedGameId?: string): Promise<void> => {
@@ -1627,11 +1732,9 @@ export function App(): JSX.Element {
     activeGameIdRef.current = ack.data.gameState.gameId;
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
-    setMultiplayerNewCardIds([]);
     setShowJoinById(false);
     setJoinLookup(null);
     setInviteCopied(false);
-    lastMultiplayerHandIdsRef.current = [];
   };
 
   const handleLookupGame = async (): Promise<void> => {
@@ -1699,6 +1802,7 @@ export function App(): JSX.Element {
     setError(null);
     setMultiplayerSelectedCardId(null);
     setMultiplayerState(ack.data.gameState);
+    if (enableSoundsRef.current) playCardSound();
   };
 
   const handleMultiplayerNasCheat = async (): Promise<void> => {
@@ -1914,8 +2018,6 @@ export function App(): JSX.Element {
     setMultiplayerState(null);
     setPendingLobbyState(null);
     setMultiplayerSelectedCardId(null);
-    setMultiplayerNewCardIds([]);
-    lastMultiplayerHandIdsRef.current = [];
     setJoinGameId('');
     setInviteCopied(false);
     setHostEndedModalGameId(null);
@@ -1927,8 +2029,6 @@ export function App(): JSX.Element {
     setMultiplayerState(null);
     setPendingLobbyState(null);
     setMultiplayerSelectedCardId(null);
-    setMultiplayerNewCardIds([]);
-    lastMultiplayerHandIdsRef.current = [];
     activeGameIdRef.current = null;
     previousPlayerIdRef.current = null;
     setMultiplayerFlow('choose');
@@ -2256,7 +2356,6 @@ export function App(): JSX.Element {
           selectedCardId={solitaireSelectedCardId}
           setSelectedCardId={setSolitaireSelectedCardId}
           onPlayPile={handleSolitairePlayCard}
-          newCardIds={solitaireNewCardIds}
           specialPlayPileId={solitaireSpecialPlayPileId}
           onUndo={solitaireUndoStack.length > 0 ? handleSolitaireUndo : undefined}
           canUndo={solitaireUndoStack.length > 0}
@@ -2451,7 +2550,10 @@ export function App(): JSX.Element {
               <div className="players-list">
                 {multiplayerState.players.map((player, index) => (
                   <div className="player-line" key={player.id}>
-                    <span>{index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}</span>
+                    <span>
+                      {player.color && <span className="player-color-pip" style={{ background: PLAYER_COLOR_HEX[player.color] }} aria-hidden="true" />}
+                      {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}
+                    </span>
                     {isHostInLobby && player.id !== playerId && !player.isHost ? (
                       <button
                         type="button"
@@ -2508,7 +2610,6 @@ export function App(): JSX.Element {
                 canUseNasCheat={canUseNasCheat}
                 playerId={playerId}
                 interactionDisabled={multiplayerInteractionDisabled}
-                newCardIds={multiplayerNewCardIds}
                 onSetReaction={sendSetReaction}
                 gameReactions={gameReactions}
                 specialPlayPileId={specialPlayPileId}
@@ -2570,6 +2671,11 @@ export function App(): JSX.Element {
           onClose={() => setIsSettingsOpen(false)}
           onSave={() => { void handleSaveSettings(); }}
           onChange={setSettingsDraft}
+          enableSounds={enableSounds}
+          onToggleSounds={(val) => {
+            setEnableSounds(val);
+            try { window.localStorage.setItem(SOUNDS_STORAGE_KEY, String(val)); } catch { /* ignore */ }
+          }}
         />
       ) : null}
 

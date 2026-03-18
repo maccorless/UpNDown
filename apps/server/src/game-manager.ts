@@ -9,10 +9,12 @@ import type {
   PlayerStatistics,
   PlayCardPayload,
   Player,
+  PlayerColor,
   ReactionState,
   ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
+import { PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
 
 interface GameRoom {
@@ -170,7 +172,8 @@ export class GameManager {
       id: ownerPlayerId,
       name: payload.playerName,
       hand: [],
-      isHost: true
+      isHost: true,
+      color: PLAYER_COLORS[0] as PlayerColor
     };
 
     const state: GameState = {
@@ -256,7 +259,7 @@ export class GameManager {
 
     const nextState: GameState = {
       ...gameState,
-      players: [...gameState.players, { id: playerId, name: payload.playerName, hand: [], isHost: false }],
+      players: [...gameState.players, { id: playerId, name: payload.playerName, hand: [], isHost: false, color: PLAYER_COLORS[gameState.players.length % PLAYER_COLORS.length] as PlayerColor }],
       statistics: {
         ...gameState.statistics,
         players: {
@@ -317,7 +320,7 @@ export class GameManager {
     const started = createStartedGameState({
       gameId,
       hostId: gameState.hostId,
-      players: gameState.players.map((p) => ({ id: p.id, name: p.name })),
+      players: gameState.players.map((p) => ({ id: p.id, name: p.name, ...(p.color ? { color: p.color } : {}) })),
       settings: gameState.settings,
       isSolitaire: false,
       deck: shuffle(buildDeck(gameState.settings))

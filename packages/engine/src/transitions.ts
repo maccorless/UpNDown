@@ -4,8 +4,10 @@ import type {
   GameState,
   GameSettings,
   Player,
+  PlayerColor,
   PlayerStatistics
 } from '@upndown/shared-types';
+import { PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from './init.js';
 import { EngineError } from './errors.js';
 import { isValidPlay, requiredCardsForTurn } from './rules.js';
@@ -13,6 +15,7 @@ import { isValidPlay, requiredCardsForTurn } from './rules.js';
 interface EnginePlayerInput {
   id: string;
   name: string;
+  color?: PlayerColor;
 }
 
 interface CreateStartedGameParams {
@@ -251,11 +254,12 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
     throw new EngineError('HOST_NOT_IN_PLAYERS', 'hostId must match exactly one player');
   }
 
-  const initializedPlayers: Player[] = players.map((player) => ({
+  const initializedPlayers: Player[] = players.map((player, index) => ({
     id: player.id,
     name: player.name,
     hand: [],
-    isHost: player.id === hostId
+    isHost: player.id === hostId,
+    color: player.color ?? (PLAYER_COLORS[index % PLAYER_COLORS.length] as PlayerColor)
   }));
 
   for (let round = 0; round < settings.handSize; round += 1) {

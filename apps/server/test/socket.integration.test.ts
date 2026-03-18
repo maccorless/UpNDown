@@ -63,7 +63,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -115,7 +116,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -177,7 +179,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -223,7 +226,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -252,7 +256,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: true,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { settings: { handSize: number } } }>) => resolve(ack)
@@ -275,7 +280,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 1,
             autoRefillHand: true,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { settings: { handSize: number; autoRefillHand: boolean } } }>) => resolve(ack)
@@ -301,7 +307,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 1,
             autoRefillHand: true,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { settings: { minPlayers: number } } }>) => resolve(ack)
@@ -332,7 +339,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: false
+            privateGame: false,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -387,7 +395,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: true
+            privateGame: true,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -450,7 +459,8 @@ describe('socket integration', () => {
             minCardsPerTurn: 2,
             autoRefillHand: false,
             allowUndo: false,
-            privateGame: true
+            privateGame: true,
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)

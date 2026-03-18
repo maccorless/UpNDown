@@ -1,5 +1,8 @@
 export type GamePhase = 'lobby' | 'playing' | 'won' | 'lost';
 export type PileType = 'ascending' | 'descending';
+export type PlayerColor = 'red' | 'orange' | 'green' | 'cyan' | 'purple' | 'pink';
+
+export const PLAYER_COLORS: PlayerColor[] = ['red', 'orange', 'green', 'cyan', 'purple', 'pink'];
 
 export interface Card {
   id: string;
@@ -17,6 +20,7 @@ export interface Player {
   name: string;
   hand: Card[];
   isHost: boolean;
+  color?: PlayerColor;
 }
 
 export interface GameSettings {
