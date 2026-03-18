@@ -121,4 +121,9 @@ export const cardLookupPayloadSchema = z.object({
   cardValue: z.number().int().min(1).max(999)
 });
 
+export const rejoinGamePayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  previousPlayerId: z.string().min(1)
+});
+
 export type GameSettingsInput = z.infer<typeof gameSettingsSchema>;

@@ -68,17 +68,7 @@ function randomIndex(maxExclusive: number): number {
 }
 
 function drawOne(drawPile: Card[]): Card | null {
-  if (drawPile.length === 0) {
-    return null;
-  }
-
-  const card = drawPile[0];
-  if (!card) {
-    return null;
-  }
-  const rest = drawPile.slice(1);
-  drawPile.splice(0, drawPile.length, ...rest);
-  return card;
+  return drawPile.shift() ?? null;
 }
 
 function drawToHand(player: Player, drawPile: Card[], handSize: number): void {

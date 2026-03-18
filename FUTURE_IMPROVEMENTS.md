@@ -22,6 +22,11 @@ This document tracks what has been built and what is planned next.
 | Player colours | Six distinct colours assigned by seat; shown on turn dots, player list, reactions |
 | Unplayable card dim | Cards with no legal move on any pile are dimmed always, even during other players' turns |
 | Sound effects | Web Audio API tones for card play, special play, turn start, win, lose; localStorage toggle |
+| allowUndo actually gated | `structuredClone` snapshot now only runs when `allowUndo` is enabled in settings |
+| drawOne O(1) | Replaced O(n) slice+splice with `Array.shift()` |
+| Reaction memory leak fixed | `listJoinableGames` now clears `reactions` map when it reaps an orphaned room |
+| holderName emitted on network | Card lookup result now includes holder's name when status is `in-hand` |
+| rejoin Zod validation | `game:rejoin` handler now validates via `rejoinGamePayloadSchema` like all other events |
 
 ---
 
@@ -94,9 +99,26 @@ Make the game installable on desktop and mobile.
 
 ## 🧹 Known Tech Debt
 
+### Code Review Findings (deferred)
+
+These were identified in a Codex review and are valid but lower urgency than feature work:
+
+**App.tsx decomposition** — `App.tsx` is ~2800 lines mixing domain defaults, URL state sync, localStorage, socket wiring, polling, multiplayer handlers, and several inline components. Suggested split: `useMultiplayerSocket`, `useJoinableGamesPolling`, `usePersistedSettings`, `LobbyView`, `SettingsModal`, `CardLookupModal`. Dedicated refactor session needed.
+
+**Server entrypoint decomposition** — `index.ts` handles CORS, logging, rate limiting, all socket event wiring, and lifecycle. `game-manager.ts` handles membership, kick/rejoin/leave, reactions, room reaping, and cheat lookup. Suggested split into `socket-handlers/`, `services/game-room-service.ts`, `services/presence-service.ts`, `services/rate-limit-service.ts`.
+
+**Shared DTOs and defaults** — `JoinableGameSummary`, `JoinLookupSummary`, `emptyPlayerStats()`, and default settings objects are duplicated across server and client. Should live in `packages/shared-types` to prevent future contract drift.
+
+**rejoinPlayer mutation inconsistency** — `rejoinPlayer()` mutates room state in place (player IDs, host ID, stats maps, NAS/reaction maps) while all other state transitions return new objects. Low blast radius now but a maintenance risk.
+
+**Engine clone breadth** — `playCard`, `endTurn`, and `useNasCheat` do multiple array/object copies per move. Acceptable at current scale; revisit if profiling shows GC pressure with many concurrent games.
+
+**Horizontal scalability** — All state is process-local (no Redis, no Socket.IO adapter). A single Node process can handle hundreds of concurrent games comfortably, but multi-instance deployment would require shared state and pub/sub adapter. Not needed now.
+
+### Other
 - `apps/client/src/App.test.tsx` and `App.multiplayer-ack.test.tsx` fail with `window is not defined` in the vitest jsdom environment — pre-existing, unrelated to feature work; needs investigation
 - `tests/e2e` Playwright tests require `npx playwright install` before they can run
 
 ---
 
-**Last updated**: 2026-03-18
+**Last updated**: 2026-03-18 (post Codex review)

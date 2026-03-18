@@ -214,6 +214,7 @@ export class GameManager {
         const connectedCount = room.gameState.players.filter((player) => activePlayerIds.has(player.id)).length;
         if (connectedCount === 0) {
           this.rooms.delete(gameId);
+          this.reactions.delete(gameId);
         }
       }
     }
@@ -334,7 +335,9 @@ export class GameManager {
 
   playCard(playerId: string, payload: PlayCardPayload): GameState {
     const room = this.requireRoom(payload.gameId);
-    room.turnUndoStack.push(structuredClone(room.gameState));
+    if (room.gameState.settings.allowUndo) {
+      room.turnUndoStack.push(structuredClone(room.gameState));
+    }
     const nextState = playCard(room.gameState, playerId, payload.cardId, payload.pileId);
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
@@ -343,6 +346,9 @@ export class GameManager {
 
   undoLastPlay(playerId: string, gameId: string): GameState {
     const room = this.requireRoom(gameId);
+    if (!room.gameState.settings.allowUndo) {
+      throw new Error('Undo is not enabled for this game');
+    }
     if (room.gameState.gamePhase !== 'playing') {
       throw new Error('Cannot undo outside of active game');
     }

@@ -10,6 +10,7 @@ import {
   kickPlayerPayloadSchema,
   nasCheatPayloadSchema,
   playCardPayloadSchema,
+  rejoinGamePayloadSchema,
   setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
@@ -171,11 +172,7 @@ export function createRealtimeServer(port?: number) {
 
     socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
       try {
-        const { gameId, previousPlayerId } = payload as { gameId: string; previousPlayerId: string };
-        if (!gameId || !previousPlayerId) {
-          ack?.({ ok: false, error: 'Missing gameId or previousPlayerId' });
-          return;
-        }
+        const { gameId, previousPlayerId } = rejoinGamePayloadSchema.parse(payload);
         const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id);
         socket.join(gameId);
         io.to(gameId).emit('game:updated', gameState);
@@ -446,8 +443,8 @@ export function createRealtimeServer(port?: number) {
       }
       try {
         const parsed = cardLookupPayloadSchema.parse(payload);
-        const { status, playerName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue);
-        const result = { cardValue: parsed.cardValue, status, playerName };
+        const { status, playerName, holderName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue);
+        const result = { cardValue: parsed.cardValue, status, playerName, ...(holderName ? { holderName } : {}) };
         io.to(parsed.gameId).emit('game:cardLookupResult', result);
         log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, cardValue: parsed.cardValue, status });
         ack?.({ ok: true, data: {} });
