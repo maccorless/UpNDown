@@ -1,153 +1,102 @@
-# Future Improvements
+# UpNDown — Backlog & Future Improvements
 
-This document tracks potential optimizations and enhancements for the UpNDown game.
-
-## High Priority
-
-### 1. Solitaire In-Memory Storage Optimization
-
-**Problem**: Solitaire games currently use Firebase for storage, which is unnecessary and wasteful.
-
-**Current Behavior**:
-- Solitaire games are created and saved to Firebase
-- Every card play = Firebase read + write
-- ~40-60 Firebase operations per solitaire game
-- No benefit since solitaire is single-player (no synchronization needed)
-
-**Proposed Solution**:
-Store solitaire games in-memory on the server instead of Firebase.
-
-**Implementation Approach**:
-```typescript
-// server/src/services/game.service.ts
-private solitaireGames: Map<string, GameState> = new Map();
-
-private isSolitaireGame(settings: GameSettings): boolean {
-  return settings.minPlayers === 1 && settings.maxPlayers === 1;
-}
-
-private async getGameState(gameId: string): Promise<GameState | null> {
-  // Check memory first (solitaire)
-  if (this.solitaireGames.has(gameId)) {
-    return this.solitaireGames.get(gameId) || null;
-  }
-  // Otherwise Firebase (multiplayer)
-  const snapshot = await this.gamesRef.child(gameId).once('value');
-  return snapshot.val();
-}
-
-private async saveGameState(gameId: string, gameState: GameState): Promise<void> {
-  if (this.isSolitaireGame(gameState.settings)) {
-    this.solitaireGames.set(gameId, gameState);
-  } else {
-    await this.gamesRef.child(gameId).set(gameState);
-  }
-}
-```
-
-**Methods to Update**:
-- `createGame()` - ✅ Use saveGameState
-- `addPlayer()` - N/A (solitaire never calls this)
-- `startGame()` - Use getGameState/saveGameState
-- `playCard()` - Use getGameState/saveGameState
-- `endTurn()` - Use getGameState/saveGameState (N/A for solitaire)
-- `undoLastCard()` - Use getGameState/saveGameState
-- `checkGameStatus()` - Use getGameState/saveGameState
-- `removePlayer()` - Use deleteGameState
-- `setPilePreference()` - N/A (solitaire has no preferences)
-
-**Cleanup Strategy**:
-- When solitaire player disconnects → delete from memory immediately
-- Optional: setTimeout to auto-delete inactive solitaire games after 1 hour
-
-**Benefits**:
-- ✅ Eliminates 40-60 Firebase operations per solitaire game
-- ✅ Faster solitaire gameplay (no network latency)
-- ✅ Reduces Firebase costs
-- ✅ Same architecture for multiplayer (still uses Firebase)
-
-**Risks**:
-- Solitaire games lost if server restarts (acceptable - no persistence needed)
-- More server memory usage (minimal - only active games)
-
-**Testing Required**:
-- Solitaire: Create, play, win, lose, disconnect
-- Multiplayer: Ensure no regression
-- Mixed: Solitaire + multiplayer simultaneously
-
-**Estimated Effort**: 2-3 hours
-**Priority**: Medium (optimization, not a bug)
+This document tracks what has been built and what is planned next.
 
 ---
 
-## Medium Priority
+## ✅ Recently Implemented
 
-### 2. Alternative: Client-Side Solitaire Engine
-
-**Even Better Solution**: Move solitaire completely to the client.
-
-**Approach**:
-- Create `client/src/services/solitaireGame.ts`
-- All game logic runs locally in browser
-- No Socket.IO connection needed
-- No server/Firebase at all
-- Optional: Upload final stats to server
-
-**Benefits**:
-- ✅ Zero server load for solitaire
-- ✅ Works offline
-- ✅ Instant response (no network)
-- ✅ Simplifies server code
-
-**Challenges**:
-- Need to duplicate game logic client-side
-- Two codebases to maintain (client + server logic)
-- More complex architecture
-
-**Estimated Effort**: 4-6 hours
-**Priority**: Low (bigger refactor)
+| Feature | Notes |
+|---|---|
+| Solitaire client-side engine | All solitaire logic runs in the browser; no server round-trip |
+| In-memory multiplayer server | Socket.IO + in-memory game state; no database dependency |
+| Undo within turn | One-card-at-a-time undo; stack clears on end turn |
+| Foundation pile reactions | 👍 ❤️ 🔥 per pile; clears on your next turn start |
+| Turn sequence display | Dot strip with "Your turn in X" countdown |
+| Special play animation | Backward-10 triggers golden flash + floating label for all players |
+| End game confirmation | Custom modal replaces browser confirm() |
+| Player kick (lobby) | Host can remove players; kicked player gets a notification |
+| Card lookup cheat | Ctrl-Shift-C to check if a card is in draw / in hand (who) / played; shift-enter for private result |
+| Settings numeric inputs | Spinner arrows removed; plain typeable fields |
+| Difficulty presets | Trivial / Easy / Normal / Hard buttons above settings grid |
+| Player colours | Six distinct colours assigned by seat; shown on turn dots, player list, reactions |
+| Unplayable card dim | Cards with no legal move on any pile are dimmed always, even during other players' turns |
+| Sound effects | Web Audio API tones for card play, special play, turn start, win, lose; localStorage toggle |
 
 ---
 
-## Low Priority
+## 🗂 Active Backlog
 
-### 3. Firebase Authentication
+Items below are sequenced roughly in priority / dependency order.
 
-**Current**: No authentication - players use self-generated UUIDs
+### 1 — Replay (Rematch)
 
-**Improvement**: Add Firebase Auth (anonymous auth minimum)
+After a game ends (win or loss), the host sees a **Replay** button. Other players see a **"Host wants a rematch!"** prompt.
 
-**Benefits**:
-- Better security rules
-- User-specific data restrictions
-- Audit trail
+- Same players, same settings, same seat order
+- New server event: `game:replay` — resets game state in place without destroying the room
+- Non-host players must opt in (or auto-follow — TBD)
+- If a non-host declines, they are returned to the lobby screen
 
-**Implementation**: See `FIREBASE_SECURITY.md` for details
-
----
-
-## Recently Implemented ✅
-
-The following features were previously planned and are now implemented:
-
-- **Undo within turn**: Players can undo card plays one at a time during their turn. Server-side snapshot stack clears on end turn. Works in both multiplayer and solitaire.
-- **Foundation pile preferences**: Players can react with like (👍), love (❤️), or really love (🔥) on individual piles. Indicators flank each pile card. Reactions persist until the player's turn starts.
-- **Turn sequence display**: Horizontal dot strip showing turn order with "Your turn in X" label. Green dot = current player, blue border = you.
-- **Special play animation**: Backward-10 moves trigger a celebratory golden flash + floating "🔥 -10! 🔥" label on the affected pile, visible to all players.
-- **End game confirmation**: Custom themed modal replaces browser `confirm()` dialog when ending an active game.
-- **Player kick (lobby)**: Host can remove players from the game lobby via ✕ button. Kicked player receives a modal notification and is returned to the home screen.
-
-## Other Improvements
-
-- **In-game chat**: Real-time communication during games
-- **Mobile responsiveness**: Optimize UI for touch devices
-- **Game history**: Track past games and statistics
-- **Leaderboards**: Compare statistics across players
-- **Reconnection handling**: Resume game after disconnect (rejoin room on reconnect)
-- **Game replay**: Watch recorded games
-- **Custom card designs**: Theme support for cards and piles
+**Effort**: Small–Medium
 
 ---
 
-**Last Updated**: 2026-03-16
-**Status**: Planning / Future Work
+### 2 — Peek at Hand (Cheat)
+
+A new cheat setting: **"Peek at Hand"**.
+
+- During a game, clicking a player's name shows their hand cards locally (your screen only)
+- No server event; client reads the hand from the already-received game state
+- Setting name: `allowPeekAtHand`; disabled by default; documented in how-to-play
+
+**Effort**: Small
+
+---
+
+### 3 — Personal Best Tracking
+
+Track individual solitaire and multiplayer stats in `localStorage`.
+
+- Fewest turns to win, fastest game (seconds), lowest total card movement
+- Shown in the end-game modal as "Your personal best" alongside current game stats
+- No server-side persistence; purely client-local
+
+**Effort**: Small–Medium
+
+---
+
+### 4 — Progressive Web App (PWA)
+
+Make the game installable on desktop and mobile.
+
+- `manifest.json` with app name, icons, display: standalone
+- Service worker for offline shell caching (game itself needs live connection)
+- "Add to Home Screen" prompt on mobile
+
+**Effort**: Small (configuration-heavy, low code)
+**Status**: Maybe — low urgency
+
+---
+
+## 🚫 Out of Scope / Declined
+
+| Item | Reason |
+|---|---|
+| In-game chat | Removed — reactions serve the social layer; chat adds complexity |
+| Leaderboards | Not planned — no persistent user identity |
+| Custom card themes | Not planned — scope creep |
+| Firebase / database | Fully removed; all state is in-memory |
+| Firebase authentication | Removed with Firebase |
+| Game history (server-side) | Not planned |
+
+---
+
+## 🧹 Known Tech Debt
+
+- `apps/client/src/App.test.tsx` and `App.multiplayer-ack.test.tsx` fail with `window is not defined` in the vitest jsdom environment — pre-existing, unrelated to feature work; needs investigation
+- `tests/e2e` Playwright tests require `npx playwright install` before they can run
+
+---
+
+**Last updated**: 2026-03-18
