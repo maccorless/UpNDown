@@ -126,3 +126,54 @@ export interface CardLookupResult {
   playerName: string;
   holderName?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Shared API / DTO types (used by both client and server)
+// ---------------------------------------------------------------------------
+
+/** Summary of a publicly joinable game returned by game:listJoinable. */
+export interface JoinableGameSummary {
+  gameId: string;
+  hostName: string;
+  playerCount: number;
+  maxPlayers: number;
+  createdAtMs: number;
+}
+
+/** Minimal info returned by game:lookup before a player commits to joining. */
+export interface JoinLookupSummary {
+  gameId: string;
+  playerCount: number;
+  maxPlayers: number;
+  privateGame: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Canonical default settings (single source of truth for both apps)
+// ---------------------------------------------------------------------------
+
+export const defaultMultiplayerSettings: GameSettings = {
+  minCardValue: 2,
+  maxCardValue: 99,
+  handSize: 7,
+  minPlayers: 2,
+  maxPlayers: 6,
+  minCardsPerTurn: 2,
+  autoRefillHand: false,
+  allowUndo: false,
+  privateGame: false,
+  allowCardLookup: false
+};
+
+export const defaultSolitaireSettings: GameSettings = {
+  minCardValue: 2,
+  maxCardValue: 99,
+  handSize: 7,
+  minPlayers: 1,
+  maxPlayers: 1,
+  minCardsPerTurn: 2,
+  autoRefillHand: true,
+  allowUndo: false,
+  privateGame: false,
+  allowCardLookup: false
+};

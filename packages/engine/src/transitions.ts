@@ -31,7 +31,7 @@ function clonePlayer(player: Player): Player {
   return { ...player, hand: [...player.hand] };
 }
 
-function emptyPlayerStats(): PlayerStatistics {
+export function emptyPlayerStats(): PlayerStatistics {
   return {
     cardsPlayed: 0,
     totalMovement: 0,

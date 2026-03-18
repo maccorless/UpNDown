@@ -1,11 +1,13 @@
-# Up-N-Down - Game Mechanics and Implementation Guide
+# Up-N-Down — Game Mechanics and Implementation Guide
 
 ## Game Overview
 Up-N-Down is a cooperative card game where players work together to play all cards from their hands onto four foundation piles. The game features unique ascending and descending rules with a special "backward-10" move that adds strategic depth.
 
 **Game Modes:**
-- **Multiplayer**: 2-8 players, turn-based cooperative play
+- **Multiplayer**: 2–6 players, turn-based cooperative play
 - **Solitaire**: Single player, continuous play for practice and solo challenge
+
+---
 
 ## Core Game Mechanics
 
@@ -13,25 +15,25 @@ Up-N-Down is a cooperative card game where players work together to play all car
 
 The game features **4 foundation piles** with distinct placement rules:
 
-#### Ascending Piles (2 piles marked "1↑")
-- **Starting value**: 1 (or minimum card value - 1)
-- **Normal play**: Card must be higher than current top card
-- **Special play**: Card exactly 10 less than current top card
+#### Ascending Piles (2 piles)
+- **Starting value**: 1 (or `minCardValue - 1`)
+- **Normal play**: Card must be higher than the current top card
+- **Special play**: Card exactly 10 lower than the current top card
 
 **Example**: If pile shows 67
-- ✅ Valid: Any card 68-99 (normal ascending)
-- ✅ Valid: 57 (67 - 10, backward-10 rule)
-- ❌ Invalid: Any card < 57 or 58-66
+- ✅ Valid: Any card 68–99 (normal ascending)
+- ✅ Valid: 57 (67 − 10, backward-10 rule)
+- ❌ Invalid: Any card < 57 or 58–66
 
-#### Descending Piles (2 piles marked "100↓")
-- **Starting value**: 100 (or maximum card value + 1)
-- **Normal play**: Card must be lower than current top card
-- **Special play**: Card exactly 10 more than current top card
+#### Descending Piles (2 piles)
+- **Starting value**: 100 (or `maxCardValue + 1`)
+- **Normal play**: Card must be lower than the current top card
+- **Special play**: Card exactly 10 more than the current top card
 
 **Example**: If pile shows 34
-- ✅ Valid: Any card 2-33 (normal descending)
+- ✅ Valid: Any card 2–33 (normal descending)
 - ✅ Valid: 44 (34 + 10, backward-10 rule)
-- ❌ Invalid: Any card > 44 or 35-43
+- ❌ Invalid: Any card > 44 or 35–43
 
 ### The "Backward-10" Rule
 
@@ -43,124 +45,120 @@ This special move is crucial for strategic play and recovery from difficult situ
 - To create opportunities for other players
 - As a last resort to avoid game loss
 
-**Statistics tracking**: Backward-10 moves are counted as "special plays" in game statistics
+**Statistics tracking**: Backward-10 moves are counted as "special plays" in game statistics.
 
 ### Card Distribution
 
 **Configurable parameters** (set by host in game settings):
-- Card range: Default 2-99 (configurable, range 2-79 to 22-99)
-- Hand size: Default 7 cards (configurable, range 4-10)
-- Min cards per turn: Default 2 (configurable, range 1-3)
+- Card range: Default 2–99 (configurable)
+- Hand size: Default 7 cards (configurable, UI range 5–9)
+- Min cards per turn: Default 2 (configurable, range 1–3)
 - Draw pile: Contains all remaining cards after initial deal
 
 **Default configurations**:
-- Multiplayer (2-8 players): 7 cards per player
-- Solitaire: 7 cards in hand
+- Multiplayer (2–6 players): 7 cards per player, no auto-refill
+- Solitaire: 7 cards in hand, auto-refill always on
+
+---
 
 ## Game Flow
 
 ### Multiplayer Mode
 
 #### 1. Game Setup
-1. Host creates game and receives unique 6-character game ID
-2. Other players join using game ID
+1. Host creates game and receives a unique 6-character game ID
+2. Other players join using the game ID (or a shareable invite link)
 3. Host configures settings (optional)
 4. Host starts game
 
 #### 2. Turn Structure
 **Each turn consists of**:
-1. Player plays at least minimum required cards (default: 2)
+1. Player plays at least the minimum required cards (default: 2)
 2. For each card played:
    - Select card from hand
-   - Click valid foundation pile
-   - Card moves to pile
-   - Hand refills (if auto-refill enabled and draw pile has cards)
-   - **Undo option**: Click "Undo" button to undo the last played card
+   - Click a valid foundation pile
+   - Card moves to the pile top
+   - Hand auto-refills after each play (if `autoRefillHand` is enabled and draw pile has cards)
 3. Player clicks "End Turn" button
-4. Turn advances to next player
+4. At turn end (if `autoRefillHand` is disabled) player draws replacement cards up to hand size
+5. Turn advances to next player
 
-**Undo functionality**:
-- Can undo only the last card played during your turn
-- Cannot undo after clicking "End Turn"
-- Works with auto-refill: drawn card stays in hand, undone card returns
+**Undo functionality** (requires `allowUndo: true`):
+- Players can undo plays back to the beginning of their current turn, one at a time
+- Cannot undo after clicking "End Turn" (stack clears on end-turn)
+- Undo is server-authoritative in multiplayer; client-side in solitaire
 - Statistics are automatically rolled back
 
 **Minimum cards per turn**:
-- **Normal stage** (draw pile has cards): 2 cards minimum
+- **Normal stage** (draw pile has cards): `minCardsPerTurn` (default 2)
 - **Final stage** (draw pile empty): 1 card minimum
 - Players may always play more than the minimum
 
-**Auto-refill behavior** (configurable):
-- **Enabled** (default): Draw immediately after playing each card
-- **Disabled**: Draw all replacement cards at end of turn
-
-**Undo functionality** (configurable):
-- **Enabled**: Players can undo the last card played during their turn
-- **Disabled** (default): All plays are final, no undo button appears
-- When enabled, "Undo" button appears after playing a card
-- Cannot undo after ending turn
-- Statistics automatically roll back when undoing
-
-**Debug mode** (configurable):
-- **Enabled**: Shows detailed console logging for troubleshooting
-- **Disabled** (default): Hides console messages for cleaner experience
-- Useful for developers or when reporting technical issues
+**Auto-refill behavior** (configurable via `autoRefillHand`):
+- **Enabled**: Draw immediately after playing each card
+- **Disabled** (default): Draw all replacement cards at end of turn
 
 #### 3. Player Order
-- Turn-based, clockwise rotation
-- Players without cards are automatically skipped
+- Turn-based, sequential rotation
+- Players whose hands are empty are automatically skipped
 - Game continues until all players empty their hands or no valid moves exist
 
 #### 4. Win/Loss Detection
 **Win condition**: All players have empty hands
-**Loss condition**: Current player cannot play minimum required cards
+**Loss condition**: Current player cannot satisfy the minimum card requirement and has no legal plays
 
-Game automatically checks for valid moves and declares win/loss
+Game automatically checks for valid moves and declares win/loss after every card play and turn transition.
 
-### Pile Preferences (Multiplayer Only)
-
-During other players' turns, you can mark your preferences for each foundation pile to help coordinate team play:
-
-**How it works**:
-1. Click the heart icon on the right side of any pile (only visible when it's NOT your turn)
-2. Cycle through preference levels:
-   - **None** (empty heart outline) → **Like** (green checkmark) → **Really Like** (orange heart) → **Love** (red double hearts) → **None**
-3. Your preferences clear automatically when YOUR turn starts
-4. All players can see everyone's preferences displayed above/below each pile
-
-**Visual indicators**:
-- **Like**: Green checkmark ✓ (width: 18px)
-- **Really Like**: Orange filled heart (width: 18px)
-- **Love**: Large red double hearts (width: 24px)
-
-**Strategy tips**:
-- Mark piles where you have many playable cards
-- Help other players know which piles you can handle
-- Coordinate to avoid conflicts where multiple players need the same pile
-
-**Player slot positions**:
-- Top row: Players 1-4 (join order)
-- Bottom row: Players 5-8 (join order)
-- Turn order display shows: "Name (1) (You)"
+---
 
 ### Solitaire Mode
 
 **Differences from multiplayer**:
-- No turns - continuous play
-- No minimum card requirement
-- Auto-refill always enabled
+- No turns — continuous play
+- No minimum card requirement enforced
+- `autoRefillHand` always `true`
 - Play as many cards as possible
 - Perfect for learning game mechanics
-- No pile preferences (not needed in solo play)
+- No pile reactions (not needed in solo play)
+- Undo stack is client-side only
+
+---
+
+### Pile Reactions (Multiplayer Only)
+
+During other players' turns, non-active players can mark their preferences for each foundation pile to help coordinate team play.
+
+**How it works**:
+1. Click your reaction slot beside any pile (only available when it is NOT your turn)
+2. Cycles: **None** → **Like** (👍) → **Love** (❤️) → **Really Love** (🔥) → **None**
+3. Your reactions clear automatically when YOUR turn starts
+4. All players see everyone's reactions in real time
+
+**Player slot positions**:
+- Left column: Players 1–3 (by join order)
+- Right column: Players 4–6 (by join order)
+
+---
 
 ## Implementation Details
 
 ### Technology Stack
 - **Frontend**: React with TypeScript, Vite
 - **Backend**: Node.js with Express
-- **Real-time**: Socket.IO for multiplayer synchronization
-- **Database**: Firebase Realtime Database
+- **Real-time**: Socket.IO for multiplayer synchronisation
+- **State storage**: In-memory (`Map<string, GameRoom>`) with TTL-based orphan reaping
 - **Styling**: CSS with dark theme
+
+### Monorepo Layout
+```
+packages/
+  engine/          Pure game-logic functions (playCard, endTurn, …)
+  shared-types/    TypeScript interfaces + Zod schemas shared by client & server
+apps/
+  client/          React + Vite frontend (App.tsx)
+  server/          Express + Socket.IO backend (index.ts, game-manager.ts)
+tests/e2e/         Playwright smoke tests
+```
 
 ### Game State Management
 
@@ -175,6 +173,8 @@ interface GameState {
   currentPlayerIndex: number;
   gamePhase: 'lobby' | 'playing' | 'won' | 'lost';
   cardsPlayedThisTurn: number;
+  statistics: GameStatistics;
+  nasCheat: NasCheatState;
   settings: GameSettings;
   isSolitaire: boolean;
 }
@@ -187,7 +187,7 @@ interface Player {
   name: string;
   hand: Card[];
   isHost: boolean;
-  statistics: PlayerStatistics;
+  color?: PlayerColor;   // 'red' | 'orange' | 'green' | 'cyan' | 'purple' | 'pink'
 }
 ```
 
@@ -196,129 +196,102 @@ interface Player {
 interface FoundationPile {
   id: number;
   type: 'ascending' | 'descending';
-  cards: Card[];
+  topCard: Card;   // Only the top card is stored; history is not kept
 }
 ```
 
 #### Game Settings
 ```typescript
 interface GameSettings {
-  minCardValue: number;      // Range: 2-79
-  maxCardValue: number;       // Range: 22-99 (must be minCardValue + 20)
-  handSize: number;           // Range: 4-10
-  minPlayers: number;         // Range: 1-8
-  maxPlayers: number;         // Range: 1-8
-  minCardsPerTurn: number;    // Range: 1-3
-  allowUndo: boolean;         // Default: false - enables undo button
-  autoRefillHand: boolean;    // Default: true - draw cards immediately
-  debugMode: boolean;         // Default: false - show console logging
+  minCardValue: number;      // Default: 2
+  maxCardValue: number;      // Default: 99
+  handSize: number;          // Default: 7  (UI range 5–9)
+  minPlayers: number;        // Default: 2  (multiplayer)
+  maxPlayers: number;        // Default: 6  (multiplayer)
+  minCardsPerTurn: number;   // Default: 2  (range 1–3)
+  autoRefillHand: boolean;   // Default: false (multiplayer), true (solitaire)
+  allowUndo: boolean;        // Default: false
+  privateGame: boolean;      // Default: false
+  allowCardLookup: boolean;  // Default: false (cheat feature)
 }
 ```
 
 ### Move Validation
 
-The `isValidPlay()` function validates all card plays:
+The `isValidPlay()` function (in `packages/engine/src/rules.ts`) validates all card plays:
 
 ```typescript
 function isValidPlay(card: Card, pile: FoundationPile): boolean {
-  if (pile.cards.length === 0) {
-    // First card rules
-    if (pile.type === 'ascending') return card.value > 1;
-    if (pile.type === 'descending') return card.value < 100;
-  }
-
-  const topCard = pile.cards[pile.cards.length - 1];
-
+  const top = pile.topCard.value;
   if (pile.type === 'ascending') {
-    // Normal: higher value OR Backward-10: exactly 10 lower
-    return card.value > topCard.value || card.value === topCard.value - 10;
-  } else {
-    // Normal: lower value OR Backward-10: exactly 10 higher
-    return card.value < topCard.value || card.value === topCard.value + 10;
+    return card.value > top || card.value === top - 10;
   }
+  return card.value < top || card.value === top + 10;
 }
 ```
 
 ### Communication Flow
 
-**Client → Server**:
-1. Client emits Socket.IO event (e.g., `game:playCard`)
-2. Event includes gameId, playerId, cardId, pileId
-
-**Server processing**:
-1. Validates player turn
-2. Validates move legality
-3. Updates game state in Firebase
-4. Returns callback response to requesting client
-
-**Server → Clients**:
-1. Sends callback acknowledgment to requesting client (synchronous)
-2. Broadcasts `game:updated` event to other players (asynchronous)
+```
+Client  ──emit event──►  Server
+                         │  validates move
+                         │  updates in-memory state
+                         ▼
+                      ack callback ──► requesting client
+                      game:updated  ──► all clients in room
+```
 
 **All clients**:
-1. Receive updated game state
-2. Update local React context
-3. Re-render UI components
+1. Receive updated `GameState`
+2. React re-renders derive all UI from the new state
+
+### Rate Limiting
+
+All Socket.IO events are rate-limited per socket ID using a sliding-window counter:
+
+| Event                | Limit | Window  |
+|----------------------|-------|---------|
+| `game:create`        | 5     | 60 s    |
+| `game:join`          | 10    | 10 s    |
+| `game:rejoin`        | 5     | 30 s    |
+| `game:lookup`        | 20    | 10 s    |
+| `game:listJoinable`  | 30    | 10 s    |
+| `game:start`         | 10    | 30 s    |
+| `game:playCard`      | 60    | 10 s    |
+| `game:nasCheat`      | 30    | 10 s    |
+| `game:endTurn`       | 30    | 10 s    |
+| `game:undoPlay`      | 30    | 10 s    |
+| `game:endGame`       | 10    | 30 s    |
+| `game:updateSettings`| 20    | 10 s    |
+| `game:leave`         | 10    | 30 s    |
+| `game:kickPlayer`    | 10    | 10 s    |
+| `game:setReaction`   | 20    | 10 s    |
+| `game:cardLookup`    | 10    | 10 s    |
 
 ### Statistics Tracking
 
-**Tracked per player and in aggregate**:
+**Tracked per player**:
 - **Cards Played**: Total count
-- **Total Movement**: Sum of `|newPileValue - oldPileValue|` for each card
+- **Total Movement**: Sum of `|newPileValue − oldPileValue|` for each play
 - **Special Plays**: Count of backward-10 moves
-- **Average Movement**: Total movement ÷ cards played
+- **Nas Cheats Used**: Card-swap cheat uses
 
-**Calculation example**:
-- Pile shows 45, play 47: movement = |47 - 45| = 2
-- Pile shows 67, play 57: movement = |57 - 67| = 10 (special play)
+**Aggregate** (in `GameStatistics`):
+- `turns`: Total turns completed
+- `startedAtMs` / `endedAtMs`: Wall-clock timestamps
 
-### Critical Implementation Details
-
-#### Firebase Null-Safety
-**Issue**: Firebase converts empty arrays to `null`
-**Solution**: Defensive programming with `(array || [])`
-
-```typescript
-// Correct approach
-const hand = currentPlayer.hand || [];
-const handSize = (currentPlayer.hand || []).length;
-
-// Prevents: TypeError: Cannot read properties of undefined (reading 'length')
-```
-
-Applied to all array access throughout codebase.
-
-#### React Hooks Consistency
-**Issue**: Early returns before hooks cause "Rendered fewer hooks than expected"
-**Solution**: All hooks called before conditional logic
-
-```typescript
-// Correct
-const players = gameState.players || [];
-const currentPlayer = players[gameState.currentPlayerIndex];
-const isMyTurn = currentPlayer ? currentPlayer.id === playerId : false;
-
-if (!currentPlayer) {
-  // Handle safely without early return
-}
-```
-
-#### Type Safety
-- Full TypeScript implementation
-- Shared type definitions between client and server
-- Compile-time validation prevents runtime errors
-- Ambient type definitions for Vite environment
+---
 
 ## Strategic Elements
 
 ### General Strategy
-1. **Save middle values (40-60)**: Most flexible for either pile type
-2. **Play extremes early**: Very high (90+) and low (10-) cards have fewer opportunities
-3. **Avoid pile convergence**: Don't let ascending and descending piles meet in middle
-4. **Coordinate**: In multiplayer, consider what opportunities you leave for next player
+1. **Save middle values (40–60)**: Most flexible for either pile type
+2. **Play extremes early**: Very high (90+) and low (10−) cards have fewer opportunities
+3. **Avoid pile convergence**: Don't let ascending and descending piles meet in the middle
+4. **Coordinate**: In multiplayer, consider what opportunities you leave for the next player
 
 ### Using Backward-10 Effectively
-- Don't waste early - save for stuck situations
+- Don't waste early — save for stuck situations
 - Use to create gaps for other players' cards
 - Essential when piles are close together (e.g., ascending at 55, descending at 56)
 
@@ -326,120 +299,61 @@ if (!currentPlayer) {
 - Playing all middle values too early
 - Forgetting about backward-10 when stuck
 - Not checking draw pile count (affects minimum requirement)
-- Letting piles converge in middle range
+- Letting piles converge in the middle range
+
+---
 
 ## User Interface
 
 ### Visual Design
 **Color scheme** (dark theme):
-- Background: #1a1a2e (dark blue-black)
-- Accent: #e94560 (coral red)
-- Ascending piles: #90ee90 (light green)
-- Descending piles: #ffb6b6 (light red/pink)
-- Text: #ffffff (white), #a8a8a8 (gray)
+- Background: `#1a1a2e` (dark blue-black)
+- Accent: `#e94560` (coral red)
+- Ascending piles: light green
+- Descending piles: light red/pink
+- Text: `#ffffff` (white), `#a8a8a8` (gray)
 
 ### Interactive Elements
-- **Card selection**: Click to select, highlights selected card
-- **Valid piles**: Highlight when holding valid card
-- **Hover effects**: Visual feedback on all interactive elements
-- **Turn indicator**: Shows whose turn it is
-- **Draw pile counter**: Displays remaining cards
+- **Card selection**: Click to select; highlights valid piles in real time
+- **Valid piles**: Highlighted when a card is selected and a legal play exists
+- **Backward-10 flash**: Golden flash animation + floating "🔥 ±10! 🔥" label
+- **Turn indicator**: Dot strip showing turn order and distance ("Your turn in 2")
+- **Draw pile counter**: Live remaining-card count
 
 ### Game Screens
-1. **Lobby**: Player setup, settings, game creation/joining
-2. **Game Board**: Foundation piles, player hands, turn controls
-3. **Statistics Modal**: End-game statistics with player breakdown
-4. **User Guide**: Comprehensive rules and strategy (USER_GUIDE.html)
+1. **Landing**: Mode selection (Solitaire / Multiplayer)
+2. **Multiplayer lobby**: Player setup, settings, game creation/joining
+3. **Game Board**: Foundation piles, player hands, turn controls
+4. **Statistics Modal**: End-game stats with player breakdown
+5. **How to Play**: `how-to-play.html` (static, served from `apps/client/public/`)
 
-## Testing Scenarios
+---
 
-### Basic Functionality
-- ✅ Game creation and joining via game ID
-- ✅ Playing cards on valid piles (normal moves)
-- ✅ Playing backward-10 special moves
-- ✅ Turn progression and minimum card enforcement
-- ✅ Draw pile exhaustion and final stage
-- ✅ Win detection (all hands empty)
-- ✅ Loss detection (no valid moves)
+## Testing
 
-### Edge Cases
-- ✅ Player runs out of cards mid-game (turn skip)
-- ✅ Player disconnection/reconnection
-- ✅ Empty array handling (Firebase null conversion)
-- ✅ Statistics calculation and display
-- ✅ Settings application from host
-- ✅ Game ID collision detection
+### Unit / Integration Tests
+- `packages/engine/test/` — pure game-logic tests (Vitest)
+- `packages/shared-types/test/` — Zod schema tests (Vitest)
+- `apps/server/test/` — GameManager unit + Socket.IO integration tests (Vitest)
+- `apps/client/src/*.test.tsx` — React component tests (Vitest + jsdom + Testing Library)
 
-### Solitaire Mode
-- ✅ Continuous play without turn restrictions
-- ✅ Auto-refill always active
-- ✅ Win/loss detection
+### End-to-End Tests
+- `tests/e2e/` — Playwright smoke tests
 
-## Known Issues and Solutions
-
-### Resolved Issues
-1. ✅ **Black screen on hand empty**: Fixed with defensive array handling
-2. ✅ **React hooks violation**: Removed early returns before hooks
-3. ✅ **Statistics not saving**: Added players array to Firebase updates
-4. ✅ **TypeScript build errors**: Fixed all 15 production build errors
-5. ✅ **Game ID collisions**: Added collision detection with retry mechanism
-
-### Future Improvements
-1. ✅ **Undo functionality**: Implemented - can undo last card played during turn (configurable)
-2. ✅ **Debug mode**: Implemented - conditional console logging (configurable)
-3. ✅ **Pile preferences**: Implemented - like/really like/love system with cycling icons
-4. 🔄 **In-game chat**: Real-time communication
-5. 🔄 **Special play animations**: Visual highlight for backward-10 moves
-6. 🔄 **Mobile responsiveness**: Optimize for touch devices
-
-## Performance Considerations
-
-### Optimization Strategies
-- Minimize Firebase read/write operations
-- Use Socket.IO callbacks for synchronous responses
-- Defensive coding prevents cascading errors
-- Type safety prevents runtime type errors
-
-### Scalability
-- Game state cleanup for abandoned games (future)
-- Separate Firebase instances for dev/prod (future)
-- Rate limiting on Socket.IO events (future)
-
-## Development Guidelines
-
-### Code Organization
-- **Client**: `/client/src/` - React components, contexts, services
-- **Server**: `/server/src/` - Game logic, Socket.IO handlers, Firebase integration
-- **Shared**: Type definitions must match between client and server
-
-### Best Practices
-1. Always use TypeScript strict mode
-2. Apply defensive array handling `(array || [])`
-3. Validate all moves server-side
-4. Use callbacks for synchronous acknowledgments
-5. Broadcast to other clients after validation
-6. Test both solitaire and multiplayer modes
-7. Test edge cases (disconnection, empty hands, draw pile exhaustion)
-
-### Adding New Features
-1. Define TypeScript interfaces
-2. Implement server-side logic in `game.service.ts`
-3. Add Socket.IO event handlers in `server/index.ts`
-4. Update client context in `GameContext.tsx`
-5. Create/update UI components
-6. Test multiplayer synchronization
-7. Update documentation
+---
 
 ## Documentation
 
 See also:
-- [README.md](./README.md) - Project overview and setup
-- [requirements.md](./requirements.md) - Detailed requirements and feature status
-- [GameModuleView.md](./GameModuleView.md) - Architecture overview
-- [USER_GUIDE.html](./client/public/USER_GUIDE.html) - Player-facing guide
+- [README.md](./README.md) — Project overview and setup
+- [requirements.md](./requirements.md) — Detailed requirements and feature status
+- [GETTING_STARTED.md](./GETTING_STARTED.md) — Local dev setup
+- [DEPLOYMENT.md](./DEPLOYMENT.md) — Production deployment guide
+- [FUTURE_IMPROVEMENTS.md](./FUTURE_IMPROVEMENTS.md) — Planned enhancements
+- [apps/client/public/how-to-play.html](./apps/client/public/how-to-play.html) — Player-facing guide
 
 ---
 
-**Last Updated**: 2025-11-12
-**Version**: 1.0
-**Status**: Current implementation, production-ready
+**Last Updated**: 2026-03-18
+**Version**: Current implementation (post-v1 refactor)
+**Status**: Accurate — update whenever interfaces or defaults change

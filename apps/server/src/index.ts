@@ -37,15 +37,41 @@ interface RateLimitRule {
   windowMs: number;
 }
 
-const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard' | 'game:nasCheat' | 'game:setReaction' | 'game:undoPlay' | 'game:kickPlayer' | 'game:cardLookup', RateLimitRule> = {
-  'game:join': { limit: 10, windowMs: 10_000 },
-  'game:lookup': { limit: 20, windowMs: 10_000 },
-  'game:playCard': { limit: 60, windowMs: 10_000 },
-  'game:nasCheat': { limit: 30, windowMs: 10_000 },
-  'game:setReaction': { limit: 20, windowMs: 10_000 },
-  'game:undoPlay': { limit: 30, windowMs: 10_000 },
-  'game:kickPlayer': { limit: 10, windowMs: 10_000 },
-  'game:cardLookup': { limit: 10, windowMs: 10_000 }
+const eventRateLimits: Record<
+  | 'game:create'
+  | 'game:join'
+  | 'game:rejoin'
+  | 'game:lookup'
+  | 'game:listJoinable'
+  | 'game:start'
+  | 'game:playCard'
+  | 'game:nasCheat'
+  | 'game:endTurn'
+  | 'game:undoPlay'
+  | 'game:endGame'
+  | 'game:updateSettings'
+  | 'game:leave'
+  | 'game:kickPlayer'
+  | 'game:setReaction'
+  | 'game:cardLookup',
+  RateLimitRule
+> = {
+  'game:create':         { limit: 5,  windowMs: 60_000 },
+  'game:join':           { limit: 10, windowMs: 10_000 },
+  'game:rejoin':         { limit: 5,  windowMs: 30_000 },
+  'game:lookup':         { limit: 20, windowMs: 10_000 },
+  'game:listJoinable':   { limit: 30, windowMs: 10_000 },
+  'game:start':          { limit: 10, windowMs: 30_000 },
+  'game:playCard':       { limit: 60, windowMs: 10_000 },
+  'game:nasCheat':       { limit: 30, windowMs: 10_000 },
+  'game:endTurn':        { limit: 30, windowMs: 10_000 },
+  'game:undoPlay':       { limit: 30, windowMs: 10_000 },
+  'game:endGame':        { limit: 10, windowMs: 30_000 },
+  'game:updateSettings': { limit: 20, windowMs: 10_000 },
+  'game:leave':          { limit: 10, windowMs: 30_000 },
+  'game:kickPlayer':     { limit: 10, windowMs: 10_000 },
+  'game:setReaction':    { limit: 20, windowMs: 10_000 },
+  'game:cardLookup':     { limit: 10, windowMs: 10_000 }
 };
 
 function parseAllowedOrigins(raw: string | undefined): string[] {
@@ -171,6 +197,12 @@ export function createRealtimeServer(port?: number) {
     socket.emit('server:ready', { message: 'connected', playerId: socket.id });
 
     socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
+      if (!passesRateLimit(socket.id, 'game:rejoin')) {
+        const message = 'Too many rejoin attempts. Please wait a moment and try again.';
+        log('warn', 'game.rejoin_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const { gameId, previousPlayerId } = rejoinGamePayloadSchema.parse(payload);
         const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id);
@@ -186,6 +218,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:create', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
+      if (!passesRateLimit(socket.id, 'game:create')) {
+        const message = 'Too many create attempts. Please wait a moment and try again.';
+        log('warn', 'game.create_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const parsed = createGamePayloadSchema.parse(payload);
         const gameState = manager.createGame(socket.id, parsed);
@@ -222,6 +260,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:listJoinable', (_payload, ack?: Ack<{ games: unknown[] }>) => {
+      if (!passesRateLimit(socket.id, 'game:listJoinable')) {
+        const message = 'Too many list requests. Please wait a moment and try again.';
+        log('warn', 'game.list_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const games = manager.listJoinableGames(connectedPlayerIds);
         ack?.({ ok: true, data: { games } });
@@ -251,6 +295,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:start', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:start')) {
+        const message = 'Too many start attempts. Please wait a moment and try again.';
+        log('warn', 'game.start_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.startGame(socket.id, parsed.gameId);
@@ -310,6 +360,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:endTurn', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:endTurn')) {
+        const message = 'Too many end-turn attempts. Slow down!';
+        log('warn', 'game.end_turn_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.endTurn(socket.id, parsed.gameId);
@@ -346,6 +402,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:endGame', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:endGame')) {
+        const message = 'Too many end-game requests. Slow down!';
+        log('warn', 'game.end_game_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.endGame(socket.id, parsed.gameId);
@@ -360,6 +422,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:updateSettings', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:updateSettings')) {
+        const message = 'Too many settings updates. Slow down!';
+        log('warn', 'game.update_settings_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const parsed = updateSettingsPayloadSchema.parse(payload);
         const gameState = manager.updateSettings(socket.id, parsed);
@@ -399,6 +467,12 @@ export function createRealtimeServer(port?: number) {
     });
 
     socket.on('game:leave', (payload, ack?: Ack<{ gameState: unknown | null }>) => {
+      if (!passesRateLimit(socket.id, 'game:leave')) {
+        const message = 'Too many leave requests. Please wait a moment and try again.';
+        log('warn', 'game.leave_rate_limited', { socketId: socket.id });
+        ack?.({ ok: false, error: message });
+        return;
+      }
       try {
         const parsed = gameIdSchema.parse(payload);
         manager.clearPlayerReactions(parsed.gameId, socket.id);

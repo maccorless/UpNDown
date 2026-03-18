@@ -1,6 +1,7 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { playCardSound, playLoseSound, playSpecialPlaySound, playTurnStartSound, playWinSound } from './sounds.js';
-import { gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { APP_VERSION } from './version.js';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import './App.css';
@@ -22,46 +23,10 @@ type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'nascheat
 
 type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 
-interface JoinableGameSummary {
-  gameId: string;
-  hostName: string;
-  playerCount: number;
-  maxPlayers: number;
-  createdAtMs: number;
-}
-
-interface JoinLookupSummary {
-  gameId: string;
-  playerCount: number;
-  maxPlayers: number;
-  privateGame: boolean;
-}
-
-const solitaireSettings: GameSettings = {
-  minCardValue: 2,
-  maxCardValue: 99,
-  handSize: 7,
-  minPlayers: 1,
-  maxPlayers: 1,
-  minCardsPerTurn: 2,
-  autoRefillHand: true,
-  allowUndo: false,
-  privateGame: false,
-  allowCardLookup: false
-};
-
-const multiplayerSettings: GameSettings = {
-  minCardValue: 2,
-  maxCardValue: 99,
-  handSize: 7,
-  minPlayers: 2,
-  maxPlayers: 6,
-  minCardsPerTurn: 2,
-  autoRefillHand: false,
-  allowUndo: false,
-  privateGame: false,
-  allowCardLookup: false
-};
+// JoinableGameSummary, JoinLookupSummary, defaultMultiplayerSettings, and
+// defaultSolitaireSettings are imported from @upndown/shared-types above.
+const solitaireSettings = defaultSolitaireSettings;
+const multiplayerSettings = defaultMultiplayerSettings;
 
 const SETTINGS_STORAGE_KEY = 'upndown.settings.v1';
 const PLAYER_NAME_STORAGE_KEY = 'upndown.multiplayer.playerName.v1';
@@ -932,6 +897,7 @@ function SettingsDialog({
             </button>
           ) : null}
         </div>
+        <div className="settings-version">v{APP_VERSION}</div>
       </section>
     </div>
   );

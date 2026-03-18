@@ -1,12 +1,13 @@
-import { buildDeck, createStartedGameState, endTurn, playCard, shuffle, useNasCheat } from '@upndown/engine';
+import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, shuffle, useNasCheat } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
   GameSettings,
+  JoinableGameSummary,
   JoinGamePayload,
+  JoinLookupSummary,
   KickPlayerPayload,
   NasCheatPayload,
-  PlayerStatistics,
   PlayCardPayload,
   Player,
   PlayerColor,
@@ -14,7 +15,7 @@ import type {
   ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
-import { PLAYER_COLORS } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
 
 interface GameRoom {
@@ -22,30 +23,6 @@ interface GameRoom {
   createdAtMs: number;
   updatedAtMs: number;
   turnUndoStack: GameState[];
-}
-
-export interface JoinableGameSummary {
-  gameId: string;
-  hostName: string;
-  playerCount: number;
-  maxPlayers: number;
-  createdAtMs: number;
-}
-
-export interface JoinLookupSummary {
-  gameId: string;
-  playerCount: number;
-  maxPlayers: number;
-  privateGame: boolean;
-}
-
-function emptyPlayerStats(): PlayerStatistics {
-  return {
-    cardsPlayed: 0,
-    totalMovement: 0,
-    specialPlays: 0,
-    nasCheatsUsed: 0
-  };
 }
 
 function generateGameId(): string {
@@ -666,15 +643,5 @@ export class GameManager {
   }
 }
 
-export const defaultMultiplayerSettings: GameSettings = {
-  minCardValue: 2,
-  maxCardValue: 99,
-  handSize: 7,
-  minPlayers: 2,
-  maxPlayers: 6,
-  minCardsPerTurn: 2,
-  autoRefillHand: false,
-  allowUndo: false,
-  privateGame: false,
-  allowCardLookup: false
-};
+// defaultMultiplayerSettings is exported from @upndown/shared-types.
+export { defaultMultiplayerSettings };
