@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { Server as SocketIOServer } from 'socket.io';
 import { z } from 'zod';
 import {
+  cardLookupPayloadSchema,
   createGamePayloadSchema,
   joinGamePayloadSchema,
   kickPlayerPayloadSchema,
@@ -35,14 +36,15 @@ interface RateLimitRule {
   windowMs: number;
 }
 
-const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard' | 'game:nasCheat' | 'game:setReaction' | 'game:undoPlay' | 'game:kickPlayer', RateLimitRule> = {
+const eventRateLimits: Record<'game:join' | 'game:lookup' | 'game:playCard' | 'game:nasCheat' | 'game:setReaction' | 'game:undoPlay' | 'game:kickPlayer' | 'game:cardLookup', RateLimitRule> = {
   'game:join': { limit: 10, windowMs: 10_000 },
   'game:lookup': { limit: 20, windowMs: 10_000 },
   'game:playCard': { limit: 60, windowMs: 10_000 },
   'game:nasCheat': { limit: 30, windowMs: 10_000 },
   'game:setReaction': { limit: 20, windowMs: 10_000 },
   'game:undoPlay': { limit: 30, windowMs: 10_000 },
-  'game:kickPlayer': { limit: 10, windowMs: 10_000 }
+  'game:kickPlayer': { limit: 10, windowMs: 10_000 },
+  'game:cardLookup': { limit: 10, windowMs: 10_000 }
 };
 
 function parseAllowedOrigins(raw: string | undefined): string[] {
@@ -433,6 +435,25 @@ export function createRealtimeServer(port?: number) {
       } catch (err) {
         const message = normalizeError(err, 'Unable to set reaction');
         log('warn', 'game.set_reaction_failed', { socketId: socket.id, error: message });
+        ack?.({ ok: false, error: message });
+      }
+    });
+
+    socket.on('game:cardLookup', (payload, ack?: Ack<Record<string, never>>) => {
+      if (!passesRateLimit(socket.id, 'game:cardLookup')) {
+        ack?.({ ok: false, error: 'Too many lookups. Slow down!' });
+        return;
+      }
+      try {
+        const parsed = cardLookupPayloadSchema.parse(payload);
+        const { status, playerName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue);
+        const result = { cardValue: parsed.cardValue, status, playerName };
+        io.to(parsed.gameId).emit('game:cardLookupResult', result);
+        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, cardValue: parsed.cardValue, status });
+        ack?.({ ok: true, data: {} });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to look up card');
+        log('warn', 'game.card_lookup_failed', { socketId: socket.id, error: message });
         ack?.({ ok: false, error: message });
       }
     });

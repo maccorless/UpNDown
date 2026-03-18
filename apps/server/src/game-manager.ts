@@ -598,6 +598,33 @@ export class GameManager {
     throw new Error('Unable to generate unique game id');
   }
 
+  lookupCardStatus(gameId: string, playerId: string, cardValue: number): { status: 'in-draw' | 'in-hand' | 'played'; playerName: string; holderName?: string } {
+    const room = this.requireRoom(gameId);
+    const { gameState } = room;
+
+    if (gameState.gamePhase !== 'playing') {
+      throw new Error('Card lookup is only available during an active game');
+    }
+    if (!gameState.settings.allowCardLookup) {
+      throw new Error('Card lookup cheat is not enabled for this game');
+    }
+    const player = gameState.players.find((p) => p.id === playerId);
+    if (!player) {
+      throw new Error('You are not in this game');
+    }
+
+    if (gameState.drawPile.some((c) => c.value === cardValue)) {
+      return { status: 'in-draw', playerName: player.name };
+    }
+
+    const holder = gameState.players.find((p) => p.hand.some((c) => c.value === cardValue));
+    if (holder) {
+      return { status: 'in-hand', playerName: player.name, holderName: holder.name };
+    }
+
+    return { status: 'played', playerName: player.name };
+  }
+
   private requireRoom(gameId: string): GameRoom {
     const room = this.rooms.get(gameId);
     if (!room) {
@@ -639,5 +666,6 @@ export const defaultMultiplayerSettings: GameSettings = {
   minCardsPerTurn: 2,
   autoRefillHand: false,
   allowUndo: false,
-  privateGame: false
+  privateGame: false,
+  allowCardLookup: false
 };

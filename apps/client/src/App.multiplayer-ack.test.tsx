@@ -71,7 +71,8 @@ const multiplayerSettings: GameSettings = {
   minCardsPerTurn: 2,
   autoRefillHand: false,
   allowUndo: false,
-  privateGame: false
+  privateGame: false,
+  allowCardLookup: false
 };
 
 function createLobbyState(): GameState {

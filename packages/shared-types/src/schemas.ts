@@ -20,7 +20,8 @@ export const gameSettingsSchema = z
     minCardsPerTurn: z.number().int().min(TURN_MIN).max(TURN_MAX),
     autoRefillHand: z.boolean(),
     allowUndo: z.boolean(),
-    privateGame: z.boolean()
+    privateGame: z.boolean(),
+    allowCardLookup: z.boolean()
   })
   .superRefine((settings, ctx) => {
     if (settings.maxCardValue <= settings.minCardValue) {
@@ -113,6 +114,11 @@ export const setReactionPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
   pileId: z.number().int().min(0).max(3),
   reactionType: z.enum(['like', 'love', 'really_love']).nullable()
+});
+
+export const cardLookupPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  cardValue: z.number().int().min(1).max(999)
 });
 
 export type GameSettingsInput = z.infer<typeof gameSettingsSchema>;

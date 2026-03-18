@@ -52,7 +52,8 @@ const WON_STATE: GameState = {
     minCardsPerTurn: 2,
     autoRefillHand: true,
     allowUndo: false,
-    privateGame: false
+    privateGame: false,
+    allowCardLookup: false
   },
   isSolitaire: true
 };

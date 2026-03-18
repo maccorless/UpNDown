@@ -29,6 +29,7 @@ export interface GameSettings {
   autoRefillHand: boolean;
   allowUndo: boolean;
   privateGame: boolean;
+  allowCardLookup: boolean;
 }
 
 export interface PlayerStatistics {
@@ -106,4 +107,18 @@ export interface UpdateSettingsPayload {
 export interface KickPlayerPayload {
   gameId: string;
   targetPlayerId: string;
+}
+
+export type CardLookupStatus = 'in-draw' | 'in-hand' | 'played';
+
+export interface CardLookupPayload {
+  gameId: string;
+  cardValue: number;
+}
+
+export interface CardLookupResult {
+  cardValue: number;
+  status: CardLookupStatus;
+  playerName: string;
+  holderName?: string;
 }

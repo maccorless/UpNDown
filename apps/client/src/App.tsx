@@ -1,5 +1,5 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
-import { gameSettingsSchema, type Card, type GameSettings, type GameState, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import './App.css';
@@ -36,7 +36,8 @@ const solitaireSettings: GameSettings = {
   minCardsPerTurn: 2,
   autoRefillHand: true,
   allowUndo: false,
-  privateGame: false
+  privateGame: false,
+  allowCardLookup: false
 };
 
 const multiplayerSettings: GameSettings = {
@@ -48,7 +49,8 @@ const multiplayerSettings: GameSettings = {
   minCardsPerTurn: 2,
   autoRefillHand: false,
   allowUndo: false,
-  privateGame: false
+  privateGame: false,
+  allowCardLookup: false
 };
 
 const SETTINGS_STORAGE_KEY = 'upndown.settings.v1';
@@ -598,7 +600,7 @@ function validateCreateSettings(settings: GameSettings): string | null {
   return null;
 }
 
-const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCardsPerTurn' | 'minPlayers' | 'maxPlayers' | 'autoRefillHand' | 'privateGame', string> = {
+const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCardsPerTurn' | 'minPlayers' | 'maxPlayers' | 'autoRefillHand' | 'privateGame' | 'allowCardLookup', string> = {
   minCardValue: 'Minimum card value included in the deck. Increasing this reduces deck size, which generally makes the game easier.',
   maxCardValue: 'Maximum card value included in the deck. Increasing this increases deck size, which generally makes the game harder.',
   handSize: 'How many cards each player holds. Increasing hand size generally makes the game easier.',
@@ -606,7 +608,8 @@ const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCa
   minPlayers: 'Minimum players required to start. Increasing this typically makes coordination harder.',
   maxPlayers: 'Maximum players allowed to join. Increasing this can make the game harder due to coordination.',
   autoRefillHand: 'When ON, cards are drawn immediately after each play. This generally makes the game easier.',
-  privateGame: 'Private games do not appear in the public join list. You must share the game ID directly.'
+  privateGame: 'Private games do not appear in the public join list. You must share the game ID directly.',
+  allowCardLookup: 'Cheat: Card Lookup — press Ctrl+Shift+C during the game to look up where a specific card is. In multiplayer the result is shown to all players. Works in Solitaire too.'
 };
 
 interface SettingsDialogProps {
@@ -791,6 +794,21 @@ function SettingsDialog({
               className="info-dot"
               title={`${settingsHelp.privateGame}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
               aria-label={`${settingsHelp.privateGame}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
+            >i</span>
+          </label>
+          <label htmlFor="settings-card-lookup" className={`checkbox-label ${!fieldEditable(true) ? 'field-disabled' : ''}`}>
+            <input
+              id="settings-card-lookup"
+              type="checkbox"
+              checked={settings.allowCardLookup}
+              onChange={(e) => onChange({ ...settings, allowCardLookup: e.target.checked })}
+              disabled={!fieldEditable(true)}
+            />
+            Cheat: Card Lookup
+            <span
+              className="info-dot"
+              title={settingsHelp.allowCardLookup}
+              aria-label={settingsHelp.allowCardLookup}
             >i</span>
           </label>
         </div>
@@ -982,6 +1000,10 @@ export function App(): JSX.Element {
   const [pendingLobbyState, setPendingLobbyState] = useState<GameState | null>(null);
 
   const [error, setError] = useState<string | null>(null);
+  const [cardLookupOpen, setCardLookupOpen] = useState(false);
+  const [cardLookupValue, setCardLookupValue] = useState('');
+  const [cardLookupToast, setCardLookupToast] = useState<CardLookupResult | null>(null);
+  const cardLookupToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
   // Kept in sync every render so event handlers can read current playerId without stale closures
@@ -1196,6 +1218,12 @@ export function App(): JSX.Element {
       activeGameIdRef.current = null;
     };
 
+    const onCardLookupResult = (result: CardLookupResult): void => {
+      if (cardLookupToastTimerRef.current) clearTimeout(cardLookupToastTimerRef.current);
+      setCardLookupToast(result);
+      cardLookupToastTimerRef.current = setTimeout(() => setCardLookupToast(null), 3500);
+    };
+
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('connect_error', onConnectError);
@@ -1203,6 +1231,7 @@ export function App(): JSX.Element {
     socket.on('game:reactionsUpdated', onReactionsUpdated);
     socket.on('game:specialPlay', onSpecialPlay);
     socket.on('game:kicked', onKicked);
+    socket.on('game:cardLookupResult', onCardLookupResult);
 
     if (!socket.connected) {
       socket.connect();
@@ -1216,6 +1245,7 @@ export function App(): JSX.Element {
       socket.off('game:reactionsUpdated', onReactionsUpdated);
       socket.off('game:specialPlay', onSpecialPlay);
       socket.off('game:kicked', onKicked);
+      socket.off('game:cardLookupResult', onCardLookupResult);
       socket.disconnect();
       setConnectionState('disconnected');
       setGameReactions({});
@@ -1373,6 +1403,26 @@ export function App(): JSX.Element {
   useEffect(() => {
     setJoinLookup(null);
   }, [joinGameId]);
+
+  // Ctrl+Shift+C opens the card lookup modal when the cheat is enabled
+  useEffect(() => {
+    const activeState = mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null);
+    if (!activeState || activeState.gamePhase !== 'playing' || !activeState.settings.allowCardLookup) {
+      return;
+    }
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+        e.preventDefault();
+        setCardLookupValue('');
+        setCardLookupOpen(true);
+      }
+      if (e.key === 'Escape') {
+        setCardLookupOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mode, multiplayerState, solitaireState]);
 
   const requestSocketAck = <T,>(event: string, payload: unknown): Promise<Ack<T>> => {
     const socket = getSocket();
@@ -1729,6 +1779,42 @@ export function App(): JSX.Element {
 
     setError(null);
     setMultiplayerState(ack.data.gameState);
+  };
+
+  const handleCardLookupSubmit = (shiftKey: boolean): void => {
+    const cardValue = parseInt(cardLookupValue, 10);
+    if (isNaN(cardValue)) return;
+    setCardLookupOpen(false);
+    setCardLookupValue('');
+
+    const activeState = mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null);
+    if (!activeState || activeState.gamePhase !== 'playing') return;
+
+    // Solitaire and secret mode: look up locally, show only to this player
+    if (mode === 'solitaire' || shiftKey) {
+      let status: CardLookupResult['status'];
+      let holderName: string | undefined;
+      if (activeState.drawPile.some((c) => c.value === cardValue)) {
+        status = 'in-draw';
+      } else {
+        const holder = activeState.players.find((p) => p.hand.some((c) => c.value === cardValue));
+        if (holder) {
+          status = 'in-hand';
+          holderName = holder.name;
+        } else {
+          status = 'played';
+        }
+      }
+      const result: CardLookupResult = { cardValue, status, playerName: '', ...(holderName ? { holderName } : {}) };
+      if (cardLookupToastTimerRef.current) clearTimeout(cardLookupToastTimerRef.current);
+      setCardLookupToast(result);
+      cardLookupToastTimerRef.current = setTimeout(() => setCardLookupToast(null), 3500);
+      return;
+    }
+
+    // Multiplayer normal mode: broadcast via server
+    const socket = getSocket();
+    socket.emit('game:cardLookup', { gameId: activeState.gameId, cardValue });
   };
 
   const sendSetReaction = (pileId: number, reactionType: ReactionType | null): void => {
@@ -2605,6 +2691,59 @@ export function App(): JSX.Element {
               </button>
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {cardLookupOpen ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setCardLookupOpen(false)}>
+          <section
+            className="panel card-lookup-modal"
+            role="dialog"
+            aria-modal="true"
+            aria-label="card lookup"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2>Card Lookup</h2>
+            <p>Enter a card number to see where it is.</p>
+            <input
+              className="card-lookup-input"
+              type="number"
+              min={1}
+              max={999}
+              value={cardLookupValue}
+              autoFocus
+              onChange={(e) => setCardLookupValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  handleCardLookupSubmit(e.shiftKey);
+                } else if (e.key === 'Escape') {
+                  setCardLookupOpen(false);
+                }
+              }}
+              placeholder="e.g. 34"
+            />
+            <div className="button-row">
+              <button type="button" className="secondary" onClick={() => setCardLookupOpen(false)}>Cancel</button>
+              <button
+                type="button"
+                className="primary"
+                disabled={!cardLookupValue}
+                onClick={() => handleCardLookupSubmit(false)}
+              >
+                Look Up
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
+      {cardLookupToast ? (
+        <div className="card-lookup-toast" role="status" aria-live="polite">
+          {cardLookupToast.playerName ? `${cardLookupToast.playerName} checked — ` : ''}
+          <strong>{cardLookupToast.cardValue}</strong>:{' '}
+          {cardLookupToast.status === 'in-draw' && '📦 In Draw Pile'}
+          {cardLookupToast.status === 'in-hand' && `🤚 In Hand (${cardLookupToast.holderName ?? '?'})`}
+          {cardLookupToast.status === 'played' && '✓ Played'}
         </div>
       ) : null}
 

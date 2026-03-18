@@ -758,6 +758,18 @@ button:disabled {
   border-color: #7aa2cb;
 }
 
+/* Remove number input spinners in the settings panel */
+.settings-modal input[type=number]::-webkit-inner-spin-button,
+.settings-modal input[type=number]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.settings-modal input[type=number] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
 .settings-modal h2 {
   color: #0f2741;
 }
@@ -841,6 +853,57 @@ button:disabled {
 .end-game-confirm-modal h2,
 .end-game-confirm-modal p {
   margin: 0;
+}
+
+.card-lookup-modal {
+  width: min(360px, 92vw);
+  display: grid;
+  gap: 12px;
+  background: #f7fbff;
+  color: #0f2741;
+  border: 2px solid #4f87bf;
+  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
+}
+
+.card-lookup-modal h2,
+.card-lookup-modal p {
+  margin: 0;
+}
+
+.card-lookup-input {
+  width: 100%;
+  font-size: 1.4rem;
+  padding: 8px 12px;
+  border: 2px solid #9dc1e5;
+  border-radius: 8px;
+  text-align: center;
+  box-sizing: border-box;
+  outline: none;
+}
+
+.card-lookup-input:focus {
+  border-color: #2c72b8;
+}
+
+.card-lookup-toast {
+  position: fixed;
+  bottom: 88px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 39, 65, 0.92);
+  color: #e8f3ff;
+  padding: 10px 20px;
+  border-radius: 24px;
+  font-size: 1rem;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 300;
+  animation: toast-in 0.2s ease;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
 
 .host-ended-modal {
