@@ -2,7 +2,6 @@ import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard,
 import type {
   CreateGamePayload,
   GameState,
-  GameSettings,
   JoinableGameSummary,
   JoinGamePayload,
   JoinLookupSummary,
