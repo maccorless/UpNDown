@@ -451,7 +451,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                 {turnLabel && <span className="turn-label">{turnLabel}</span>}
               </div>
             )}
-            <div className="players-list">
+            <div className="players-list" role="region" aria-label="Players" tabIndex={0}>
               {gameState.players.map((player, index) => (
                 <div
                   key={player.id}
@@ -2640,6 +2640,7 @@ export function App(): JSX.Element {
       {mode === 'multiplayer' ? (
         <div
           className={`socket-indicator ${connectionState}`}
+          role="img"
           aria-label={`Connection ${connectionState}`}
           title={`Server connection: ${connectionState}`}
         />
