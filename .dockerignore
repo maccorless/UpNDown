@@ -1,0 +1,11 @@
+**/node_modules
+**/dist
+**/coverage
+**/.vite
+.git
+.env
+.env.*
+.claude
+.DS_Store
+tests/e2e/test-results
+playwright-report

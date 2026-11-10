@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import { createServer } from 'node:http';
+import path from 'node:path';
 import { Server as SocketIOServer } from 'socket.io';
 import { z } from 'zod';
 import {
@@ -20,7 +21,8 @@ const gameIdSchema = z.object({ gameId: z.string().length(6).regex(/^[A-Z0-9]{6}
 const runtimeEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
-  ALLOWED_ORIGINS: z.string().optional()
+  ALLOWED_ORIGINS: z.string().optional(),
+  CLIENT_DIST_DIR: z.string().min(1).optional()
 });
 
 type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string }) => void;
@@ -30,6 +32,7 @@ interface RuntimeConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
   allowedOrigins: string[];
+  clientDistDir: string | undefined;
 }
 
 interface RateLimitRule {
@@ -85,7 +88,8 @@ function loadRuntimeConfig(portOverride?: number): RuntimeConfig {
   const parsed = runtimeEnvSchema.parse({
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
-    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS
+    ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
+    CLIENT_DIST_DIR: process.env.CLIENT_DIST_DIR
   });
 
   const configuredOrigins = parseAllowedOrigins(parsed.ALLOWED_ORIGINS);
@@ -98,7 +102,8 @@ function loadRuntimeConfig(portOverride?: number): RuntimeConfig {
     port: portOverride ?? parsed.PORT,
     allowedOrigins: configuredOrigins.length > 0
       ? configuredOrigins
-      : ['http://localhost:5173', 'http://127.0.0.1:5173']
+      : ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    clientDistDir: parsed.CLIENT_DIST_DIR ? path.resolve(parsed.CLIENT_DIST_DIR) : undefined
   };
 }
 
@@ -148,6 +153,15 @@ export function createRealtimeServer(port?: number) {
   app.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'upndown-server', uptimeSec: Math.floor(process.uptime()) });
   });
+
+  // Single-container deploys (Skiff) serve the built client from the socket server's origin.
+  const { clientDistDir } = config;
+  if (clientDistDir) {
+    app.use(express.static(clientDistDir));
+    app.get('*', (_req, res) => {
+      res.sendFile(path.join(clientDistDir, 'index.html'));
+    });
+  }
 
   const httpServer = createServer(app);
   const io = new SocketIOServer(httpServer, {

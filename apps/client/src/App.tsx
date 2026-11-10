@@ -1094,7 +1094,9 @@ export function App(): JSX.Element {
   const activeGameIdRef = useRef<string | null>(null);
   const previousPlayerIdRef = useRef<string | null>(null);
 
-  const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:3001';
+  // Production builds talk to whichever host served them, so one image works in every environment.
+  const socketUrl = import.meta.env.VITE_SOCKET_URL
+    || (import.meta.env.PROD ? window.location.origin : 'http://localhost:3001');
 
   const getSocket = (): Socket => {
     if (!socketRef.current) {
