@@ -63,7 +63,7 @@ A cooperative multiplayer card game where players work together to play all thei
 #### Undo Functionality
 - Players can undo card plays within their current turn, one at a time, back to the start of turn
 - "End Turn" clears the undo stack — no cross-turn undo
-- Multiplayer undo is server-authoritative (snapshot stack in `GameRoom`)
+- Multiplayer undo is server-authoritative (snapshot stack in `GameRoom`, recorded only for accepted plays, capped at 100)
 - Solitaire undo is client-side
 - Requires `allowUndo: true` in settings (disabled by default)
 - **Status**: ✅ **Implemented**
@@ -316,7 +316,7 @@ Client  ──Socket.IO event──►  Server
 |-----------------------|--------------------------------------|
 | `game:create`         | Create a new game room               |
 | `game:join`           | Join an existing game                |
-| `game:rejoin`         | Reconnect with a new socket ID       |
+| `game:rejoin`         | Reconnect with a new socket ID (requires the seat's rejoin token) |
 | `game:lookup`         | Check if a game ID is joinable       |
 | `game:listJoinable`   | List public lobby games              |
 | `game:start`          | Host starts the game                 |
@@ -329,13 +329,13 @@ Client  ──Socket.IO event──►  Server
 | `game:leave`          | Leave the current game               |
 | `game:kickPlayer`     | Host kicks another player            |
 | `game:setReaction`    | Set a pile reaction                  |
-| `game:cardLookup`     | Look up where a specific card is     |
+| `game:cardLookup`     | Look up where a specific card is (`secret: true` answers only the asker) |
 
 **Server → Client (broadcasts)**
 | Event                   | Description                              |
 |-------------------------|------------------------------------------|
 | `server:ready`          | Sent on connect with assigned socket ID  |
-| `game:updated`          | Full game state broadcast                |
+| `game:updated`          | Per-recipient game state (own hand only; others' hands and draw pile are placeholders) |
 | `game:reactionsUpdated` | Updated reaction state                   |
 | `game:specialPlay`      | Backward-10 animation trigger            |
 | `game:cardLookupResult` | Card location broadcast to room          |

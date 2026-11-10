@@ -2,7 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { createServer } from 'node:http';
 import path from 'node:path';
-import { Server as SocketIOServer } from 'socket.io';
+import { Server as SocketIOServer, type Socket } from 'socket.io';
 import { z } from 'zod';
 import {
   cardLookupPayloadSchema,
@@ -16,23 +16,33 @@ import {
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
 import { GameManager } from './game-manager.js';
+import { toPlayerView } from './player-view.js';
 
 const gameIdSchema = z.object({ gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/) });
 const runtimeEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   ALLOWED_ORIGINS: z.string().optional(),
-  CLIENT_DIST_DIR: z.string().min(1).optional()
+  CLIENT_DIST_DIR: z.string().min(1).optional(),
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0)
 });
 
 type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string }) => void;
 type LogLevel = 'info' | 'warn' | 'error';
+
+// Socket.IO passes a non-function last client argument through as `ack`, so check the type at runtime.
+function reply<T>(ack: Ack<T> | undefined, response: Parameters<Ack<T>>[0]): void {
+  if (typeof ack === 'function') {
+    ack(response);
+  }
+}
 
 interface RuntimeConfig {
   nodeEnv: 'development' | 'test' | 'production';
   port: number;
   allowedOrigins: string[];
   clientDistDir: string | undefined;
+  trustedProxyHops: number;
 }
 
 interface RateLimitRule {
@@ -77,6 +87,12 @@ const eventRateLimits: Record<
   'game:cardLookup':     { limit: 10, windowMs: 10_000 }
 };
 
+// Per client IP, on top of the per-socket limits: reconnecting resets a socket's bucket, so these stop id guessing.
+const ipRateLimits: Partial<Record<keyof typeof eventRateLimits, RateLimitRule>> = {
+  'game:lookup': { limit: 60, windowMs: 10_000 },
+  'game:join':   { limit: 30, windowMs: 10_000 }
+};
+
 function parseAllowedOrigins(raw: string | undefined): string[] {
   if (!raw) {
     return [];
@@ -89,7 +105,8 @@ function loadRuntimeConfig(portOverride?: number): RuntimeConfig {
     NODE_ENV: process.env.NODE_ENV,
     PORT: process.env.PORT,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
-    CLIENT_DIST_DIR: process.env.CLIENT_DIST_DIR
+    CLIENT_DIST_DIR: process.env.CLIENT_DIST_DIR,
+    TRUSTED_PROXY_HOPS: process.env.TRUSTED_PROXY_HOPS
   });
 
   const configuredOrigins = parseAllowedOrigins(parsed.ALLOWED_ORIGINS);
@@ -103,7 +120,8 @@ function loadRuntimeConfig(portOverride?: number): RuntimeConfig {
     allowedOrigins: configuredOrigins.length > 0
       ? configuredOrigins
       : ['http://localhost:5173', 'http://127.0.0.1:5173'],
-    clientDistDir: parsed.CLIENT_DIST_DIR ? path.resolve(parsed.CLIENT_DIST_DIR) : undefined
+    clientDistDir: parsed.CLIENT_DIST_DIR ? path.resolve(parsed.CLIENT_DIST_DIR) : undefined,
+    trustedProxyHops: parsed.TRUSTED_PROXY_HOPS
   };
 }
 
@@ -171,11 +189,31 @@ export function createRealtimeServer(port?: number) {
   });
 
   const manager = new GameManager();
+  const broadcastState = (gameId: string, state: Parameters<typeof toPlayerView>[0]): void => {
+    for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
+      io.to(socketId).emit('game:updated', toPlayerView(state, socketId));
+    }
+  };
   const connectedPlayerIds = new Set<string>();
   const rateBuckets = new Map<string, Map<string, { windowStartMs: number; count: number }>>();
 
-  const passesRateLimit = (socketId: string, eventName: keyof typeof eventRateLimits): boolean => {
-    const rule = eventRateLimits[eventName];
+  // Chain is X-Forwarded-For plus the TCP peer. Each trusted proxy appends the address it saw, so the
+  // client is `trustedProxyHops` entries from the right and anything an attacker prepends sits to its left.
+  const clientIpOf = (socket: Socket): string => {
+    const header = socket.handshake.headers['x-forwarded-for'];
+    const forwarded = (Array.isArray(header) ? header.join(',') : header ?? '')
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+    const chain = [...forwarded, socket.handshake.address];
+    return chain[Math.max(0, chain.length - 1 - config.trustedProxyHops)] ?? socket.handshake.address;
+  };
+
+  const passesRateLimit = (
+    socketId: string,
+    eventName: keyof typeof eventRateLimits,
+    rule: RateLimitRule = eventRateLimits[eventName]
+  ): boolean => {
     const now = Date.now();
     let socketBuckets = rateBuckets.get(socketId);
     if (!socketBuckets) {
@@ -197,7 +235,20 @@ export function createRealtimeServer(port?: number) {
     socketBuckets.set(eventName, bucket);
     return true;
   };
+  const passesIpRateLimit = (socket: Socket, eventName: keyof typeof eventRateLimits): boolean => {
+    const rule = ipRateLimits[eventName];
+    return rule ? passesRateLimit(`ip:${clientIpOf(socket)}`, eventName, rule) : true;
+  };
   const cleanupTimer = setInterval(() => {
+    const nowMs = Date.now();
+    for (const [key, buckets] of rateBuckets) {
+      if (!key.startsWith('ip:')) continue;
+      for (const [eventName, bucket] of buckets) {
+        const rule = ipRateLimits[eventName as keyof typeof eventRateLimits];
+        if (!rule || nowMs - bucket.windowStartMs >= rule.windowMs) buckets.delete(eventName);
+      }
+      if (buckets.size === 0) rateBuckets.delete(key);
+    }
     const deletedGameIds = manager.reapOrphanedRooms(connectedPlayerIds, Date.now());
     if (deletedGameIds.length > 0) {
       log('info', 'game.orphans_reaped', { count: deletedGameIds.length, gameIds: deletedGameIds });
@@ -210,66 +261,76 @@ export function createRealtimeServer(port?: number) {
     log('info', 'socket.connected', { socketId: socket.id });
     socket.emit('server:ready', { message: 'connected', playerId: socket.id });
 
-    socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
+    socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
       if (!passesRateLimit(socket.id, 'game:rejoin')) {
         const message = 'Too many rejoin attempts. Please wait a moment and try again.';
         log('warn', 'game.rejoin_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
-        const { gameId, previousPlayerId } = rejoinGamePayloadSchema.parse(payload);
-        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id);
+        const { gameId, previousPlayerId, rejoinToken } = rejoinGamePayloadSchema.parse(payload);
+        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken);
+        io.in(previousPlayerId).socketsLeave(gameId);
         socket.join(gameId);
-        io.to(gameId).emit('game:updated', gameState);
+        broadcastState(gameId, gameState);
         log('info', 'game.rejoined', { socketId: socket.id, previousId: previousPlayerId, gameId });
-        ack?.({ ok: true, data: { gameState, playerId: socket.id } });
+        reply(ack, {
+          ok: true,
+          data: { gameState: toPlayerView(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameId, socket.id) }
+        });
       } catch (err) {
         const message = normalizeError(err, 'Unable to rejoin game');
         log('warn', 'game.rejoin_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
-    socket.on('game:create', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
+    socket.on('game:create', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
       if (!passesRateLimit(socket.id, 'game:create')) {
         const message = 'Too many create attempts. Please wait a moment and try again.';
         log('warn', 'game.create_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = createGamePayloadSchema.parse(payload);
         const gameState = manager.createGame(socket.id, parsed);
         socket.join(gameState.gameId);
-        io.to(gameState.gameId).emit('game:updated', gameState);
+        broadcastState(gameState.gameId, gameState);
         log('info', 'game.created', { socketId: socket.id, gameId: gameState.gameId, hostId: socket.id });
-        ack?.({ ok: true, data: { gameState, playerId: socket.id } });
+        reply(ack, {
+          ok: true,
+          data: { gameState: toPlayerView(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameState.gameId, socket.id) }
+        });
       } catch (err) {
         const message = normalizeError(err, 'Unable to create game');
         log('warn', 'game.create_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
-    socket.on('game:join', (payload, ack?: Ack<{ gameState: unknown; playerId: string }>) => {
-      if (!passesRateLimit(socket.id, 'game:join')) {
+    socket.on('game:join', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
+      if (!passesRateLimit(socket.id, 'game:join') || !passesIpRateLimit(socket, 'game:join')) {
         const message = 'Too many join attempts. Please wait a moment and try again.';
         log('warn', 'game.join_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = joinGamePayloadSchema.parse(payload);
         const gameState = manager.joinGame(socket.id, parsed);
         socket.join(gameState.gameId);
-        io.to(gameState.gameId).emit('game:updated', gameState);
+        broadcastState(gameState.gameId, gameState);
         log('info', 'game.joined', { socketId: socket.id, gameId: gameState.gameId });
-        ack?.({ ok: true, data: { gameState, playerId: socket.id } });
+        reply(ack, {
+          ok: true,
+          data: { gameState: toPlayerView(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameState.gameId, socket.id) }
+        });
       } catch (err) {
         const message = normalizeError(err, 'Unable to join game');
         log('warn', 'game.join_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -277,34 +338,34 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:listJoinable')) {
         const message = 'Too many list requests. Please wait a moment and try again.';
         log('warn', 'game.list_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const games = manager.listJoinableGames(connectedPlayerIds);
-        ack?.({ ok: true, data: { games } });
+        reply(ack, { ok: true, data: { games } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to list games');
         log('warn', 'game.list_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
     socket.on('game:lookup', (payload, ack?: Ack<{ game: unknown }>) => {
-      if (!passesRateLimit(socket.id, 'game:lookup')) {
+      if (!passesRateLimit(socket.id, 'game:lookup') || !passesIpRateLimit(socket, 'game:lookup')) {
         const message = 'Too many lookup attempts. Please wait a moment and try again.';
         log('warn', 'game.lookup_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = gameIdSchema.parse(payload);
         const game = manager.lookupJoinableGame(parsed.gameId);
-        ack?.({ ok: true, data: { game } });
+        reply(ack, { ok: true, data: { game } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to lookup game');
         log('warn', 'game.lookup_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -312,21 +373,21 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:start')) {
         const message = 'Too many start attempts. Please wait a moment and try again.';
         log('warn', 'game.start_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.startGame(socket.id, parsed.gameId);
         manager.clearAllReactions(gameState.gameId);
-        io.to(gameState.gameId).emit('game:updated', gameState);
+        broadcastState(gameState.gameId, gameState);
         io.to(gameState.gameId).emit('game:reactionsUpdated', {});
         log('info', 'game.started', { socketId: socket.id, gameId: gameState.gameId });
-        ack?.({ ok: true, data: { gameState } });
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to start game');
         log('warn', 'game.start_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -334,7 +395,7 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:playCard')) {
         const message = 'Too many play attempts. Please wait a moment and try again.';
         log('warn', 'game.play_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
@@ -345,12 +406,12 @@ export function createRealtimeServer(port?: number) {
         if (newSpecialPlays > oldSpecialPlays) {
           io.to(gameState.gameId).emit('game:specialPlay', { pileId: parsed.pileId, playerId: socket.id });
         }
-        io.to(gameState.gameId).emit('game:updated', gameState);
-        ack?.({ ok: true, data: { gameState } });
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to play card');
         log('warn', 'game.play_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -358,18 +419,18 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:nasCheat')) {
         const message = 'Too many cheat attempts. Please wait a moment and try again.';
         log('warn', 'game.nas_cheat_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = nasCheatPayloadSchema.parse(payload);
         const gameState = manager.nasCheat(socket.id, parsed);
-        io.to(gameState.gameId).emit('game:updated', gameState);
-        ack?.({ ok: true, data: { gameState } });
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to use Nas cheat');
         log('warn', 'game.nas_cheat_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -377,7 +438,7 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:endTurn')) {
         const message = 'Too many end-turn attempts. Slow down!';
         log('warn', 'game.end_turn_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
@@ -388,30 +449,30 @@ export function createRealtimeServer(port?: number) {
           manager.clearPlayerReactions(gameState.gameId, newCurrentPlayerId);
         }
         const reactions = manager.getReactions(gameState.gameId);
-        io.to(gameState.gameId).emit('game:updated', gameState);
+        broadcastState(gameState.gameId, gameState);
         io.to(gameState.gameId).emit('game:reactionsUpdated', reactions);
-        ack?.({ ok: true, data: { gameState } });
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to end turn');
         log('warn', 'game.end_turn_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
     socket.on('game:undoPlay', (payload, ack?: Ack<{ gameState: unknown }>) => {
       if (!passesRateLimit(socket.id, 'game:undoPlay')) {
-        ack?.({ ok: false, error: 'Too many undo attempts. Slow down!' });
+        reply(ack, { ok: false, error: 'Too many undo attempts. Slow down!' });
         return;
       }
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.undoLastPlay(socket.id, parsed.gameId);
-        io.to(gameState.gameId).emit('game:updated', gameState);
-        ack?.({ ok: true, data: { gameState } });
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to undo');
         log('warn', 'game.undo_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -419,19 +480,19 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:endGame')) {
         const message = 'Too many end-game requests. Slow down!';
         log('warn', 'game.end_game_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.endGame(socket.id, parsed.gameId);
-        io.to(gameState.gameId).emit('game:updated', gameState);
+        broadcastState(gameState.gameId, gameState);
         log('info', 'game.ended', { socketId: socket.id, gameId: gameState.gameId });
-        ack?.({ ok: true, data: { gameState } });
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to end game');
         log('warn', 'game.end_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -439,24 +500,24 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:updateSettings')) {
         const message = 'Too many settings updates. Slow down!';
         log('warn', 'game.update_settings_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
         const parsed = updateSettingsPayloadSchema.parse(payload);
         const gameState = manager.updateSettings(socket.id, parsed);
-        io.to(gameState.gameId).emit('game:updated', gameState);
-        ack?.({ ok: true, data: { gameState } });
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to update settings');
         log('warn', 'game.update_settings_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
     socket.on('game:kickPlayer', (payload, ack?: Ack<{ gameState: unknown }>) => {
       if (!passesRateLimit(socket.id, 'game:kickPlayer')) {
-        ack?.({ ok: false, error: 'Too many kick attempts. Slow down!' });
+        reply(ack, { ok: false, error: 'Too many kick attempts. Slow down!' });
         return;
       }
       try {
@@ -470,13 +531,13 @@ export function createRealtimeServer(port?: number) {
           kickedSocket.leave(parsed.gameId);
         }
         // Broadcast updated state to remaining players
-        io.to(gameState.gameId).emit('game:updated', gameState);
+        broadcastState(gameState.gameId, gameState);
         log('info', 'game.player_kicked', { socketId: socket.id, gameId: parsed.gameId, kickedPlayerId: parsed.targetPlayerId });
-        ack?.({ ok: true, data: { gameState } });
+        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to kick player');
         log('warn', 'game.kick_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -484,7 +545,7 @@ export function createRealtimeServer(port?: number) {
       if (!passesRateLimit(socket.id, 'game:leave')) {
         const message = 'Too many leave requests. Please wait a moment and try again.';
         log('warn', 'game.leave_rate_limited', { socketId: socket.id });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
         return;
       }
       try {
@@ -494,21 +555,21 @@ export function createRealtimeServer(port?: number) {
         socket.leave(parsed.gameId);
         if (gameState) {
           const reactions = manager.getReactions(parsed.gameId);
-          io.to(parsed.gameId).emit('game:updated', gameState);
+          broadcastState(parsed.gameId, gameState);
           io.to(parsed.gameId).emit('game:reactionsUpdated', reactions);
         }
         log('info', 'game.left', { socketId: socket.id, gameId: parsed.gameId });
-        ack?.({ ok: true, data: { gameState } });
+        reply(ack, { ok: true, data: { gameState: gameState ? toPlayerView(gameState, socket.id) : null } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to leave game');
         log('warn', 'game.leave_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
     socket.on('game:setReaction', (payload, ack?: Ack<Record<string, never>>) => {
       if (!passesRateLimit(socket.id, 'game:setReaction')) {
-        ack?.({ ok: false, error: 'Too many reactions. Slow down!' });
+        reply(ack, { ok: false, error: 'Too many reactions. Slow down!' });
         return;
       }
       try {
@@ -516,30 +577,34 @@ export function createRealtimeServer(port?: number) {
         manager.setReaction(parsed.gameId, socket.id, parsed.pileId, parsed.reactionType);
         const reactions = manager.getReactions(parsed.gameId);
         io.to(parsed.gameId).emit('game:reactionsUpdated', reactions);
-        ack?.({ ok: true, data: {} });
+        reply(ack, { ok: true, data: {} });
       } catch (err) {
         const message = normalizeError(err, 'Unable to set reaction');
         log('warn', 'game.set_reaction_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
-    socket.on('game:cardLookup', (payload, ack?: Ack<Record<string, never>>) => {
+    socket.on('game:cardLookup', (payload, ack?: Ack<{ result?: unknown }>) => {
       if (!passesRateLimit(socket.id, 'game:cardLookup')) {
-        ack?.({ ok: false, error: 'Too many lookups. Slow down!' });
+        reply(ack, { ok: false, error: 'Too many lookups. Slow down!' });
         return;
       }
       try {
         const parsed = cardLookupPayloadSchema.parse(payload);
         const { status, playerName, holderName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue);
         const result = { cardValue: parsed.cardValue, status, playerName, ...(holderName ? { holderName } : {}) };
+        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, cardValue: parsed.cardValue, status, secret: parsed.secret === true });
+        if (parsed.secret) {
+          reply(ack, { ok: true, data: { result: { ...result, playerName: '' } } });
+          return;
+        }
         io.to(parsed.gameId).emit('game:cardLookupResult', result);
-        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, cardValue: parsed.cardValue, status });
-        ack?.({ ok: true, data: {} });
+        reply(ack, { ok: true, data: {} });
       } catch (err) {
         const message = normalizeError(err, 'Unable to look up card');
         log('warn', 'game.card_lookup_failed', { socketId: socket.id, error: message });
-        ack?.({ ok: false, error: message });
+        reply(ack, { ok: false, error: message });
       }
     });
 
@@ -549,7 +614,7 @@ export function createRealtimeServer(port?: number) {
       const updates = manager.removeDisconnectedPlayer(socket.id);
       for (const update of updates) {
         if (update.gameState) {
-          io.to(update.gameId).emit('game:updated', update.gameState);
+          broadcastState(update.gameId, update.gameState);
         }
       }
       log('info', 'socket.disconnected', { socketId: socket.id });

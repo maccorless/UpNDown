@@ -33,6 +33,7 @@ Required env vars:
 
 Optional:
 - `PORT` (Railway sets this automatically)
+- `TRUSTED_PROXY_HOPS` (default `0`): number of reverse proxies in front of the server, used to find the real client IP in `X-Forwarded-For` for per-IP limits. The Skiff image sets `2` (ALB and APISIX). A value larger than the real proxy count lets clients spoof their IP; smaller makes users share one limit.
 
 Health check path:
 - `/health`

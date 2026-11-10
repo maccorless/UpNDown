@@ -1093,6 +1093,7 @@ export function App(): JSX.Element {
   const joinablePollFailuresRef = useRef(0);
   const activeGameIdRef = useRef<string | null>(null);
   const previousPlayerIdRef = useRef<string | null>(null);
+  const rejoinTokenRef = useRef<string | null>(null);
 
   // Production builds talk to whichever host served them, so one image works in every environment.
   const socketUrl = import.meta.env.VITE_SOCKET_URL
@@ -1228,13 +1229,15 @@ export function App(): JSX.Element {
       const gameId = activeGameIdRef.current;
 
       // If we had an active game and our socket ID changed, rejoin
-      if (gameId && oldId && newId && oldId !== newId) {
-        socket.emit('game:rejoin', { gameId, previousPlayerId: oldId },
-          (response: { ok: boolean; data?: { gameState: GameState; playerId: string }; error?: string }) => {
+      const rejoinToken = rejoinTokenRef.current;
+      if (gameId && oldId && newId && rejoinToken && oldId !== newId) {
+        socket.emit('game:rejoin', { gameId, previousPlayerId: oldId, rejoinToken },
+          (response: { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; error?: string }) => {
             if (response?.ok && response.data) {
               setMultiplayerState(response.data.gameState);
               setPlayerId(response.data.playerId);
               previousPlayerIdRef.current = response.data.playerId;
+              rejoinTokenRef.current = response.data.rejoinToken;
             }
           }
         );
@@ -1645,7 +1648,7 @@ export function App(): JSX.Element {
     }
 
     setError(null);
-    const ack = await emitWithAck<{ gameState: GameState; playerId: string }>(
+    const ack = await emitWithAck<{ gameState: GameState; playerId: string; rejoinToken: string }>(
       'game:create',
       {
         playerName: trimmedName,
@@ -1662,6 +1665,7 @@ export function App(): JSX.Element {
 
     setPlayerId(ack.data.playerId);
     previousPlayerIdRef.current = ack.data.playerId;
+    rejoinTokenRef.current = ack.data.rejoinToken;
     activeGameIdRef.current = ack.data.gameState.gameId;
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
@@ -1683,7 +1687,7 @@ export function App(): JSX.Element {
     }
 
     setError(null);
-    const ack = await emitWithAck<{ gameState: GameState; playerId: string }>(
+    const ack = await emitWithAck<{ gameState: GameState; playerId: string; rejoinToken: string }>(
       'game:join',
       { gameId, playerName: trimmedName },
       'join'
@@ -1697,6 +1701,7 @@ export function App(): JSX.Element {
     setJoinGameId(gameId);
     setPlayerId(ack.data.playerId);
     previousPlayerIdRef.current = ack.data.playerId;
+    rejoinTokenRef.current = ack.data.rejoinToken;
     activeGameIdRef.current = ack.data.gameState.gameId;
     setMultiplayerState(ack.data.gameState);
     setMultiplayerSelectedCardId(null);
@@ -1862,8 +1867,14 @@ export function App(): JSX.Element {
     const activeState = mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null);
     if (!activeState || activeState.gamePhase !== 'playing') return;
 
-    // Solitaire and secret mode: look up locally, show only to this player
-    if (mode === 'solitaire' || shiftKey) {
+    const showToast = (result: CardLookupResult): void => {
+      if (cardLookupToastTimerRef.current) clearTimeout(cardLookupToastTimerRef.current);
+      setCardLookupToast(result);
+      cardLookupToastTimerRef.current = setTimeout(() => setCardLookupToast(null), 3500);
+    };
+
+    // Solitaire: the full state is local, so look up here
+    if (mode === 'solitaire') {
       let status: CardLookupResult['status'];
       let holderName: string | undefined;
       if (activeState.drawPile.some((c) => c.value === cardValue)) {
@@ -1877,16 +1888,20 @@ export function App(): JSX.Element {
           status = 'played';
         }
       }
-      const result: CardLookupResult = { cardValue, status, playerName: '', ...(holderName ? { holderName } : {}) };
-      if (cardLookupToastTimerRef.current) clearTimeout(cardLookupToastTimerRef.current);
-      setCardLookupToast(result);
-      cardLookupToastTimerRef.current = setTimeout(() => setCardLookupToast(null), 3500);
+      showToast({ cardValue, status, playerName: '', ...(holderName ? { holderName } : {}) });
       return;
     }
 
-    // Multiplayer normal mode: broadcast via server
-    const socket = getSocket();
-    socket.emit('game:cardLookup', { gameId: activeState.gameId, cardValue });
+    // Multiplayer: the server holds the hidden cards. Secret mode answers only this player; normal mode broadcasts.
+    if (shiftKey) {
+      void requestSocketAck<{ result: CardLookupResult }>('game:cardLookup', { gameId: activeState.gameId, cardValue, secret: true })
+        .then((ack) => {
+          if (ack.ok) showToast(ack.data.result);
+          else setError(ack.error);
+        });
+      return;
+    }
+    getSocket().emit('game:cardLookup', { gameId: activeState.gameId, cardValue });
   };
 
   const sendSetReaction = (pileId: number, reactionType: ReactionType | null): void => {
@@ -1999,6 +2014,7 @@ export function App(): JSX.Element {
     setMultiplayerSelectedCardId(null);
     activeGameIdRef.current = null;
     previousPlayerIdRef.current = null;
+    rejoinTokenRef.current = null;
     setMultiplayerFlow('choose');
     setShowJoinById(false);
     setJoinLookup(null);

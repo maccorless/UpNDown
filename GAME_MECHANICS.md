@@ -86,7 +86,7 @@ This special move is crucial for strategic play and recovery from difficult situ
 **Undo functionality** (requires `allowUndo: true`):
 - Players can undo plays back to the beginning of their current turn, one at a time
 - Cannot undo after clicking "End Turn" (stack clears on end-turn)
-- Undo is server-authoritative in multiplayer; client-side in solitaire
+- Undo is server-authoritative in multiplayer (snapshots are recorded only for plays the engine accepts, capped at 100); client-side in solitaire
 - Statistics are automatically rolled back
 
 **Minimum cards per turn**:
@@ -238,8 +238,12 @@ Client  ──emit event──►  Server
                          │  updates in-memory state
                          ▼
                       ack callback ──► requesting client
-                      game:updated  ──► all clients in room
+                      game:updated  ──► all clients in room (each gets its own view)
 ```
+
+**Hidden information:** every `game:updated` and every ack carries a per-recipient view. A player receives their own hand in full. Other players' hands and the draw pile are sent as same-length placeholder cards (`value: 0`), so counts are visible but cards are not. The secret card lookup (Shift) is answered by the server in the asker's ack only.
+
+**Rejoin ownership:** `game:create`, `game:join` and `game:rejoin` acks return a per-seat `rejoinToken`. `game:rejoin` requires `{ gameId, previousPlayerId, rejoinToken }`, rotates the token on success, and removes the old socket from the room. The token is never part of broadcast state.
 
 **All clients**:
 1. Receive updated `GameState`
@@ -267,6 +271,8 @@ All Socket.IO events are rate-limited per socket ID using a sliding-window count
 | `game:kickPlayer`    | 10    | 10 s    |
 | `game:setReaction`   | 20    | 10 s    |
 | `game:cardLookup`    | 10    | 10 s    |
+
+Limits are per socket. `game:lookup` and `game:join` are also limited per client IP (60 and 30 per 10 s), because reconnecting resets a socket's bucket and the game id is the only secret for private games.
 
 ### Statistics Tracking
 

@@ -118,12 +118,14 @@ export const setReactionPayloadSchema = z.object({
 
 export const cardLookupPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
-  cardValue: z.number().int().min(1).max(999)
+  cardValue: z.number().int().min(1).max(999),
+  secret: z.boolean().optional()
 });
 
 export const rejoinGamePayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
-  previousPlayerId: z.string().min(1)
+  previousPlayerId: z.string().min(1),
+  rejoinToken: z.string().min(1).max(128)
 });
 
 export type GameSettingsInput = z.infer<typeof gameSettingsSchema>;

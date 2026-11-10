@@ -1,3 +1,4 @@
+import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, shuffle, useNasCheat } from '@upndown/engine';
 import type {
   CreateGamePayload,
@@ -22,13 +23,48 @@ interface GameRoom {
   createdAtMs: number;
   updatedAtMs: number;
   turnUndoStack: GameState[];
+  rejoinTokens: Map<string, string>;
 }
+
+function tokensMatch(expected: string, actual: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(actual);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function swapPlayerId(state: GameState, oldPlayerId: string, newPlayerId: string): void {
+  const player = state.players.find((p) => p.id === oldPlayerId);
+  if (!player) {
+    return;
+  }
+  player.id = newPlayerId;
+
+  if (state.hostId === oldPlayerId) {
+    state.hostId = newPlayerId;
+  }
+
+  if (state.statistics.players[oldPlayerId]) {
+    state.statistics.players[newPlayerId] = state.statistics.players[oldPlayerId];
+    delete state.statistics.players[oldPlayerId];
+  }
+
+  if (oldPlayerId in state.nasCheat.usedThisTurnByPlayerId) {
+    state.nasCheat.usedThisTurnByPlayerId[newPlayerId] = state.nasCheat.usedThisTurnByPlayerId[oldPlayerId] ?? false;
+    delete state.nasCheat.usedThisTurnByPlayerId[oldPlayerId];
+  }
+  const nasIdx = state.nasCheat.enabledPlayerIds.indexOf(oldPlayerId);
+  if (nasIdx >= 0) {
+    state.nasCheat.enabledPlayerIds[nasIdx] = newPlayerId;
+  }
+}
+
+const MAX_UNDO_SNAPSHOTS = 100;
 
 function generateGameId(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let id = '';
   for (let i = 0; i < 6; i += 1) {
-    id += alphabet[Math.floor(Math.random() * alphabet.length)] ?? 'A';
+    id += alphabet[randomInt(alphabet.length)] ?? 'A';
   }
   return id;
 }
@@ -88,37 +124,34 @@ export class GameManager {
     this.reactions.delete(gameId);
   }
 
-  rejoinPlayer(gameId: string, oldPlayerId: string, newPlayerId: string): GameState {
+  getRejoinToken(gameId: string, playerId: string): string {
+    const token = this.requireRoom(gameId).rejoinTokens.get(playerId);
+    if (!token) {
+      throw new Error('No rejoin token for player');
+    }
+    return token;
+  }
+
+  rejoinPlayer(gameId: string, oldPlayerId: string, newPlayerId: string, rejoinToken: string): GameState {
     const room = this.requireRoom(gameId);
     const { gameState } = room;
-    const player = gameState.players.find((p) => p.id === oldPlayerId);
-    if (!player) {
-      throw new Error('Player not found in game');
+    const expectedToken = room.rejoinTokens.get(oldPlayerId);
+    const seatExists = gameState.players.some((p) => p.id === oldPlayerId);
+    // Same message for a missing seat and a wrong token so callers cannot probe which seats exist.
+    if (!seatExists || !expectedToken || !tokensMatch(expectedToken, rejoinToken)) {
+      throw new Error('Unable to rejoin game');
+    }
+    if (gameState.players.some((p) => p.id === newPlayerId)) {
+      throw new Error('Unable to rejoin game');
     }
 
-    // Swap player id
-    player.id = newPlayerId;
-
-    // Swap hostId if this player is host
-    if (gameState.hostId === oldPlayerId) {
-      gameState.hostId = newPlayerId;
+    swapPlayerId(gameState, oldPlayerId, newPlayerId);
+    for (const snapshot of room.turnUndoStack) {
+      swapPlayerId(snapshot, oldPlayerId, newPlayerId);
     }
 
-    // Swap in statistics.players
-    if (gameState.statistics.players[oldPlayerId]) {
-      gameState.statistics.players[newPlayerId] = gameState.statistics.players[oldPlayerId];
-      delete gameState.statistics.players[oldPlayerId];
-    }
-
-    // Swap in nasCheat maps
-    if (oldPlayerId in gameState.nasCheat.usedThisTurnByPlayerId) {
-      gameState.nasCheat.usedThisTurnByPlayerId[newPlayerId] = gameState.nasCheat.usedThisTurnByPlayerId[oldPlayerId] ?? false;
-      delete gameState.nasCheat.usedThisTurnByPlayerId[oldPlayerId];
-    }
-    const nasIdx = gameState.nasCheat.enabledPlayerIds.indexOf(oldPlayerId);
-    if (nasIdx >= 0) {
-      gameState.nasCheat.enabledPlayerIds[nasIdx] = newPlayerId;
-    }
+    room.rejoinTokens.delete(oldPlayerId);
+    room.rejoinTokens.set(newPlayerId, randomUUID());
 
     // Swap reactions
     const gameReactions = this.reactions.get(gameId);
@@ -180,7 +213,13 @@ export class GameManager {
     };
 
     const now = Date.now();
-    this.rooms.set(gameId, { gameState: state, createdAtMs: now, updatedAtMs: now, turnUndoStack: [] });
+    this.rooms.set(gameId, {
+      gameState: state,
+      createdAtMs: now,
+      updatedAtMs: now,
+      turnUndoStack: [],
+      rejoinTokens: new Map([[ownerPlayerId, randomUUID()]])
+    });
     return state;
   }
 
@@ -254,6 +293,7 @@ export class GameManager {
     };
 
     room.gameState = nextState;
+    room.rejoinTokens.set(playerId, randomUUID());
     room.updatedAtMs = Date.now();
     return nextState;
   }
@@ -311,10 +351,14 @@ export class GameManager {
 
   playCard(playerId: string, payload: PlayCardPayload): GameState {
     const room = this.requireRoom(payload.gameId);
-    if (room.gameState.settings.allowUndo) {
-      room.turnUndoStack.push(structuredClone(room.gameState));
+    const previous = room.gameState;
+    const nextState = playCard(previous, playerId, payload.cardId, payload.pileId);
+    if (previous.settings.allowUndo) {
+      room.turnUndoStack.push(structuredClone(previous));
+      if (room.turnUndoStack.length > MAX_UNDO_SNAPSHOTS) {
+        room.turnUndoStack.shift();
+      }
     }
-    const nextState = playCard(room.gameState, playerId, payload.cardId, payload.pileId);
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
     return nextState;
