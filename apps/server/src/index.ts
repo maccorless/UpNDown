@@ -258,7 +258,7 @@ export function createRealtimeServer(port?: number) {
 
   io.on('connection', (socket) => {
     connectedPlayerIds.add(socket.id);
-    log('info', 'socket.connected', { socketId: socket.id });
+    log('info', 'socket.connected', { socketId: socket.id, clientIp: clientIpOf(socket) });
     socket.emit('server:ready', { message: 'connected', playerId: socket.id });
 
     socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {

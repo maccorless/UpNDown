@@ -13,7 +13,36 @@ function startUndoGame() {
   return { manager, gameId: started.gameId, started };
 }
 
+function playFirstLegalCard(manager: GameManager, gameId: string, started: ReturnType<typeof startUndoGame>['started']) {
+  const activeId = started.players[started.currentPlayerIndex]!.id;
+  for (const card of started.players[started.currentPlayerIndex]!.hand) {
+    for (let pileId = 0; pileId < started.foundationPiles.length; pileId += 1) {
+      try {
+        return { activeId, state: manager.playCard(activeId, { gameId, cardId: card.id, pileId }) };
+      } catch {
+        // try the next card or pile
+      }
+    }
+  }
+  return { activeId, state: null };
+}
+
 describe('GameManager', () => {
+  it('caps the undo stack at 100 snapshots and drops the oldest first (an uncapped stack is a memory leak a client can drive)', () => {
+    const { manager, gameId, started } = startUndoGame();
+    const stack = (manager as unknown as { rooms: Map<string, { turnUndoStack: Array<typeof started> }> }).rooms.get(gameId)!.turnUndoStack;
+    for (let i = 0; i < 100; i += 1) {
+      stack.push({ ...structuredClone(started), cardsPlayedThisTurn: 1000 + i });
+    }
+
+    const { state } = playFirstLegalCard(manager, gameId, started);
+
+    expect(state).not.toBeNull();
+    expect(stack.length).toBe(100);
+    expect(stack[0]!.cardsPlayedThisTurn).toBe(1001);
+    expect(stack[99]).toEqual(started);
+  });
+
   it('does not record an undo snapshot for a play the engine rejects', () => {
     const { manager, gameId, started } = startUndoGame();
     const activeId = started.players[started.currentPlayerIndex]!.id;
@@ -80,6 +109,42 @@ describe('GameManager', () => {
 
     expect(() =>
       manager.joinGame('guest-1', { gameId: created.gameId, playerName: 'Guest' })
-    ).toThrowError('Game not found');
+    ).toThrowError('not available');
+  });
+
+  it('answers a missing, started and full game identically, so a guesser cannot tell which ids exist', () => {
+    const manager = new GameManager();
+    const open =manager.createGame('host-a', { playerName: 'A', settings: defaultMultiplayerSettings, isSolitaire: false });
+    const full = manager.createGame('host-b', {
+      playerName: 'B',
+      settings: { ...defaultMultiplayerSettings, minPlayers: 2, maxPlayers: 2 },
+      isSolitaire: false
+    });
+    manager.joinGame('guest-b', { gameId: full.gameId, playerName: 'G' });
+
+    const failures = (run: () => unknown): string => {
+      try {
+        run();
+      } catch (err) {
+        return (err as Error).message;
+      }
+      return 'no error';
+    };
+    const startedManager = new GameManager();
+    const startedGame = startedManager.createGame('h', { playerName: 'H', settings: defaultMultiplayerSettings, isSolitaire: false });
+    startedManager.joinGame('g', { gameId: startedGame.gameId, playerName: 'G' });
+    startedManager.startGame('h', startedGame.gameId);
+
+    const messages = [
+      failures(() => manager.joinGame('x', { gameId: 'ZZZZZZ', playerName: 'X' })),
+      failures(() => manager.lookupJoinableGame('ZZZZZZ')),
+      failures(() => manager.joinGame('x', { gameId: full.gameId, playerName: 'X' })),
+      failures(() => manager.lookupJoinableGame(full.gameId)),
+      failures(() => startedManager.joinGame('x', { gameId: startedGame.gameId, playerName: 'X' })),
+      failures(() => startedManager.lookupJoinableGame(startedGame.gameId))
+    ];
+    expect(new Set(messages).size).toBe(1);
+    expect(messages[0]).toContain('not available');
+    expect(manager.lookupJoinableGame(open.gameId).gameId).toBe(open.gameId);
   });
 });

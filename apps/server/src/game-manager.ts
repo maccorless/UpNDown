@@ -60,6 +60,9 @@ function swapPlayerId(state: GameState, oldPlayerId: string, newPlayerId: string
 
 const MAX_UNDO_SNAPSHOTS = 100;
 
+// One message for missing, started and full games so a guesser cannot tell which ids exist.
+const GAME_UNAVAILABLE_MESSAGE = 'This game is not available. Check the game ID; it may be full or already started.';
+
 function generateGameId(): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
   let id = '';
@@ -257,12 +260,12 @@ export class GameManager {
   joinGame(playerId: string, payload: JoinGamePayload): GameState {
     const room = this.rooms.get(payload.gameId);
     if (!room) {
-      throw new Error('Game not found');
+      throw new Error(GAME_UNAVAILABLE_MESSAGE);
     }
 
     const { gameState } = room;
     if (gameState.gamePhase !== 'lobby') {
-      throw new Error('This game has already started.');
+      throw new Error(GAME_UNAVAILABLE_MESSAGE);
     }
 
     if (gameState.players.some((player) => player.id === playerId)) {
@@ -270,7 +273,7 @@ export class GameManager {
     }
 
     if (gameState.players.length >= gameState.settings.maxPlayers) {
-      throw new Error('This game just filled up. Please choose another game.');
+      throw new Error(GAME_UNAVAILABLE_MESSAGE);
     }
 
     const nextState: GameState = {
@@ -299,16 +302,11 @@ export class GameManager {
   }
 
   lookupJoinableGame(gameId: string): JoinLookupSummary {
-    const room = this.requireRoom(gameId);
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase !== 'lobby' || room.gameState.players.length >= room.gameState.settings.maxPlayers) {
+      throw new Error(GAME_UNAVAILABLE_MESSAGE);
+    }
     const { gameState } = room;
-
-    if (gameState.gamePhase !== 'lobby') {
-      throw new Error('This game has already started.');
-    }
-
-    if (gameState.players.length >= gameState.settings.maxPlayers) {
-      throw new Error('This game is full.');
-    }
 
     return {
       gameId: gameState.gameId,

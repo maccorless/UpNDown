@@ -629,14 +629,14 @@ describe('socket integration', () => {
     });
     expect(fullJoin.ok).toBe(false);
     if (fullJoin.ok) return;
-    expect(fullJoin.error).toContain('filled up');
+    expect(fullJoin.error).toContain('not available');
 
     const lookupWhenFull = await new Promise<Ack<{ game: { playerCount: number } }>>((resolve) => {
       extra.emit('game:lookup', { gameId }, (ack: Ack<{ game: { playerCount: number } }>) => resolve(ack));
     });
     expect(lookupWhenFull.ok).toBe(false);
     if (lookupWhenFull.ok) return;
-    expect(lookupWhenFull.error).toContain('full');
+    expect(lookupWhenFull.error).toBe(fullJoin.error);
 
     host.disconnect();
     guest.disconnect();
