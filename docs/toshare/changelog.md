@@ -19,3 +19,5 @@ Created: 09-Nov-2026 19:09 CST
 | 2026-11-10 | — | Fix: game ids use crypto.randomInt; game:lookup and game:join are also rate limited per client IP (TRUSTED_PROXY_HOPS=2 on Skiff) |
 | 2026-11-10 | — | Fix: pile labels, reaction slots and settings version text meet WCAG AA contrast; pile labels 10-11px on phones (were 7-9px) |
 | 2026-11-10 | — | Fix: connection indicator is announced to screen readers; in-game players list is keyboard reachable |
+| 2026-11-10 | — | Feat: reaction slots sit in a row above (players 1-3) and below (players 4-6) each pile card on all widths; pile tags and rule hints removed |
+| 2026-11-10 | — | Feat: one arrow on each side of each pile card (up for ascending, down for descending); Show pile arrows setting per game, default on |

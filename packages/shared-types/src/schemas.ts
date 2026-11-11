@@ -21,7 +21,8 @@ export const gameSettingsSchema = z
     autoRefillHand: z.boolean(),
     allowUndo: z.boolean(),
     privateGame: z.boolean(),
-    allowCardLookup: z.boolean()
+    allowCardLookup: z.boolean(),
+    showArrows: z.boolean()
   })
   .superRefine((settings, ctx) => {
     if (settings.maxCardValue <= settings.minCardValue) {

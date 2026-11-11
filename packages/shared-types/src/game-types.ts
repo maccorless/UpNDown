@@ -34,6 +34,7 @@ export interface GameSettings {
   allowUndo: boolean;
   privateGame: boolean;
   allowCardLookup: boolean;
+  showArrows: boolean;
 }
 
 export interface PlayerStatistics {
@@ -162,7 +163,8 @@ export const defaultMultiplayerSettings: GameSettings = {
   autoRefillHand: false,
   allowUndo: false,
   privateGame: false,
-  allowCardLookup: false
+  allowCardLookup: false,
+  showArrows: true
 };
 
 export const defaultSolitaireSettings: GameSettings = {
@@ -175,5 +177,6 @@ export const defaultSolitaireSettings: GameSettings = {
   autoRefillHand: true,
   allowUndo: false,
   privateGame: false,
-  allowCardLookup: false
+  allowCardLookup: false,
+  showArrows: true
 };

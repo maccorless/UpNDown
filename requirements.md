@@ -97,9 +97,16 @@ A cooperative multiplayer card game where players work together to play all thei
 - Players can mark individual piles as **Like** (👍), **Love** (❤️), or **Really Love** (🔥) when it is not their turn
 - Purely communicative — no mechanical effect
 - Click your indicator slot to cycle: off → like → love → really love → off
-- Each player has a fixed slot per pile (players 1–3 on the left, 4–6 on the right)
+- Each player has a fixed slot per pile (players 1–3 in the top row, 4–6 in the bottom row, above and below the card)
 - Reactions reset when the player's turn starts
 - Cannot set reactions during your own turn
+- **Status**: ✅ **Implemented**
+
+#### Foundation Pile Arrows
+- When `showArrows` is on (default), each pile shows one arrow on each side of its card: up for ascending, down for descending
+- The arrows stay visible for the whole game; they do not fade
+- The pile's text tag and rule hint are not shown on screen; the backward-ten rule is learned through play
+- Turning `showArrows` off hides the arrows for every player in that game
 - **Status**: ✅ **Implemented**
 
 #### In-Game Chat
@@ -160,6 +167,7 @@ tests/e2e               Playwright smoke tests
 | allowUndo        | false   | on/off           |                                 |
 | privateGame      | false   | on/off           | Hides from public join list     |
 | allowCardLookup  | false   | on/off           | Cheat: Ctrl+Shift+C lookup      |
+| showArrows       | true    | on/off           | Up/down arrow each side of pile card |
 
 - **Status**: ✅ **Implemented**
 

@@ -53,7 +53,7 @@ const WON_STATE: GameState = {
     autoRefillHand: true,
     allowUndo: false,
     privateGame: false,
-    allowCardLookup: false
+    allowCardLookup: false, showArrows: true
   },
   isSolitaire: true
 };

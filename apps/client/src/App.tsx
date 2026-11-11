@@ -349,20 +349,26 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             };
 
             const pileTypeClass = pile.type === 'ascending' ? 'asc' : 'desc';
-            const hasReactionCols = leftPlayers.length > 0 || rightPlayers.length > 0;
+            const hasReactionRows = leftPlayers.length > 0 || rightPlayers.length > 0;
             const isSpecialFlash = specialPlayPileIdProp === pile.id;
             const specialLabel = pile.type === 'ascending' ? '🔥 -10! 🔥' : '🔥 +10! 🔥';
+            const showArrows = gameState.settings.showArrows;
+            const pileArrow = (
+              <svg className={`pile-arrow ${pile.type === 'ascending' ? 'up' : 'down'}`} viewBox="0 0 14 22" aria-hidden="true" focusable="false">
+                <path d="M7 0 L14 9 L9.5 9 L9.5 22 L4.5 22 L4.5 9 L0 9 Z" />
+              </svg>
+            );
 
             return (
               <div
                 key={pile.id}
-                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''} ${hasReactionCols ? 'with-reactions' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}`}
+                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}`}
               >
                 {isSpecialFlash && (
                   <span className="backward-ten-label">{specialLabel}</span>
                 )}
-                {hasReactionCols && (
-                  <div className="reaction-col left">
+                {hasReactionRows && (
+                  <div className="reaction-row top">
                     {leftPlayers.map((player, i) => renderSlot(player, i + 1))}
                   </div>
                 )}
@@ -374,16 +380,12 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                   disabled={inputsDisabled}
                   aria-label={`Foundation ${pile.type} with top card ${pile.topCard.value}`}
                 >
-                  <span className="pile-tag">{pile.type === 'ascending' ? 'Ascending' : 'Descending'}</span>
+                  {showArrows ? pileArrow : null}
                   <span className="top-card" data-testid={`pile-top-${pile.id}`}>{pile.topCard.value}</span>
-                  <span className="pile-hint">
-                    {pile.type === 'ascending'
-                      ? `>${pile.topCard.value} or ${pile.topCard.value - 10}`
-                      : `<${pile.topCard.value} or ${pile.topCard.value + 10}`}
-                  </span>
+                  {showArrows ? pileArrow : null}
                 </button>
-                {hasReactionCols && (
-                  <div className="reaction-col right">
+                {hasReactionRows && (
+                  <div className="reaction-row bottom">
                     {rightPlayers.map((player, i) => renderSlot(player, i + 4))}
                   </div>
                 )}
@@ -644,7 +646,8 @@ function applyPreset(settings: GameSettings, preset: DifficultyPreset): GameSett
   };
 }
 
-const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCardsPerTurn' | 'minPlayers' | 'maxPlayers' | 'autoRefillHand' | 'privateGame' | 'allowCardLookup', string> = {
+const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCardsPerTurn' | 'minPlayers' | 'maxPlayers' | 'autoRefillHand' | 'privateGame' | 'allowCardLookup' | 'showArrows', string> = {
+  showArrows: 'Shows an up or down arrow on each side of every foundation pile card, at the start of each turn. Turn it off to play without the arrows.',
   minCardValue: 'Minimum card value included in the deck. Increasing this reduces deck size, which generally makes the game easier.',
   maxCardValue: 'Maximum card value included in the deck. Increasing this increases deck size, which generally makes the game harder.',
   handSize: 'How many cards each player holds. Increasing hand size generally makes the game easier.',
@@ -841,6 +844,21 @@ function SettingsDialog({
               className="info-dot"
               title={`${settingsHelp.autoRefillHand}${isSolitaire ? ' Not applicable in Solitaire (always on).' : ''}`}
               aria-label={`${settingsHelp.autoRefillHand}${isSolitaire ? ' Not applicable in Solitaire (always on).' : ''}`}
+            >i</span>
+          </label>
+          <label htmlFor="settings-show-arrows" className={`checkbox-label ${!fieldEditable(false) ? 'field-disabled' : ''}`}>
+            <input
+              id="settings-show-arrows"
+              type="checkbox"
+              checked={settings.showArrows}
+              onChange={(e) => onChange({ ...settings, showArrows: e.target.checked })}
+              disabled={!fieldEditable(false)}
+            />
+            Show pile arrows
+            <span
+              className="info-dot"
+              title={settingsHelp.showArrows}
+              aria-label={settingsHelp.showArrows}
             >i</span>
           </label>
           <label htmlFor="settings-private-game" className={`checkbox-label ${!fieldEditable(false) ? 'field-disabled' : ''}`}>

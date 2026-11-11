@@ -73,7 +73,7 @@ describe('socket integration', () => {
         isSolitaire: false,
         settings: {
           minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2,
-          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false
+          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false, showArrows: true
         }
       });
       if (!created.ok) throw new Error('create failed');
@@ -158,7 +158,7 @@ describe('socket integration', () => {
         isSolitaire: false,
         settings: {
           minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2,
-          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup
+          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup, showArrows: true
         }
       });
       if (!created.ok) throw new Error('create failed');
@@ -267,7 +267,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -320,7 +320,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -383,7 +383,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -430,7 +430,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -460,7 +460,7 @@ describe('socket integration', () => {
             autoRefillHand: true,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { settings: { handSize: number } } }>) => resolve(ack)
@@ -484,7 +484,7 @@ describe('socket integration', () => {
             autoRefillHand: true,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { settings: { handSize: number; autoRefillHand: boolean } } }>) => resolve(ack)
@@ -511,7 +511,7 @@ describe('socket integration', () => {
             autoRefillHand: true,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { settings: { minPlayers: number } } }>) => resolve(ack)
@@ -543,7 +543,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -599,7 +599,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: true,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -663,7 +663,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: true,
-            allowCardLookup: false
+            allowCardLookup: false, showArrows: true
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)

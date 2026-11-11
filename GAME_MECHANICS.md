@@ -129,14 +129,22 @@ Game automatically checks for valid moves and declares win/loss after every card
 During other players' turns, non-active players can mark their preferences for each foundation pile to help coordinate team play.
 
 **How it works**:
-1. Click your reaction slot beside any pile (only available when it is NOT your turn)
+1. Click your reaction slot above or below any pile (only available when it is NOT your turn)
 2. Cycles: **None** → **Like** (👍) → **Love** (❤️) → **Really Love** (🔥) → **None**
 3. Your reactions clear automatically when YOUR turn starts
 4. All players see everyone's reactions in real time
 
 **Player slot positions**:
-- Left column: Players 1–3 (by join order)
-- Right column: Players 4–6 (by join order)
+- Top row, above each card: Players 1–3 (by join order)
+- Bottom row, below each card: Players 4–6 (by join order)
+
+### Pile Arrows (per game, default on)
+
+When the `showArrows` setting is on, each foundation pile shows one arrow on each side of its card: up for an ascending pile, down for a descending pile. The direction is carried by the arrow shape, not by color. The arrows stay visible; they do not fade.
+
+- The pile's text tag ("Ascending"/"Descending") and its rule hint (for example "<100 or 110") are no longer shown on screen. The pile's name is still announced to screen readers.
+- The backward-ten rule is not shown on screen. Players learn it from play.
+- Turning the setting off hides the arrows for everyone in that game.
 
 ---
 
@@ -213,6 +221,7 @@ interface GameSettings {
   allowUndo: boolean;        // Default: false
   privateGame: boolean;      // Default: false
   allowCardLookup: boolean;  // Default: false (cheat feature)
+  showArrows: boolean;       // Default: true (pile direction arrows)
 }
 ```
 
