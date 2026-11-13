@@ -10,6 +10,21 @@
   --desc: #f28482;
   --good: #8ac926;
   --danger: #e76f51;
+  /* Shared text and surface tokens. Dark values are set in the prefers-color-scheme block at the end of this file. */
+  color-scheme: light dark;
+  --ink-strong: #102033;
+  --text: #0f2741;
+  --surface: #f7fbff;
+  --soft: #e9f3ff;
+  --line: #9dc1e5;
+  --line-strong: #4f87bf;
+  --muted-strong: #3f5673;
+  --turn-line: rgba(23, 50, 82, 0.35);
+  --slot-ink: #173252;
+  --accent-strong: #1a5a9a;
+  --on-accent: #ffffff;
+  --danger-text: #9c2f17;
+  --focus: #0b5cad;
 }
 
 * {
@@ -273,7 +288,7 @@ body {
   display: block;
   width: 12px;
   height: 2px;
-  background: rgba(169, 180, 194, 0.25);
+  background: var(--turn-line);
   border-radius: 1px;
 }
 
@@ -286,28 +301,21 @@ body {
   justify-content: center;
   font-size: 11px;
   font-weight: 700;
-  background: color-mix(in srgb, var(--player-color, #a9b4c2) 18%, transparent);
-  color: color-mix(in srgb, var(--player-color, #a9b4c2) 60%, transparent);
-  border: 2px solid transparent;
+  background: color-mix(in srgb, var(--player-color, #6a8fb8) 20%, transparent);
+  color: var(--ink-strong);
+  border: 2px solid var(--player-color, #6a8fb8);
   flex-shrink: 0;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
 .turn-dot.current {
-  background: var(--player-color, var(--good));
-  color: #0d1b2a;
-  border-color: var(--player-color, var(--good));
-  box-shadow: 0 0 6px color-mix(in srgb, var(--player-color, var(--good)) 50%, transparent);
+  background: var(--ink-strong);
+  color: var(--surface);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--player-color, var(--good));
 }
 
 .turn-dot.me {
-  border-color: color-mix(in srgb, var(--player-color, #00b4d8) 70%, transparent);
-  color: rgba(200, 220, 240, 0.9);
-}
-
-.turn-dot.current.me {
-  border-color: #fff;
-  box-shadow: 0 0 8px color-mix(in srgb, var(--player-color, var(--good)) 60%, transparent);
+  text-decoration: underline;
 }
 
 .player-color-pip {
@@ -321,9 +329,9 @@ body {
 }
 
 .turn-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
-  color: rgba(169, 180, 194, 0.8);
+  color: var(--muted-strong);
   white-space: nowrap;
 }
 
@@ -389,13 +397,13 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  border: 1.5px dashed rgba(23, 50, 82, 0.7);
+  border: 1.5px dashed var(--slot-ink);
   background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
-  color: rgba(23, 50, 82, 0.7);
+  color: var(--slot-ink);
   cursor: default;
   padding: 0;
   line-height: 1;
@@ -405,19 +413,23 @@ body {
 }
 
 .reaction-slot.active {
-  border: 1.5px solid rgba(23, 50, 82, 0.6);
+  border: 1.5px solid var(--slot-ink);
   background: #ffffff;
   font-size: 17px;
   color: inherit;
 }
 
+/* Your own slot: a solid ring and bold number in the same navy as the others. Tinting the number with the
+   player colour measured 1.5 to 2.3:1 against the pile tint, far below the 4.5:1 minimum. */
 .reaction-slot.mine {
-  border-color: color-mix(in srgb, var(--player-color, #fff) 50%, transparent);
-  color: color-mix(in srgb, var(--player-color, #fff) 60%, transparent);
+  border: 2px solid var(--slot-ink);
+  background: #ffffff;
+  color: #173252;
+  font-weight: 700;
 }
 
 .reaction-slot.mine.active {
-  border-color: color-mix(in srgb, var(--player-color, #fff) 70%, transparent);
+  border-color: var(--slot-ink);
 }
 
 .reaction-slot.clickable {
@@ -425,8 +437,8 @@ body {
 }
 
 .reaction-slot.clickable:hover {
-  border-color: rgba(23, 50, 82, 0.8);
-  background: rgba(23, 50, 82, 0.1);
+  border-color: var(--slot-ink);
+  background: color-mix(in srgb, var(--slot-ink) 12%, transparent);
   transform: scale(1.15);
 }
 
@@ -448,7 +460,7 @@ body {
   width: 16px;
   height: 24px;
   flex-shrink: 0;
-  fill: #173252;
+  fill: var(--slot-ink);
 }
 
 .pile-arrow.down {
@@ -716,131 +728,9 @@ button:disabled {
   align-items: end;
 }
 
-.settings-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(180px, 1fr));
-  gap: 10px;
-}
-
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(5, 10, 18, 0.78);
-  display: grid;
-  place-items: center;
-  padding: 16px;
-  z-index: 40;
-}
-
-.settings-modal {
-  width: min(760px, 100%);
-  max-height: calc(100vh - 32px);
-  overflow: auto;
-  display: grid;
-  gap: 12px;
-  background: #f7fbff;
-  color: #0f2741;
-  border: 2px solid #4f87bf;
-  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
-}
-
-.settings-modal .pill {
-  background: #e9f3ff;
-  border-color: #9dc1e5;
-  color: #143150;
-}
-
-.settings-modal .error {
-  color: #7d1f1f;
-  background: #fde8e8;
-  border-color: #f3b8b8;
-}
-
-.settings-modal label {
-  color: #113458;
-}
-
-.settings-modal input {
-  background: #ffffff;
-  color: #102741;
-  border-color: #7aa2cb;
-}
-
-/* Remove number input spinners in the settings panel */
-.settings-modal input[type=number]::-webkit-inner-spin-button,
-.settings-modal input[type=number]::-webkit-outer-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.settings-modal input[type=number] {
-  -moz-appearance: textfield;
-  appearance: textfield;
-}
-
-.settings-modal h2 {
-  color: #0f2741;
-}
-
-.settings-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-}
-
-.settings-version {
-  text-align: right;
-  font-size: 0.7rem;
-  color: #4e6480;
-  margin-top: 4px;
-  user-select: none;
-}
-
-.settings-preferences {
-  border-top: 1px solid #cde0f5;
-  padding-top: 10px;
-}
-
-.preset-row {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.preset-btn {
-  flex: 1;
-  min-width: 60px;
-  padding: 6px 10px;
-  border-radius: 20px;
-  border: 2px solid #9dc1e5;
-  background: transparent;
-  color: #2c72b8;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s, border-color 0.15s;
-}
-
-.preset-btn:hover {
-  background: #ddeeff;
-  border-color: #2c72b8;
-}
-
-.preset-btn-active {
-  background: #2c72b8;
-  border-color: #2c72b8;
-  color: #ffffff;
-}
-
-.preset-btn-active:hover {
-  background: #1a5a9a;
-  border-color: #1a5a9a;
-}
-
 .stats-modal {
   width: min(760px, 100%);
-  max-height: calc(100vh - 32px);
+  max-height: calc(100dvh - 32px);
   overflow: auto;
   display: grid;
   gap: 12px;
@@ -858,7 +748,6 @@ button:disabled {
 }
 
 .nas-cheat-modal {
-  position: relative;
   width: min(560px, 100%);
   display: grid;
   gap: 10px;
@@ -1031,30 +920,6 @@ button:disabled {
 
 .stats-table tr:last-child td {
   border-bottom: 0;
-}
-
-.checkbox-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.field-disabled {
-  opacity: 0.6;
-}
-
-.info-dot {
-  display: inline-grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  border-radius: 999px;
-  background: #1a7de8;
-  color: #eef5ff;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-  cursor: help;
 }
 
 label {
@@ -1292,9 +1157,6 @@ section[aria-label="welcome"] h2 {
     grid-template-columns: 1fr;
   }
 
-  .settings-grid {
-    grid-template-columns: 1fr;
-  }
 
   .stats-grid {
     grid-template-columns: 1fr;
@@ -1395,7 +1257,8 @@ section[aria-label="welcome"] h2 {
   .reaction-slot {
     width: 18px;
     height: 18px;
-    font-size: 9px;
+    font-size: 11px;
+    font-weight: 700;
   }
 
   .reaction-slot.active {
@@ -1549,5 +1412,623 @@ section[aria-label="welcome"] h2 {
   to {
     opacity: 1;
     transform: translateX(-50%) translateY(0);
+  }
+}
+
+/* ===== Native dialogs (Modal.tsx) ===== */
+dialog.modal-dialog {
+  max-inline-size: calc(100% - 2rem);
+  max-block-size: calc(100dvh - 2rem);
+  margin: auto;
+  overscroll-behavior: contain;
+}
+
+dialog.modal-dialog:not([open]) {
+  display: none;
+}
+
+dialog.modal-dialog::backdrop {
+  background: rgba(5, 10, 18, 0.78);
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+
+/* ===== Settings sheet (SettingsDialog.tsx): centred card on desktop, bottom sheet on phones ===== */
+.settings-sheet {
+  inline-size: min(46rem, calc(100% - 2rem));
+  padding: 0;
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--line-strong);
+  border-radius: 14px;
+  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
+  overflow: hidden;
+}
+
+.settings-sheet[open] {
+  display: grid;
+}
+
+@media (max-width: 640px) {
+  .settings-sheet {
+    inline-size: 100%;
+    max-inline-size: none;
+    margin-block-end: 0;
+    border-radius: 16px 16px 0 0;
+    max-block-size: 92dvh;
+  }
+}
+
+.settings-form {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-block-size: 0;
+  max-block-size: inherit;
+}
+
+.settings-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px 10px;
+  border-block-end: 1px solid var(--line);
+}
+
+.settings-head h2 {
+  margin: 0;
+  font-size: 1.15rem;
+  color: var(--text);
+}
+
+.settings-chip,
+.settings-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.settings-tag {
+  margin-inline-start: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  background: transparent;
+  color: var(--muted-strong);
+}
+
+.settings-body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  container-type: inline-size;
+  padding: 10px 16px 16px;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+
+.settings-groups {
+  display: grid;
+  gap: 16px;
+}
+
+/* Wide sheet: Cards on the left, Players and display options on the right; Difficulty spans the top. */
+@container (min-width: 38rem) {
+  .settings-groups {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 26px;
+    align-items: start;
+  }
+
+  .settings-group-wide {
+    grid-column: 1 / -1;
+  }
+
+  .settings-cards {
+    grid-row: 2 / span 3;
+  }
+}
+
+.settings-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  min-inline-size: 0;
+}
+
+.settings-group > legend {
+  padding: 0;
+  margin-block-end: 2px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+}
+
+.settings-banner {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.settings-summary {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.settings-row {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-row-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-row-label,
+.sw-label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.settings-row output {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.settings-hint,
+.sw-hint {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted-strong);
+}
+
+.settings-error {
+  min-block-size: 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--danger-text);
+}
+
+.settings-error:empty {
+  display: none;
+}
+
+.settings-sheet input[type='range'] {
+  inline-size: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  min-block-size: 32px;
+  accent-color: var(--accent-strong);
+}
+
+.settings-number,
+.settings-select {
+  max-inline-size: 8rem;
+  min-block-size: 40px;
+  padding: 4px 10px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.95rem;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.settings-number[aria-invalid='true'] {
+  border-color: var(--danger-text);
+}
+
+/* Segmented radios: native inputs, every option visible, 40px touch targets. */
+.seg {
+  display: flex;
+  gap: 5px;
+}
+
+.seg label {
+  position: relative;
+  flex: 1;
+  display: block;
+  font-size: 0.9rem;
+}
+
+.seg input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.seg span {
+  display: grid;
+  place-items: center;
+  min-block-size: 40px;
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.seg label:has(input:checked) span {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: var(--on-accent);
+}
+
+.seg label:has(input:disabled:not(:checked)) span {
+  border-style: dashed;
+  color: var(--muted-strong);
+}
+
+.seg label:has(input:focus-visible) span {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Switch: a real checkbox with role="switch"; the whole row is the touch target. */
+.sw {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  min-block-size: 44px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.sw-text {
+  display: grid;
+  gap: 2px;
+}
+
+.sw input {
+  appearance: none;
+  flex: none;
+  position: relative;
+  inline-size: 42px;
+  block-size: 24px;
+  margin: 0;
+  padding: 0;
+  border-radius: 999px;
+  border: 2px solid var(--line);
+  background: var(--soft);
+  cursor: pointer;
+}
+
+.sw input::before {
+  content: '';
+  position: absolute;
+  inset-block: 2px;
+  inset-inline-start: 2px;
+  inline-size: 16px;
+  border-radius: 50%;
+  background: var(--muted-strong);
+}
+
+.sw input:checked {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
+.sw input:checked::before {
+  inset-inline-start: 20px;
+  background: var(--on-accent);
+}
+
+.settings-adv {
+  border-block-start: 1px solid var(--line);
+  padding-block-start: 6px;
+}
+
+.settings-adv > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-block-size: 36px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.settings-adv > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-adv > summary::after {
+  content: '+';
+  font-size: 1.1rem;
+}
+
+.settings-adv[open] > summary::after {
+  content: '\2212';
+}
+
+.settings-facts {
+  margin: 0;
+  display: grid;
+}
+
+.settings-facts > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-block-end: 1px solid var(--line);
+  font-size: 0.95rem;
+}
+
+.settings-facts dt {
+  color: var(--muted-strong);
+  font-weight: 600;
+}
+
+.settings-facts dd {
+  margin: 0;
+  font-weight: 800;
+  text-align: end;
+}
+
+.settings-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-block-start: 1px solid var(--line);
+  background: var(--surface);
+}
+
+.settings-dirty {
+  flex: 1;
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+}
+
+.settings-version {
+  font-size: 0.7rem;
+  color: var(--muted-strong);
+  user-select: none;
+}
+
+/* ===== Interaction feedback and motion ===== */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+button:not(:disabled):not(.card):not(.pile):not(.reaction-slot):active {
+  transform: translateY(1px) scale(0.98);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  dialog.modal-dialog[open] {
+    animation: modal-in 0.2s ease-out;
+  }
+
+  dialog.modal-dialog[open]::backdrop {
+    animation: modal-fade 0.2s ease-out;
+  }
+
+  .sw input::before {
+    transition: inset-inline-start 0.15s;
+  }
+}
+
+@keyframes modal-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes modal-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* With reduced motion the celebratory effects become static: the label still shows for its 1.5s and the pile keeps a gold border. */
+@media (prefers-reduced-motion: reduce) {
+  .phase-splash,
+  .card-lookup-toast,
+  .pile-unit.backward-ten-flash > .pile,
+  .backward-ten-label {
+    animation: none;
+  }
+
+  .pile-unit.backward-ten-flash {
+    border-color: #ffd700;
+  }
+}
+
+/* ===== Dark theme: follows the system setting. Cards and the top-card face stay light in both themes. ===== */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ink-strong: #e6f0fb;
+    --text: #e6f0fb;
+    --surface: #172a42;
+    --soft: #1d3552;
+    --line: #3a5578;
+    --line-strong: #4a6a92;
+    --muted-strong: #b4c7dc;
+    --turn-line: rgba(180, 199, 220, 0.5);
+    --slot-ink: #e6f0fb;
+    --accent-strong: #6cc2ff;
+    --on-accent: #0e1a2b;
+    --danger-text: #ff9b85;
+    --focus: #ffd166;
+  }
+
+  body {
+    color: #e6f0fb;
+    background:
+      radial-gradient(circle at 12% 10%, rgba(52, 86, 130, 0.5) 0%, transparent 45%),
+      radial-gradient(circle at 90% 8%, rgba(30, 90, 130, 0.35) 0%, transparent 52%),
+      linear-gradient(180deg, #0b1626 0%, #0e1a2b 45%, #12233a 100%);
+  }
+
+  .panel {
+    background: rgba(23, 42, 66, 0.94);
+    border-color: rgba(120, 160, 205, 0.3);
+  }
+
+  .pill {
+    background: #1d3552;
+    border-color: #4a6a92;
+    color: #e6f0fb;
+  }
+
+  label {
+    color: #c3d5ea;
+  }
+
+  input {
+    background: #0e1a2b;
+    color: #e6f0fb;
+    border-color: #4a6a92;
+  }
+
+  input::placeholder {
+    color: #8197b0;
+  }
+
+  .pile-unit.asc {
+    background: #1b4d42;
+    border-color: #3fae93;
+  }
+
+  .pile-unit.desc {
+    background: #5a2a29;
+    border-color: #d86a68;
+  }
+
+  .reaction-slot.clickable:hover {
+    background: rgba(230, 240, 251, 0.15);
+  }
+
+  button.secondary {
+    background: #243e60;
+    color: #e6f0fb;
+    border-color: #4a6a92;
+  }
+
+  .landing-hint {
+    color: #b4c7dc;
+  }
+
+  .landing-support-bar {
+    background: rgba(17, 34, 56, 0.96);
+    border-top-color: rgba(120, 160, 205, 0.35);
+  }
+
+  .landing-support-inner p {
+    color: #c3d5ea;
+  }
+
+  .error {
+    color: #ffd5cc;
+    background: #3a1d1a;
+    border-color: #a85548;
+  }
+
+  .joinable-item {
+    background: #1d3552;
+    border-color: #3a5578;
+  }
+
+  .player-line {
+    background: #1d3552;
+    border-color: #3a5578;
+  }
+
+  .socket-indicator {
+    border-color: #172a42;
+  }
+
+  .kick-btn {
+    color: #ff8d94;
+  }
+
+  .stats-modal,
+  .nas-cheat-modal,
+  .end-game-confirm-modal,
+  .card-lookup-modal,
+  .host-ended-modal {
+    background: #172a42;
+    color: #e6f0fb;
+    border-color: #4a6a92;
+  }
+
+  .end-game-confirm-modal {
+    border-color: #e06060;
+  }
+
+  .nas-cheat-close {
+    background: #243e60;
+    border-color: #4a6a92;
+    color: #e6f0fb;
+  }
+
+  .nas-cheat-close:hover {
+    background: #2d4a73;
+  }
+
+  .card-lookup-input {
+    border-color: #4a6a92;
+  }
+
+  .card-lookup-input:focus {
+    border-color: #6cc2ff;
+  }
+
+  .stats-grid {
+    background: #1d3552;
+    border-color: #3a5578;
+  }
+
+  .stats-label {
+    color: #b4c7dc;
+  }
+
+  .stats-value {
+    color: #e6f0fb;
+  }
+
+  .stats-table {
+    background: #172a42;
+    border-color: #3a5578;
+  }
+
+  .stats-table th,
+  .stats-table td {
+    border-bottom-color: #3a5578;
+  }
+
+  .stats-table th {
+    background: #1d3552;
+    color: #e6f0fb;
   }
 }

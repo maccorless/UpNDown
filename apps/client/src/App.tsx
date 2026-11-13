@@ -1,6 +1,7 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { playCardSound, playLoseSound, playSpecialPlaySound, playTurnStartSound, playWinSound } from './sounds.js';
-import { APP_VERSION } from './version.js';
+import { Modal } from './Modal.js';
+import { SettingsDialog } from './SettingsDialog.js';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -483,37 +484,30 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             </div>
 
             {kickConfirmPlayer && onKickPlayer ? (
-              <div className="modal-backdrop" role="presentation" onClick={() => setKickConfirmPlayerId(null)}>
-                <section
-                  className="panel end-game-confirm-modal"
-                  role="dialog"
-                  aria-modal="true"
-                  aria-label="confirm kick player"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <h2>Kick Player?</h2>
-                  <p>Remove <strong>{kickConfirmPlayer.name}</strong> from the game? Their {kickConfirmPlayer.hand.length} cards will be returned to the draw pile.</p>
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      className="danger"
-                      onClick={() => {
-                        onKickPlayer(kickConfirmPlayer.id);
-                        setKickConfirmPlayerId(null);
-                      }}
-                    >
-                      Kick Player
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setKickConfirmPlayerId(null)}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </section>
-              </div>
+              <Modal className="panel end-game-confirm-modal" dismiss="any" label="confirm kick player" onClose={() => setKickConfirmPlayerId(null)}>
+                <h2>Kick Player?</h2>
+                <p>Remove <strong>{kickConfirmPlayer.name}</strong> from the game? Their {kickConfirmPlayer.hand.length} cards will be returned to the draw pile.</p>
+                <div className="button-row">
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => {
+                      onKickPlayer(kickConfirmPlayer.id);
+                      setKickConfirmPlayerId(null);
+                    }}
+                  >
+                    Kick Player
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    data-autofocus
+                    onClick={() => setKickConfirmPlayerId(null)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </Modal>
             ) : null}
           </section>
         );
@@ -582,14 +576,6 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
   );
 }
 
-function clampInt(raw: string, min: number, max: number, fallback: number): number {
-  const parsed = Number.parseInt(raw, 10);
-  if (Number.isNaN(parsed)) {
-    return fallback;
-  }
-  return Math.min(max, Math.max(min, parsed));
-}
-
 function validateCreateSettings(settings: GameSettings): string | null {
   if (settings.maxPlayers < settings.minPlayers) {
     return 'Max players must be greater than or equal to min players';
@@ -599,326 +585,6 @@ function validateCreateSettings(settings: GameSettings): string | null {
     return 'Deck must contain at least 18 cards';
   }
   return null;
-}
-
-type PresetName = 'trivial' | 'easy' | 'normal' | 'hard';
-
-interface DifficultyPreset {
-  label: string;
-  maxCardValue: number;
-  handSize: number;
-  minCardsPerTurn: number;
-  autoRefillHand: boolean;
-}
-
-const DIFFICULTY_PRESETS: Record<PresetName, DifficultyPreset> = {
-  trivial: { label: 'Trivial', maxCardValue: 29, handSize: 9, minCardsPerTurn: 1, autoRefillHand: true },
-  easy:    { label: 'Easy',    maxCardValue: 59, handSize: 8, minCardsPerTurn: 1, autoRefillHand: true },
-  normal:  { label: 'Normal',  maxCardValue: 99, handSize: 7, minCardsPerTurn: 2, autoRefillHand: false },
-  hard:    { label: 'Hard',    maxCardValue: 99, handSize: 6, minCardsPerTurn: 3, autoRefillHand: false },
-};
-
-const PRESET_MIN_CARD = 2;
-
-function detectPreset(settings: GameSettings): PresetName | null {
-  if (settings.minCardValue !== PRESET_MIN_CARD) return null;
-  for (const [name, preset] of Object.entries(DIFFICULTY_PRESETS) as [PresetName, DifficultyPreset][]) {
-    if (
-      settings.maxCardValue === preset.maxCardValue &&
-      settings.handSize === preset.handSize &&
-      settings.minCardsPerTurn === preset.minCardsPerTurn &&
-      settings.autoRefillHand === preset.autoRefillHand
-    ) {
-      return name;
-    }
-  }
-  return null;
-}
-
-function applyPreset(settings: GameSettings, preset: DifficultyPreset): GameSettings {
-  return {
-    ...settings,
-    minCardValue: PRESET_MIN_CARD,
-    maxCardValue: preset.maxCardValue,
-    handSize: preset.handSize,
-    minCardsPerTurn: preset.minCardsPerTurn,
-    autoRefillHand: preset.autoRefillHand
-  };
-}
-
-const settingsHelp: Record<'minCardValue' | 'maxCardValue' | 'handSize' | 'minCardsPerTurn' | 'minPlayers' | 'maxPlayers' | 'autoRefillHand' | 'privateGame' | 'allowCardLookup' | 'showArrows', string> = {
-  showArrows: 'Shows an up or down arrow on each side of every foundation pile card, at the start of each turn. Turn it off to play without the arrows.',
-  minCardValue: 'Minimum card value included in the deck. Increasing this reduces deck size, which generally makes the game easier.',
-  maxCardValue: 'Maximum card value included in the deck. Increasing this increases deck size, which generally makes the game harder.',
-  handSize: 'How many cards each player holds. Increasing hand size generally makes the game easier.',
-  minCardsPerTurn: 'Minimum cards required per turn (except draw pile empty forces 1). Increasing this generally makes the game harder.',
-  minPlayers: 'Minimum players required to start. Increasing this typically makes coordination harder.',
-  maxPlayers: 'Maximum players allowed to join. Increasing this can make the game harder due to coordination.',
-  autoRefillHand: 'When ON, cards are drawn immediately after each play. This generally makes the game easier.',
-  privateGame: 'Private games do not appear in the public join list. You must share the game ID directly.',
-  allowCardLookup: 'Cheat: Card Lookup — press Ctrl+Shift+C during the game to look up where a specific card is. In multiplayer the result is shown to all players. Works in Solitaire too.'
-};
-
-interface SettingsDialogProps {
-  mode: Mode;
-  open: boolean;
-  settings: GameSettings;
-  editable: boolean;
-  validationError: string | null;
-  onClose: () => void;
-  onSave?: () => void;
-  onChange: (settings: GameSettings) => void;
-  enableSounds: boolean;
-  onToggleSounds: (val: boolean) => void;
-}
-
-function SettingsDialog({
-  mode,
-  open,
-  settings,
-  editable,
-  validationError,
-  onClose,
-  onSave,
-  onChange,
-  enableSounds,
-  onToggleSounds
-}: SettingsDialogProps): JSX.Element | null {
-  if (!open) {
-    return null;
-  }
-
-  const isSolitaire = mode === 'solitaire';
-  const fieldEditable = (applicableInSolitaire: boolean): boolean => {
-    if (!editable) return false;
-    if (isSolitaire && !applicableInSolitaire) return false;
-    return true;
-  };
-
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="panel settings-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="game settings"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="settings-header">
-          <h2>Game Settings</h2>
-          <div className="pill">{editable ? 'Edit Mode (Host)' : 'View Only'}</div>
-        </div>
-        {editable ? (
-          <div className="preset-row" role="group" aria-label="difficulty presets">
-            {(Object.entries(DIFFICULTY_PRESETS) as [PresetName, DifficultyPreset][]).map(([name, preset]) => (
-              <button
-                key={name}
-                type="button"
-                className={`preset-btn ${detectPreset(settings) === name ? 'preset-btn-active' : ''}`}
-                onClick={() => onChange(applyPreset(settings, preset))}
-              >
-                {preset.label}
-              </button>
-            ))}
-          </div>
-        ) : null}
-        <div className="settings-grid">
-          <label htmlFor="settings-min-card" className={!fieldEditable(true) ? 'field-disabled' : ''}>
-            Min Card Value
-            <span className="info-dot" title={settingsHelp.minCardValue} aria-label={settingsHelp.minCardValue}>i</span>
-            <input
-              id="settings-min-card"
-              type="number"
-              min={2}
-              max={99}
-              value={settings.minCardValue}
-              onChange={(e) => {
-                const value = clampInt(e.target.value, 2, 99, settings.minCardValue);
-                onChange({ ...settings, minCardValue: value });
-              }}
-              disabled={!fieldEditable(true)}
-            />
-          </label>
-          <label htmlFor="settings-max-card" className={!fieldEditable(true) ? 'field-disabled' : ''}>
-            Max Card Value
-            <span className="info-dot" title={settingsHelp.maxCardValue} aria-label={settingsHelp.maxCardValue}>i</span>
-            <input
-              id="settings-max-card"
-              type="number"
-              min={2}
-              max={99}
-              value={settings.maxCardValue}
-              onChange={(e) => {
-                const value = clampInt(e.target.value, 2, 99, settings.maxCardValue);
-                onChange({ ...settings, maxCardValue: value });
-              }}
-              disabled={!fieldEditable(true)}
-            />
-          </label>
-          <label htmlFor="settings-hand-size" className={!fieldEditable(true) ? 'field-disabled' : ''}>
-            Hand Size
-            <span className="info-dot" title={settingsHelp.handSize} aria-label={settingsHelp.handSize}>i</span>
-            <input
-              id="settings-hand-size"
-              type="number"
-              min={5}
-              max={9}
-              value={settings.handSize}
-              onChange={(e) => {
-                const value = clampInt(e.target.value, 5, 9, settings.handSize);
-                onChange({ ...settings, handSize: value });
-              }}
-              disabled={!fieldEditable(true)}
-            />
-          </label>
-          <label htmlFor="settings-min-cards-turn" className={!fieldEditable(false) ? 'field-disabled' : ''}>
-            Min Cards Per Turn
-            <span
-              className="info-dot"
-              title={`${settingsHelp.minCardsPerTurn}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-              aria-label={`${settingsHelp.minCardsPerTurn}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-            >i</span>
-            <input
-              id="settings-min-cards-turn"
-              type="number"
-              min={1}
-              max={3}
-              value={settings.minCardsPerTurn}
-              onChange={(e) => {
-                const value = clampInt(e.target.value, 1, 3, settings.minCardsPerTurn);
-                onChange({ ...settings, minCardsPerTurn: value });
-              }}
-              disabled={!fieldEditable(false)}
-            />
-          </label>
-          <label htmlFor="settings-min-players" className={!fieldEditable(false) ? 'field-disabled' : ''}>
-            Min Players
-            <span
-              className="info-dot"
-              title={`${settingsHelp.minPlayers}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-              aria-label={`${settingsHelp.minPlayers}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-            >i</span>
-            <input
-              id="settings-min-players"
-              type="number"
-              min={2}
-              max={6}
-              value={settings.minPlayers}
-              onChange={(e) => {
-                const value = clampInt(e.target.value, 2, 6, settings.minPlayers);
-                onChange({ ...settings, minPlayers: value });
-              }}
-              disabled={!fieldEditable(false)}
-            />
-          </label>
-          <label htmlFor="settings-max-players" className={!fieldEditable(false) ? 'field-disabled' : ''}>
-            Max Players
-            <span
-              className="info-dot"
-              title={`${settingsHelp.maxPlayers}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-              aria-label={`${settingsHelp.maxPlayers}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-            >i</span>
-            <input
-              id="settings-max-players"
-              type="number"
-              min={2}
-              max={6}
-              value={settings.maxPlayers}
-              onChange={(e) => {
-                const value = clampInt(e.target.value, 2, 6, settings.maxPlayers);
-                onChange({ ...settings, maxPlayers: value });
-              }}
-              disabled={!fieldEditable(false)}
-            />
-          </label>
-          <label htmlFor="settings-auto-refill" className={`checkbox-label ${!fieldEditable(false) ? 'field-disabled' : ''}`}>
-            <input
-              id="settings-auto-refill"
-              type="checkbox"
-              checked={settings.autoRefillHand}
-              onChange={(e) => onChange({ ...settings, autoRefillHand: e.target.checked })}
-              disabled={!fieldEditable(false)}
-            />
-            Auto refill hand
-            <span
-              className="info-dot"
-              title={`${settingsHelp.autoRefillHand}${isSolitaire ? ' Not applicable in Solitaire (always on).' : ''}`}
-              aria-label={`${settingsHelp.autoRefillHand}${isSolitaire ? ' Not applicable in Solitaire (always on).' : ''}`}
-            >i</span>
-          </label>
-          <label htmlFor="settings-show-arrows" className={`checkbox-label ${!fieldEditable(false) ? 'field-disabled' : ''}`}>
-            <input
-              id="settings-show-arrows"
-              type="checkbox"
-              checked={settings.showArrows}
-              onChange={(e) => onChange({ ...settings, showArrows: e.target.checked })}
-              disabled={!fieldEditable(false)}
-            />
-            Show pile arrows
-            <span
-              className="info-dot"
-              title={settingsHelp.showArrows}
-              aria-label={settingsHelp.showArrows}
-            >i</span>
-          </label>
-          <label htmlFor="settings-private-game" className={`checkbox-label ${!fieldEditable(false) ? 'field-disabled' : ''}`}>
-            <input
-              id="settings-private-game"
-              type="checkbox"
-              checked={settings.privateGame}
-              onChange={(e) => onChange({ ...settings, privateGame: e.target.checked })}
-              disabled={!fieldEditable(false)}
-            />
-            Private game
-            <span
-              className="info-dot"
-              title={`${settingsHelp.privateGame}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-              aria-label={`${settingsHelp.privateGame}${isSolitaire ? ' Not applicable in Solitaire.' : ''}`}
-            >i</span>
-          </label>
-          <label htmlFor="settings-card-lookup" className={`checkbox-label ${!fieldEditable(true) ? 'field-disabled' : ''}`}>
-            <input
-              id="settings-card-lookup"
-              type="checkbox"
-              checked={settings.allowCardLookup}
-              onChange={(e) => onChange({ ...settings, allowCardLookup: e.target.checked })}
-              disabled={!fieldEditable(true)}
-            />
-            Cheat: Card Lookup
-            <span
-              className="info-dot"
-              title={settingsHelp.allowCardLookup}
-              aria-label={settingsHelp.allowCardLookup}
-            >i</span>
-          </label>
-        </div>
-        {validationError ? <div className="error">{validationError}</div> : null}
-        {!editable ? <div className="pill">Only the game master can edit settings.</div> : null}
-        {isSolitaire ? <div className="pill">In Solitaire, players and turn-min fields are informational only.</div> : null}
-        <div className="settings-preferences">
-          <label htmlFor="settings-sounds" className="checkbox-label">
-            <input
-              id="settings-sounds"
-              type="checkbox"
-              checked={enableSounds}
-              onChange={(e) => onToggleSounds(e.target.checked)}
-            />
-            Sound effects
-            <span className="info-dot" title="Plays soft audio cues for card plays, special moves, turn starts, and game outcomes. Stored locally — not a game setting." aria-label="Sound effects preference">i</span>
-          </label>
-        </div>
-        <div className="button-row">
-          <button type="button" className="secondary" onClick={onClose}>Close</button>
-          {editable ? (
-            <button type="button" className="primary" onClick={onSave} disabled={!!validationError}>
-              Save Settings
-            </button>
-          ) : null}
-        </div>
-        <div className="settings-version">v{APP_VERSION}</div>
-      </section>
-    </div>
-  );
 }
 
 interface EndGameStatisticsModalProps {
@@ -970,85 +636,77 @@ function EndGameStatisticsModal({
     : `${totalCardsPlayed} plays`;
 
   return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <section
-        className="panel stats-modal"
-        role="dialog"
-        aria-modal="true"
-        aria-label="end game statistics"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="stats-modal-header">
-          <h2>{gameState.gamePhase === 'won' ? 'Game Won' : 'Game Lost'}</h2>
-          <div className="pill">{mode === 'multiplayer' ? `${gameState.players.length} players` : 'Solitaire'} • {turnsOrPlaysLabel} • {formatDurationLabel(durationMs)}</div>
-        </div>
+    <Modal className="panel stats-modal" dismiss="any" label="end game statistics" onClose={onClose}>
+      <div className="stats-modal-header">
+        <h2>{gameState.gamePhase === 'won' ? 'Game Won' : 'Game Lost'}</h2>
+        <div className="pill">{mode === 'multiplayer' ? `${gameState.players.length} players` : 'Solitaire'} • {turnsOrPlaysLabel} • {formatDurationLabel(durationMs)}</div>
+      </div>
 
-        <div className="stats-grid">
-          <div className="stats-label">Cards Played</div>
-          <div className="stats-value">{totalCardsPlayed}</div>
-          <div className="stats-label">Backward-10 Plays</div>
-          <div className="stats-value">{totalSpecialPlays}</div>
-          {hasNasCheatMode ? (
-            <>
-              <div className="stats-label">Nascheats Used</div>
-              <div className="stats-value">{totalNasCheatsUsed}</div>
-            </>
-          ) : null}
-          <div className="stats-label">Total Movement</div>
-          <div className="stats-value">{totalMovement}</div>
-          <div className="stats-label">Avg Movement / Card</div>
-          <div className="stats-value">{averageMovement.toFixed(1)}</div>
-        </div>
+      <div className="stats-grid">
+        <div className="stats-label">Cards Played</div>
+        <div className="stats-value">{totalCardsPlayed}</div>
+        <div className="stats-label">Backward-10 Plays</div>
+        <div className="stats-value">{totalSpecialPlays}</div>
+        {hasNasCheatMode ? (
+          <>
+            <div className="stats-label">Nascheats Used</div>
+            <div className="stats-value">{totalNasCheatsUsed}</div>
+          </>
+        ) : null}
+        <div className="stats-label">Total Movement</div>
+        <div className="stats-value">{totalMovement}</div>
+        <div className="stats-label">Avg Movement / Card</div>
+        <div className="stats-value">{averageMovement.toFixed(1)}</div>
+      </div>
 
-        <div className="stats-table-wrap">
-          <table className="stats-table">
-            <thead>
-              <tr>
-                <th scope="col">Player</th>
-                <th scope="col">Cards Played</th>
-                <th scope="col">Backward-10</th>
-                {hasNasCheatMode ? <th scope="col">Nascheats</th> : null}
-                <th scope="col">Avg Move / Card</th>
-              </tr>
-            </thead>
-            <tbody>
-              {playerRows.map((row) => {
-                const playerAverage = row.stats.cardsPlayed > 0 ? (row.stats.totalMovement / row.stats.cardsPlayed) : 0;
-                return (
-                  <tr key={row.id}>
-                    <td>{row.name}</td>
-                    <td>{row.stats.cardsPlayed}</td>
-                    <td>{row.stats.specialPlays}</td>
-                    {hasNasCheatMode ? <td>{row.stats.nasCheatsUsed}</td> : null}
-                    <td>{playerAverage.toFixed(1)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+      <div className="stats-table-wrap">
+        <table className="stats-table">
+          <thead>
+            <tr>
+              <th scope="col">Player</th>
+              <th scope="col">Cards Played</th>
+              <th scope="col">Backward-10</th>
+              {hasNasCheatMode ? <th scope="col">Nascheats</th> : null}
+              <th scope="col">Avg Move / Card</th>
+            </tr>
+          </thead>
+          <tbody>
+            {playerRows.map((row) => {
+              const playerAverage = row.stats.cardsPlayed > 0 ? (row.stats.totalMovement / row.stats.cardsPlayed) : 0;
+              return (
+                <tr key={row.id}>
+                  <td>{row.name}</td>
+                  <td>{row.stats.cardsPlayed}</td>
+                  <td>{row.stats.specialPlays}</td>
+                  {hasNasCheatMode ? <td>{row.stats.nasCheatsUsed}</td> : null}
+                  <td>{playerAverage.toFixed(1)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
 
-        <div className="button-row">
-          <button
-            type="button"
-            className="primary"
-            onClick={onPlayAgain}
-            disabled={mode === 'multiplayer' && !isHost}
-          >
-            {mode === 'multiplayer' ? (isHost ? 'Play Again' : 'Host Restarts') : 'Play Again'}
-          </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={onBackToLobby}
-            disabled={mode === 'multiplayer' && !isHost}
-          >
-            {mode === 'multiplayer' ? (isHost ? 'Back to Lobby' : 'Host Returns to Lobby') : 'Back to Lobby'}
-          </button>
-          <button type="button" className="secondary" onClick={onClose}>Close</button>
-        </div>
-      </section>
-    </div>
+      <div className="button-row">
+        <button
+          type="button"
+          className="primary"
+          onClick={onPlayAgain}
+          disabled={mode === 'multiplayer' && !isHost}
+        >
+          {mode === 'multiplayer' ? (isHost ? 'Play Again' : 'Host Restarts') : 'Play Again'}
+        </button>
+        <button
+          type="button"
+          className="secondary"
+          onClick={onBackToLobby}
+          disabled={mode === 'multiplayer' && !isHost}
+        >
+          {mode === 'multiplayer' ? (isHost ? 'Back to Lobby' : 'Host Returns to Lobby') : 'Back to Lobby'}
+        </button>
+        <button type="button" className="secondary" onClick={onClose}>Close</button>
+      </div>
+    </Modal>
   );
 }
 
@@ -2683,167 +2341,132 @@ export function App(): JSX.Element {
       ) : null}
 
       {showEndGameConfirm ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="panel end-game-confirm-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="confirm end game"
-          >
-            <h2>End Game?</h2>
-            <p>This will end the active game for all players and return everyone to the lobby.</p>
-            <div className="button-row">
-              <button
-                type="button"
-                className="danger"
-                onClick={() => { void executeEndGame(); }}
-                disabled={pendingAction === 'endgame'}
-              >
-                {pendingAction === 'endgame' ? 'Ending...' : 'End Game'}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => setShowEndGameConfirm(false)}
-              >
-                Cancel
-              </button>
-            </div>
-          </section>
-        </div>
+        <Modal className="panel end-game-confirm-modal" dismiss="esc" label="confirm end game" onClose={() => setShowEndGameConfirm(false)}>
+          <h2>End Game?</h2>
+          <p>This will end the active game for all players and return everyone to the lobby.</p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="danger"
+              onClick={() => { void executeEndGame(); }}
+              disabled={pendingAction === 'endgame'}
+            >
+              {pendingAction === 'endgame' ? 'Ending...' : 'End Game'}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              data-autofocus
+              onClick={() => setShowEndGameConfirm(false)}
+            >
+              Cancel
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {showNasCheatIntro ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="panel nas-cheat-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="nas cheat mode enabled"
+        <Modal className="panel nas-cheat-modal" dismiss="none" label="nas cheat mode enabled" onClose={dismissNasCheatIntro}>
+          <button
+            type="button"
+            className="nas-cheat-close"
+            aria-label="Close Nas Cheat Info"
+            onClick={dismissNasCheatIntro}
           >
-            <button
-              type="button"
-              className="nas-cheat-close"
-              aria-label="Close Nas Cheat Info"
-              onClick={dismissNasCheatIntro}
-            >
-              ×
-            </button>
-            <h2>Nas Cheat Mode Enabled</h2>
-            <p>
-              Each turn, you can swap exactly one card from your hand.
-              The selected card is shuffled back into the draw pile at a random position,
-              and you draw the top card as a replacement.
-            </p>
-            <p>You can use this power once per turn.</p>
-            <p>Select a card, then tap the Nas Cheat button in your hand controls.</p>
-          </section>
-        </div>
+            ×
+          </button>
+          <h2>Nas Cheat Mode Enabled</h2>
+          <p>
+            Each turn, you can swap exactly one card from your hand.
+            The selected card is shuffled back into the draw pile at a random position,
+            and you draw the top card as a replacement.
+          </p>
+          <p>You can use this power once per turn.</p>
+          <p>Select a card, then tap the Nas Cheat button in your hand controls.</p>
+        </Modal>
       ) : null}
 
       {hostEndedModalGameId ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="panel host-ended-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="host ended the game"
-          >
-            <h2>Host Ended The Game</h2>
-            <p>The host ended game {hostEndedModalGameId}. Return to home to join or host another game.</p>
-            <div className="button-row">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => { void handleAcknowledgeHostEnded(); }}
-                disabled={pendingAction === 'leave'}
-              >
-                {pendingAction === 'leave' ? 'Returning...' : 'Back To Home'}
-              </button>
-            </div>
-          </section>
-        </div>
+        <Modal className="panel host-ended-modal" dismiss="none" label="host ended the game" onClose={() => undefined}>
+          <h2>Host Ended The Game</h2>
+          <p>The host ended game {hostEndedModalGameId}. Return to home to join or host another game.</p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => { void handleAcknowledgeHostEnded(); }}
+              disabled={pendingAction === 'leave'}
+            >
+              {pendingAction === 'leave' ? 'Returning...' : 'Back To Home'}
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {pendingLobbyState ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="panel host-ended-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="host returned to lobby"
-          >
-            <h2>Back to Lobby?</h2>
-            <p>The host has returned to the lobby. Join them for another round, or leave.</p>
-            <div className="button-row">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => {
-                  setMultiplayerState(pendingLobbyState);
-                  setPendingLobbyState(null);
-                  setMultiplayerSelectedCardId(null);
-                }}
-              >
-                Back to Lobby
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setPendingLobbyState(null);
-                  void handleLeaveMultiplayer();
-                }}
-                disabled={pendingAction === 'leave'}
-              >
-                {pendingAction === 'leave' ? 'Leaving...' : 'Leave'}
-              </button>
-            </div>
-          </section>
-        </div>
+        <Modal className="panel host-ended-modal" dismiss="none" label="host returned to lobby" onClose={() => undefined}>
+          <h2>Back to Lobby?</h2>
+          <p>The host has returned to the lobby. Join them for another round, or leave.</p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                setMultiplayerState(pendingLobbyState);
+                setPendingLobbyState(null);
+                setMultiplayerSelectedCardId(null);
+              }}
+            >
+              Back to Lobby
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => {
+                setPendingLobbyState(null);
+                void handleLeaveMultiplayer();
+              }}
+              disabled={pendingAction === 'leave'}
+            >
+              {pendingAction === 'leave' ? 'Leaving...' : 'Leave'}
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {cardLookupOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setCardLookupOpen(false)}>
-          <section
-            className="panel card-lookup-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="card lookup"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Card Lookup</h2>
-            <p>Enter a card number to see where it is.</p>
-            <input
-              className="card-lookup-input"
-              type="number"
-              min={1}
-              max={999}
-              value={cardLookupValue}
-              autoFocus
-              onChange={(e) => setCardLookupValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  handleCardLookupSubmit(e.shiftKey);
-                } else if (e.key === 'Escape') {
-                  setCardLookupOpen(false);
-                }
-              }}
-              placeholder="e.g. 34"
-            />
-            <div className="button-row">
-              <button type="button" className="secondary" onClick={() => setCardLookupOpen(false)}>Cancel</button>
-              <button
-                type="button"
-                className="primary"
-                disabled={!cardLookupValue}
-                onClick={() => handleCardLookupSubmit(false)}
-              >
-                Look Up
-              </button>
-            </div>
-          </section>
-        </div>
+        <Modal className="panel card-lookup-modal" dismiss="any" label="card lookup" onClose={() => setCardLookupOpen(false)}>
+          <h2>Card Lookup</h2>
+          <p>Enter a card number to see where it is.</p>
+          <input
+            className="card-lookup-input"
+            type="number"
+            min={1}
+            max={999}
+            value={cardLookupValue}
+            autoFocus
+            onChange={(e) => setCardLookupValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleCardLookupSubmit(e.shiftKey);
+              } else if (e.key === 'Escape') {
+                setCardLookupOpen(false);
+              }
+            }}
+            placeholder="e.g. 34"
+          />
+          <div className="button-row">
+            <button type="button" className="secondary" onClick={() => setCardLookupOpen(false)}>Cancel</button>
+            <button
+              type="button"
+              className="primary"
+              disabled={!cardLookupValue}
+              onClick={() => handleCardLookupSubmit(false)}
+            >
+              Look Up
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {cardLookupToast ? (
@@ -2857,29 +2480,22 @@ export function App(): JSX.Element {
       ) : null}
 
       {kickedFromGameId ? (
-        <div className="modal-backdrop" role="presentation">
-          <section
-            className="panel host-ended-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-label="kicked from game"
-          >
-            <h2>Kicked From Game</h2>
-            <p>The host removed you from game {kickedFromGameId}.</p>
-            <div className="button-row">
-              <button
-                type="button"
-                className="primary"
-                onClick={() => {
-                  setKickedFromGameId(null);
-                  resetToLanding();
-                }}
-              >
-                Back To Home
-              </button>
-            </div>
-          </section>
-        </div>
+        <Modal className="panel host-ended-modal" dismiss="none" label="kicked from game" onClose={() => undefined}>
+          <h2>Kicked From Game</h2>
+          <p>The host removed you from game {kickedFromGameId}.</p>
+          <div className="button-row">
+            <button
+              type="button"
+              className="primary"
+              onClick={() => {
+                setKickedFromGameId(null);
+                resetToLanding();
+              }}
+            >
+              Back To Home
+            </button>
+          </div>
+        </Modal>
       ) : null}
 
       {statsModalOpen && activeStatsSummary && activeStatsState ? (

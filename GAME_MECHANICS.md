@@ -214,7 +214,7 @@ interface GameSettings {
   minCardValue: number;      // Default: 2
   maxCardValue: number;      // Default: 99
   handSize: number;          // Default: 7  (UI range 5–9)
-  minPlayers: number;        // Default: 2  (multiplayer)
+  minPlayers: number;        // Fixed at 2 (multiplayer); not shown in the settings UI
   maxPlayers: number;        // Default: 6  (multiplayer)
   minCardsPerTurn: number;   // Default: 2  (range 1–3)
   autoRefillHand: boolean;   // Default: false (multiplayer), true (solitaire)

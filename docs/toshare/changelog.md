@@ -6,6 +6,11 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-13 | — | Feat: Settings dialog redesigned (grouped, presets with Custom state, segmented hand size and turn minimum, highest-card slider, visible help text, sticky Save/Discard, read-only summary for non-hosts); minimum players is fixed at 2 |
+| 2026-11-13 | — | Fix: Settings number fields could not be cleared or retyped (every keystroke was clamped); lowest card is now a typeable Advanced field with an inline error |
+| 2026-11-13 | — | Fix: pile reaction numbers, your own slot, turn dots and the "You're next" label meet 4.5:1 contrast (your own slot measured 1.5 to 2.3:1) |
+| 2026-11-13 | — | Feat: dark theme follows the system setting; all overlays use native dialogs (focus containment, Esc, focus return); visible focus ring, press feedback, reduced-motion safe animations, dvh modal heights |
+| 2026-11-13 | — | Fix: Pile arrows can now be changed in Solitaire (the old Settings disabled it, although the board honours it) |
 | 2026-11-12 | — | Chore: removed the two-service Railway leftovers (start:client script, Vite preview allowedHosts, VITE_SOCKET_URL runbook steps) |
 | 2026-11-12 | — | Feat: DEPLOY_TARGET=skiff\|railway sets the default TRUSTED_PROXY_HOPS (2 or 1); the Dockerfile no longer bakes it in, and Railway now runs the same single-container image |
 | 2026-11-09 | — | Feat: single-container Skiff deploy (server serves built client, Dockerfile, Skiff skills) |

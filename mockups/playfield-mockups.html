@@ -1,502 +1,567 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>UpNDown Playfield Mockups (Top-Card Piles)</title>
-  <style>
-    :root {
-      --bg: #0d1b2a;
-      --panel: #1b263b;
-      --card: #f2f5f9;
-      --ink: #102033;
-      --muted: #a9b4c2;
-      --accent: #00b4d8;
-      --asc: #84dcc6;
-      --desc: #f28482;
-      --good: #8ac926;
-      --warn: #ffca3a;
-      --undo: #ffd166;
-      --radius: 14px;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light dark" />
+<title>UpNDown Playfield Mockups</title>
+<style>
+  /* Revised to match the shipped board (GameBoard in App.tsx): foundation piles with reaction rows,
+     hand, then the players panel. Colours follow App.css; each has a dark counterpart. */
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#bfe1ff, #0e1a2b);
+    --panel: light-dark(#ecf6ff, #172a42);
+    --line: light-dark(#9dc1e5, #3a5578);
+    --ink: light-dark(#102033, #e6f0fb);
+    --muted: light-dark(#3f5673, #b4c7dc);
+    --accent: light-dark(#1a5a9a, #6cc2ff);
+    --asc-bg: light-dark(#daf5ee, #1b4d42);
+    --asc-line: light-dark(#5bc7ae, #3fae93);
+    --desc-bg: light-dark(#fbdada, #5a2a29);
+    --desc-line: light-dark(#ee6f6d, #d86a68);
+    --slot-ink: light-dark(#173252, #e6f0fb);
+    --focus: light-dark(#0b5cad, #ffd166);
+    --good: #8ac926;
+    --danger: light-dark(#9c2f17, #ff9b85);
+  }
+  :root[data-theme='light'] { color-scheme: light; }
+  :root[data-theme='dark'] { color-scheme: dark; }
 
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: "Avenir Next", "Segoe UI", sans-serif;
-      background: radial-gradient(circle at 10% 10%, #1b263b 0%, #0d1b2a 55%, #0a1420 100%);
-      color: #f1f5f9;
-      padding: 18px;
-    }
+  * { box-sizing: border-box; }
+  html { font-size: 18px; }
+  body {
+    margin: 0; padding: 1rem;
+    background: var(--bg); color: var(--ink);
+    font-family: 'Avenir Next', 'Segoe UI', sans-serif; line-height: 1.35;
+  }
+  h1, h2, h3, h4, p { margin: 0; }
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; }
+  h3 { font-size: 1rem; }
+  .page { max-width: 62rem; margin: 0 auto; display: grid; gap: 1.2rem; }
+  .muted { color: var(--muted); }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: .8em; }
+  .tools { display: flex; gap: .5rem; flex-wrap: wrap; }
 
-    h1, h2, h3 { margin: 0; }
-    p { margin: 0; color: var(--muted); }
+  .note, .mockup {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: .8rem; padding: .9rem 1rem; display: grid; gap: .6rem;
+  }
+  .note ul { margin: 0; padding-left: 1.1rem; display: grid; gap: .25rem; font-size: .85rem; }
 
-    .page {
-      max-width: 1320px;
-      margin: 0 auto;
-      display: grid;
-      gap: 18px;
-    }
+  /* Controls: hover only where hover exists, press feedback, visible focus (new vs shipped CSS). */
+  button {
+    font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer;
+    min-block-size: 2.4rem; padding: .4rem .8rem; border-radius: .5rem;
+    border: 2px solid var(--accent); background: var(--accent); color: light-dark(#fff, #0e1a2b);
+    transition: transform .1s, filter .15s;
+  }
+  button.secondary { background: transparent; color: var(--accent); }
+  button.primary { background: var(--good); border-color: var(--good); color: #132b00; }
+  button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
+  button:disabled { background: transparent; border: 2px dashed var(--line); color: var(--muted); cursor: not-allowed; }
+  @media (hover: hover) { button:not(:disabled):hover { filter: brightness(1.08); } }
+  button:not(:disabled):active { transform: translateY(1px) scale(.98); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 
-    .note {
-      background: rgba(0, 180, 216, 0.12);
-      border: 1px solid rgba(0, 180, 216, 0.45);
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      color: #d6f6ff;
-    }
+  /* The frame is a size container: the layout switches on its own width, so a phone frame and the desktop
+     board use the same markup. 700px matches the shipped 900px breakpoint closely enough for the demo. */
+  .frame { container-type: inline-size; }
+  .app {
+    display: grid; gap: .5rem; padding: .5rem; border-radius: .8rem;
+    background: var(--bg); border: 1px solid var(--line);
+    grid-template-areas: "header" "foundation" "hand" "players";
+  }
+  @container (min-width: 700px) {
+    .app { grid-template-columns: minmax(0, 1fr) 14rem; grid-template-areas: "header header" "foundation players" "hand hand"; }
+  }
+  .app-header { grid-area: header; display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+  .app-header h4 { font-size: 1.2rem; }
+  .app-header .tools { flex-wrap: nowrap; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: .7rem; padding: .5rem .6rem; min-width: 0; }
+  .foundation { grid-area: foundation; } .hand { grid-area: hand; } .players { grid-area: players; align-self: start; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; }
+  .pill { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 1rem; padding: .15rem .6rem; font-size: .75rem; font-weight: 600; background: var(--bg); color: var(--ink); }
 
-    .mockup {
-      background: rgba(27, 38, 59, 0.88);
-      border: 1px solid rgba(169, 180, 194, 0.2);
-      border-radius: var(--radius);
-      padding: 14px;
-      display: grid;
-      gap: 12px;
-    }
+  /* Foundation: reaction row above (players 1-3), pile, reaction row below (players 4-6). */
+  .pile-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .4rem; margin-top: .4rem; }
+  .pile-unit { border: 2px solid; border-radius: .7rem; padding: .25rem; display: grid; gap: .25rem; justify-items: center; align-content: center; }
+  .pile-unit.asc { background: var(--asc-bg); border-color: var(--asc-line); }
+  .pile-unit.desc { background: var(--desc-bg); border-color: var(--desc-line); }
+  .reaction-row { display: flex; gap: .2rem; justify-content: center; min-block-size: 1.3rem; }
+  .pile { all: unset; display: flex; align-items: center; justify-content: center; gap: .2rem; cursor: pointer; border-radius: .5rem; }
+  .pile:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .arrow { inline-size: .8rem; block-size: 1.2rem; fill: var(--slot-ink); flex: none; }
+  .arrow.down { transform: scaleY(-1); }
+  .top-card { inline-size: clamp(2.2rem, 7cqi, 3.4rem); aspect-ratio: 7 / 10; display: grid; place-items: center; border-radius: .5rem; background: #f4f7fb; color: #112338; border: 2px solid #c3cfdd; font-weight: 800; font-size: clamp(.9rem, 3.2cqi, 1.4rem); }
 
-    .topbar {
-      display: grid;
-      grid-template-columns: 1.1fr 1fr auto auto;
-      gap: 10px;
-      align-items: center;
-      background: rgba(13, 27, 42, 0.9);
-      border-radius: 10px;
-      padding: 10px;
-    }
+  /* Slot numbers: solid ink at 11px+ bold (shipped: 70% ink at 9px; own slot tinted to 1.5 to 2.3:1).
+     Your slot is a solid ring on a white fill, not a coloured number. */
+  .slot { padding: 0; min-block-size: 0; inline-size: 1.3rem; block-size: 1.3rem; border-radius: 50%; border: 1.5px dashed var(--slot-ink); background: transparent; color: var(--slot-ink); font-size: .65rem; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: default; }
+  .slot.active { border-style: solid; background: #fff; color: #102033; font-size: .8rem; }
+  .slot.mine { border: 2px solid var(--slot-ink); background: #fff; color: #102033; cursor: pointer; }
+  .slot:disabled { cursor: default; color: var(--slot-ink); border: 1.5px dashed var(--slot-ink); background: transparent; }
+  .slot.active:disabled { border-style: solid; background: #fff; color: #102033; }
 
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: #132137;
-      border: 1px solid #274160;
-      padding: 7px 10px;
-      border-radius: 999px;
-      font-size: 13px;
-      white-space: nowrap;
-    }
+  /* Hand: always sorted, so there is no Sort button. Buttons sit in the header; disabled while it is not your turn. */
+  .hand-head { display: flex; align-items: center; justify-content: space-between; gap: .5rem; flex-wrap: wrap; }
+  .hand-head .tools { gap: .4rem; }
+  .cards-fan { display: flex; align-items: flex-end; overflow-x: auto; padding: .5rem .25rem .25rem; min-block-size: 5rem; }
+  .card { flex: none; inline-size: 3.1rem; aspect-ratio: 2 / 3; margin-inline-start: -.9rem; padding: 0; font-size: 1.15rem; font-weight: 800; background: #f4f7fb; color: #112338; border: 2px solid #bcc8d6; border-radius: .5rem; box-shadow: 0 3px 8px rgb(0 0 0 / .18); display: grid; place-items: center; }
+  .card:first-child { margin-inline-start: 0; }
+  .card.selected { border-color: var(--focus); transform: translateY(-.4rem); }
+  .card.dim { opacity: .55; }
+  .cards-fan.compact .card { inline-size: 2.5rem; font-size: 1rem; margin-inline-start: -.5rem; }
 
-    .undo-slot {
-      border: 1px dashed rgba(255, 209, 102, 0.7);
-      color: #ffe8a8;
-      background: rgba(255, 209, 102, 0.12);
-      border-radius: 999px;
-      padding: 7px 12px;
-      font-size: 12px;
-      font-weight: 700;
-      white-space: nowrap;
-    }
+  /* Players panel sits below the hand on a phone. Turn dots: inked number, player colour on the ring only. */
+  .turn-sequence { display: flex; align-items: center; justify-content: center; gap: .5rem; padding: .3rem 0; flex-wrap: wrap; }
+  .turn-dots { display: flex; align-items: center; }
+  .turn-connector { inline-size: .5rem; block-size: 2px; background: var(--line); }
+  .turn-dot { inline-size: 1.4rem; block-size: 1.4rem; border-radius: 50%; display: grid; place-items: center; font-size: .65rem; font-weight: 700; padding: 0; min-block-size: 0; background: var(--panel); color: var(--ink); border: 2px solid var(--c); cursor: default; }
+  .turn-dot.current { background: var(--ink); color: var(--panel); box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--c); }
+  .turn-label { font-size: .75rem; font-weight: 700; color: var(--muted); }
+  .player-line { display: flex; justify-content: space-between; align-items: center; gap: .5rem; border: 1px solid var(--line); border-radius: .5rem; padding: .25rem .5rem; font-size: .8rem; margin-top: .25rem; }
+  .player-line.active { border-color: var(--good); border-width: 2px; }
+  .pip { display: inline-block; inline-size: .55rem; block-size: .55rem; border-radius: 50%; background: var(--c); margin-inline-end: .35rem; }
 
-    .board {
-      display: grid;
-      grid-template-columns: 1.55fr 1fr;
-      gap: 12px;
-    }
+  /* Pulse on a pile is opt-in: with reduced motion it simply stays still. */
+  .pile-unit.flash { @media (prefers-reduced-motion: no-preference) { animation: pulse 1.8s ease-out infinite; } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--desc-line) 80%, transparent); } 100% { box-shadow: 0 0 0 .7rem transparent; } }
 
-    .piles, .sidebar, .hand, .turn-order {
-      background: rgba(13, 27, 42, 0.9);
-      border-radius: 12px;
-      padding: 12px;
-      border: 1px solid rgba(169, 180, 194, 0.16);
-    }
+  [hidden] { display: none !important; }
 
-    .pile-grid {
-      margin-top: 10px;
-      display: grid;
-      grid-template-columns: repeat(4, minmax(110px, 1fr));
-      gap: 10px;
-      align-items: stretch;
-    }
+  /* ---- Settings redesign: native <dialog> as a sheet (bottom sheet on phones, centred card on desktop) ---- */
+  dialog.sheet { inline-size: min(46rem, calc(100% - 2rem)); max-block-size: calc(100dvh - 2rem); padding: 0; border: 2px solid var(--line); border-radius: .9rem; background: var(--panel); color: var(--ink); box-shadow: 0 22px 48px rgb(4 12 24 / .45); overflow: hidden; }
+  dialog.sheet[open] { display: grid; }
+  dialog.sheet:modal { overscroll-behavior: contain; }
+  dialog.sheet::backdrop { background: rgb(5 10 18 / .72); overflow: hidden; overscroll-behavior: contain; }
+  @media (max-width: 40rem) {
+    dialog.sheet { inline-size: 100%; max-inline-size: none; margin-block-end: 0; border-radius: 1rem 1rem 0 0; max-block-size: 92dvh; }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    dialog.sheet { transition: opacity .2s ease-out, translate .2s ease-out, display .2s allow-discrete, overlay .2s allow-discrete; }
+    dialog.sheet:not([open]) { opacity: 0; translate: 0 1.5rem; }
+    @starting-style { dialog.sheet[open] { opacity: 0; translate: 0 1.5rem; } }
+  }
+  #settings-form { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; min-block-size: 0; max-block-size: inherit; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .8rem 1rem .6rem; border-block-end: 1px solid var(--line); }
+  .sheet-head h2 { font-size: 1.15rem; }
+  .chip { font-size: .72rem; font-weight: 700; padding: .15rem .6rem; border-radius: 1rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink); white-space: nowrap; }
+  .sheet-body { container-type: inline-size; overflow-y: auto; overscroll-behavior: contain; padding: .6rem 1rem 1rem; display: grid; gap: 1rem; align-content: start; }
+  .sheet-foot { display: flex; align-items: center; gap: .5rem; padding: .7rem 1rem; border-block-start: 1px solid var(--line); background: var(--panel); }
+  .sheet-foot .spacer { flex: 1; font-size: .75rem; color: var(--muted); }
+  .sheet-foot .ver { font-size: .65rem; color: var(--muted); }
 
-    .pile {
-      border-radius: 12px;
-      padding: 8px;
-      display: grid;
-      grid-template-rows: auto 1fr auto;
-      gap: 8px;
-      border: 2px solid transparent;
-      min-height: 252px;
-    }
+  /* Wide sheet: Cards on the left, Players and display options on the right; Difficulty spans the top. */
+  @container (min-width: 38rem) {
+    #edit-view > div { grid-template-columns: 1fr 1fr; column-gap: 1.6rem; align-items: start; }
+    #g-diff { grid-column: 1 / -1; }
+    #g-cards { grid-row: 2 / span 3; }
+  }
+  fieldset.group { border: 0; margin: 0; padding: 0; display: grid; gap: .7rem; min-inline-size: 0; }
+  fieldset.group > legend { font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 0; margin-block-end: .1rem; }
+  .row { display: grid; gap: .25rem; }
+  .row-top { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
+  .row-label { font-weight: 700; font-size: .9rem; }
+  .row output { font-weight: 800; font-variant-numeric: tabular-nums; font-size: .9rem; }
+  .hint { font-size: .75rem; color: var(--muted); }
+  .tag { font-size: .65rem; font-weight: 700; padding: .05rem .45rem; border-radius: 1rem; border: 1px solid var(--line); color: var(--muted); margin-inline-start: .4rem; vertical-align: middle; }
+  .err { font-size: .75rem; font-weight: 700; color: var(--danger); }
 
-    .pile.asc { background: color-mix(in srgb, var(--asc) 24%, #0d1b2a); border-color: #5bc7ae; }
-    .pile.desc { background: color-mix(in srgb, var(--desc) 22%, #0d1b2a); border-color: #ee6f6d; }
+  /* Segmented radios: native inputs, all options visible, 44px tall touch targets. */
+  .segmented { display: flex; gap: .3rem; }
+  .segmented label { flex: 1; position: relative; }
+  .segmented input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .segmented span { display: grid; place-items: center; min-block-size: 2.4rem; border: 2px solid var(--line); border-radius: .5rem; font-size: .85rem; font-weight: 700; background: transparent; color: var(--ink); }
+  .segmented label:has(input:checked) span { background: var(--accent); border-color: var(--accent); color: light-dark(#fff, #0e1a2b); }
+  .segmented label:has(input:focus-visible) span { outline: 3px solid var(--focus); outline-offset: 2px; }
+  .segmented label:has(input:disabled) span { border-style: dashed; color: var(--muted); }
+  .segmented label:has(input:checked:disabled) span { background: var(--accent); border: 2px solid var(--accent); color: light-dark(#fff, #0e1a2b); }
+  .segmented.presets span small { display: block; font-size: .6rem; font-weight: 600; opacity: .85; }
+  .summary { font-size: .8rem; font-weight: 600; padding: .45rem .6rem; border-radius: .5rem; background: var(--bg); border: 1px solid var(--line); }
 
-    .pile .tag {
-      font-size: 12px;
-      letter-spacing: 0.06em;
-      text-transform: uppercase;
-      font-weight: 800;
-      color: #102033;
-      text-align: center;
-    }
+  input[type='range'] { inline-size: 100%; accent-color: var(--accent); min-block-size: 2rem; }
+  select, input[type='number'] { font: inherit; font-size: .9rem; min-block-size: 2.4rem; padding: .3rem .5rem; border: 2px solid var(--line); border-radius: .5rem; background: var(--bg); color: var(--ink); }
+  input[aria-invalid='true'] { border-color: var(--danger); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: .6rem; }
+  .two .row { align-content: start; }
 
-    .top-card {
-      width: 92px;
-      height: 132px;
-      border-radius: 10px;
-      background: #f4f7fb;
-      border: 2px solid #c3cfdd;
-      display: grid;
-      place-items: center;
-      color: #112338;
-      font-size: 34px;
-      font-weight: 800;
-      justify-self: center;
-      align-self: center;
-      box-shadow: 0 6px 14px rgba(0,0,0,0.24);
-    }
+  /* Switch: a real checkbox with role="switch"; the label row is the touch target. */
+  .switch { display: flex; align-items: center; justify-content: space-between; gap: .8rem; min-block-size: 2.6rem; cursor: pointer; }
+  .switch .text { display: grid; gap: .1rem; }
+  .switch input { appearance: none; flex: none; inline-size: 2.6rem; block-size: 1.5rem; border-radius: 1rem; border: 2px solid var(--line); background: var(--bg); position: relative; margin: 0; cursor: pointer; }
+  .switch input::before { content: ''; position: absolute; inset-block: .15rem; inset-inline-start: .15rem; inline-size: 1rem; border-radius: 50%; background: var(--muted); }
+  .switch input:checked { background: var(--accent); border-color: var(--accent); }
+  .switch input:checked::before { background: light-dark(#fff, #0e1a2b); inset-inline-start: 1.25rem; }
+  @media (prefers-reduced-motion: no-preference) { .switch input::before { transition: inset-inline-start .15s; } }
+  .switch input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  details.adv { border-block-start: 1px solid var(--line); padding-block-start: .5rem; }
+  details.adv > summary { cursor: pointer; font-weight: 700; font-size: .85rem; min-block-size: 2.2rem; display: flex; align-items: center; }
+  details.adv > summary::after { content: '+'; margin-inline-start: auto; font-size: 1.1rem; }
+  details.adv[open] > summary::after { content: '\2212'; }
+  details.adv[open] > summary { margin-block-end: .4rem; }
 
-    .pile .hint {
-      text-align: center;
-      font-size: 11px;
-      color: #17324d;
-      font-weight: 700;
-    }
+  /* Read-only view: a plain summary instead of disabled inputs. */
+  dl.facts { margin: 0; display: grid; gap: 0; }
+  dl.facts > div { display: flex; justify-content: space-between; gap: 1rem; padding: .45rem 0; border-block-end: 1px solid var(--line); font-size: .9rem; }
+  dl.facts dt { color: var(--muted); font-weight: 600; } dl.facts dd { margin: 0; font-weight: 800; text-align: end; }
+  .banner { font-size: .8rem; font-weight: 600; padding: .5rem .7rem; border-radius: .5rem; border: 1px solid var(--line); background: var(--bg); }
 
-    .side-stack { display: grid; gap: 10px; }
+  .viewer { display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+  .viewer label { display: inline-flex; align-items: center; gap: .3rem; font-size: .85rem; font-weight: 600; }
+  .review { margin: 0; padding-left: 1.1rem; display: grid; gap: .35rem; font-size: .85rem; }
+  .review code { background: color-mix(in srgb, var(--ink) 10%, transparent); padding: 0 .25rem; border-radius: .25rem; }
 
-    .players {
-      display: grid;
-      gap: 8px;
-    }
-
-    .player {
-      border: 1px solid rgba(169, 180, 194, 0.22);
-      border-radius: 10px;
-      padding: 8px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: center;
-      background: #15233a;
-      font-size: 14px;
-    }
-
-    .player.active { border-color: var(--good); box-shadow: 0 0 0 1px rgba(138, 201, 38, 0.4) inset; }
-
-    .hand { display: grid; gap: 10px; }
-
-    .cards-fan {
-      display: flex;
-      align-items: flex-end;
-      overflow-x: auto;
-      gap: 0;
-      min-height: 150px;
-      padding: 6px 4px 2px;
-    }
-
-    .card {
-      flex: 0 0 auto;
-      width: 86px;
-      height: 126px;
-      margin-left: -24px;
-      border-radius: 10px;
-      background: var(--card);
-      color: var(--ink);
-      border: 2px solid #bcc8d6;
-      display: grid;
-      place-items: center;
-      font-size: 30px;
-      font-weight: 800;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.18);
-    }
-
-    .card:first-child { margin-left: 0; }
-
-    .card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(0, 180, 216, 0.35); }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-
-    button {
-      border: 0;
-      border-radius: 8px;
-      padding: 10px 12px;
-      font-weight: 700;
-      cursor: default;
-    }
-
-    .primary { background: var(--good); color: #132b00; }
-    .secondary { background: #263c58; color: #dce6f3; }
-    .undo-btn { background: var(--undo); color: #3d2e00; }
-
-    .phone-shell {
-      margin-top: 6px;
-      max-width: 390px;
-      width: 100%;
-      border: 10px solid #0b1118;
-      border-radius: 24px;
-      padding: 10px;
-      background: #0d1b2a;
-      justify-self: center;
-    }
-
-    .phone-compare {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      align-items: start;
-    }
-
-    .phone-col {
-      display: grid;
-      gap: 6px;
-      justify-items: center;
-    }
-
-    .phone-col h4 {
-      margin: 0;
-      font-size: 13px;
-      color: #d3deea;
-      letter-spacing: 0.02em;
-    }
-
-    .phone .topbar {
-      grid-template-columns: 1fr;
-      gap: 8px;
-    }
-
-    .phone .board {
-      grid-template-columns: 1fr;
-      gap: 8px;
-    }
-
-    .phone .pile-grid {
-      grid-template-columns: repeat(2, minmax(120px, 1fr));
-      gap: 8px;
-    }
-
-    .phone .pile {
-      min-height: 190px;
-      padding: 7px;
-    }
-
-    .phone .top-card {
-      width: 74px;
-      height: 104px;
-      font-size: 28px;
-    }
-
-    .phone .cards-fan {
-      min-height: 120px;
-      padding: 4px 2px 2px;
-    }
-
-    .phone .card {
-      width: 72px;
-      height: 106px;
-      font-size: 26px;
-      margin-left: -16px;
-    }
-
-    .phone .cards-fan.compact-9 .card {
-      width: 48px;
-      height: 76px;
-      font-size: 18px;
-      margin-left: -2px;
-    }
-
-    .hint-row {
-      color: #c6d2df;
-      font-size: 12px;
-      background: rgba(255,255,255,0.04);
-      border-radius: 8px;
-      padding: 8px 10px;
-      border: 1px solid rgba(169,180,194,0.2);
-    }
-
-    @media (max-width: 1040px) {
-      .topbar { grid-template-columns: 1fr; }
-      .board { grid-template-columns: 1fr; }
-      .pile-grid { grid-template-columns: repeat(2, minmax(140px, 1fr)); }
-      .cards-fan { min-height: 132px; }
-      .phone-compare { grid-template-columns: 1fr; }
-    }
-  </style>
+  .compare { display: grid; grid-template-columns: repeat(auto-fit, minmax(19rem, 1fr)); gap: 1rem; align-items: start; }
+  .phone { max-inline-size: 24rem; inline-size: 100%; justify-self: center; border: .55rem solid #0b1118; border-radius: 1.4rem; overflow: hidden; }
+</style>
 </head>
 <body>
-  <div class="page">
-    <h1>UpNDown Playfield Mockups (Top-Card Foundation Piles)</h1>
-    <div class="note">
-      Foundation piles show only the current top card. Hand layout guarantees visible values for all 9 cards.
+<div class="page">
+  <header class="tools" style="justify-content: space-between; align-items: center;">
+    <h1>UpNDown playfield mockups</h1>
+    <div class="tools">
+      <button class="secondary" type="button" data-set-theme="">System</button>
+      <button class="secondary" type="button" data-set-theme="light">Light</button>
+      <button class="secondary" type="button" data-set-theme="dark">Dark</button>
+    </div>
+  </header>
+
+  <section class="note">
+    <h2>What changed from the earlier mockup</h2>
+    <ul>
+      <li><strong>Matches the shipped board.</strong> Foundation piles with a reaction row above (players 1 to 3) and below (players 4 to 6), then your hand, then the Players panel. On a phone the turn strip stays below the hand.</li>
+      <li><strong>Removed:</strong> the Sort Hand button (the hand is always sorted), the "Need this turn" pill, the Undo slot banner and the per-pile text tags.</li>
+      <li><strong>Contrast:</strong> slot numbers are solid ink, 11px bold or larger. Your own slot is a solid ring on white instead of a coloured number (was 1.5 to 2.3:1). Turn dots and the "You're next" label are readable too (were about 1.4 to 2:1).</li>
+      <li><strong>Reactions:</strong> tap your own circle on a pile to cycle 👍, ❤️, 🔥, none. The number and the emoji share one circle.</li>
+      <li><strong>Modern web:</strong> visible focus ring and press feedback, reduced-motion-safe pulse, light and dark themes, <code>dvh</code> for the dialog, and a native <code>&lt;dialog&gt;</code> for Settings (open it from the Settings button).</li>
+    </ul>
+  </section>
+
+  <section class="mockup">
+    <h2>A. Desktop or tablet (6 players, you are player 2)</h2>
+    <p class="muted">Players panel is a side column. It is not your turn, so End Turn and Undo are disabled and your reaction circles are live.</p>
+    <div class="frame" id="desktop"></div>
+  </section>
+
+  <section class="mockup">
+    <h2>B. Phone: 7 cards with 3 players, and 9 cards with 6 players</h2>
+    <p class="muted">Same markup, narrower container. Hand sits directly under the piles; the turn strip is in the Players panel below it.</p>
+    <div class="compare">
+      <div class="phone frame" id="phone-a"></div>
+      <div class="phone frame" id="phone-b"></div>
+    </div>
+  </section>
+
+  <section class="mockup" id="settings-section">
+    <h2>C. Settings, rethought</h2>
+    <p class="muted">Fully working. Pick who is looking, open the dialog, then try presets, the slider and the Advanced field. Nothing is saved anywhere.</p>
+    <div class="viewer" role="radiogroup" aria-label="Preview as">
+      <strong style="font-size:.85rem">Preview as:</strong>
+      <label><input type="radio" name="viewer" value="host" checked> Host in lobby</label>
+      <label><input type="radio" name="viewer" value="guest"> Guest</label>
+      <label><input type="radio" name="viewer" value="locked"> Game in progress</label>
+      <label><input type="radio" name="viewer" value="solo"> Solitaire</label>
+      <button type="button" command="show-modal" commandfor="settings">Open settings</button>
     </div>
 
-    <section class="mockup">
-      <h2>Mockup A: Desktop (2-6 players)</h2>
-      <p>Foundation piles are large top-card boxes; hand uses vertical fan cards (standard 7-card view).</p>
+    <h3>What is wrong today (checked on the shipped screen)</h3>
+    <ol class="review">
+      <li><strong>The number fields cannot be edited normally.</strong> Every keystroke is clamped, and an empty field snaps back to the old value. In a browser test, Backspace on 99 gave 9, a second Backspace still gave 9, and typing 4 gave 94. You cannot type 45.</li>
+      <li><strong>On a phone, Save is off screen.</strong> At 390x844 the dialog holds 969px of content in 812px and has no fixed footer, so Save and Close sit below the scroll.</li>
+      <li><strong>The help text is hidden.</strong> It lives in <code>title</code> tooltips on an "i" that is not focusable (<code>tabindex="-1"</code>, no role). Touch and keyboard users never see the most useful text on the screen.</li>
+      <li><strong>One flat list of 11 unrelated fields.</strong> Deck rules, lobby options, a display option, a cheat and a personal sound preference are mixed together, and on a phone the "i" drops onto its own line.</li>
+      <li><strong>Irrelevant fields are shown disabled.</strong> Solitaire disables 5 of them and adds a note to explain. A guest or mid-game viewer sees a form of greyed-out inputs.</li>
+      <li><strong>No feedback.</strong> The deck size is never shown, a custom combination highlights no preset, and the only validation is one error line at the bottom.</li>
+    </ol>
 
-      <div class="topbar">
-        <div class="pill">Game: <strong>Q7M2K9</strong> | Host: Ken</div>
-        <div class="pill">Phase: <strong>Playing</strong> | Draw: <strong>38</strong></div>
-        <div class="pill">Need this turn: <strong>2 cards</strong></div>
-        <div class="undo-slot">Undo Slot (v2): appears after turn ends</div>
-      </div>
+    <h3>What this version does</h3>
+    <ul class="review">
+      <li><strong>Grouped by purpose:</strong> Difficulty, Cards, Players, what everyone sees, and this device. Cheats are folded away.</li>
+      <li><strong>Presets first, with a live summary and a Custom state.</strong> The summary shows the deck size (98 cards) that was never visible before.</li>
+      <li><strong>Right control for each value:</strong> the 5 hand sizes and 3 turn minimums are segmented buttons with every option visible. The top card is a slider. Players use native selects. Lowest card moves to Advanced.</li>
+      <li><strong>Help is always visible</strong> as one line under each control, with the direction of difficulty (bigger hand is easier).</li>
+      <li><strong>Sheet layout:</strong> fixed header and footer, only the middle scrolls, and it is a bottom sheet on phones. Save is disabled until something changes and the Close button becomes Discard.</li>
+      <li><strong>Read-only view</strong> is a plain summary list. Solitaire hides what does not apply instead of disabling it.</li>
+      <li><strong>Number field fixed:</strong> the Advanced field lets you clear and retype, and shows an inline error instead of snapping back.</li>
+    </ul>
 
-      <div class="board">
-        <div class="piles">
-          <h3>Foundation Piles</h3>
-          <div class="pile-grid">
-            <article class="pile asc">
-              <div class="tag">Ascending A</div>
-              <div class="top-card">43</div>
-              <div class="hint">play &gt;43 or 33</div>
-            </article>
-            <article class="pile asc">
-              <div class="tag">Ascending B</div>
-              <div class="top-card">67</div>
-              <div class="hint">play &gt;67 or 57</div>
-            </article>
-            <article class="pile desc">
-              <div class="tag">Descending A</div>
-              <div class="top-card">84</div>
-              <div class="hint">play &lt;84 or 94</div>
-            </article>
-            <article class="pile desc">
-              <div class="tag">Descending B</div>
-              <div class="top-card">28</div>
-              <div class="hint">play &lt;28 or 38</div>
-            </article>
-          </div>
-        </div>
+    <h3>Review of this design</h3>
+    <ul class="review">
+      <li><strong>Trade-off:</strong> the lowest card value is one tap deeper. The presets never change it from 2, so I judged that fine, but a host who tunes it often will notice.</li>
+      <li><strong>Decided: no "needed to start" setting.</strong> The host starts whenever they want. The server still stores a minimum, so the client would send it fixed at 2 (the server rejects anything below 2), and nothing on the server or in the schema has to change.</li>
+      <li><strong>Sound effects apply immediately</strong> and are not part of Save, because they are stored on the device. The "This device" label says so.</li>
+      <li><strong>Known gap:</strong> Esc, tapping outside or Discard throws away unsaved edits without asking, as today. A discard confirmation is a follow-up.</li>
+      <li><strong>Code impact:</strong> a rewrite of <code>SettingsDialog</code> (about 250 lines), best moved into its own file so <code>App.tsx</code> does not grow. Props, schema and server stay the same. If you do not want the redesign, the typing bug can be fixed on its own in a few lines.</li>
+      <li><strong>Polish left:</strong> on a wide screen the right column is half empty and the sheet still scrolls a little (782px of content in 741px). Sound and Cheats could move up beside Players.</li>
+      <li><strong>Not tested:</strong> Safari, and real screen readers. The controls are native inputs, so I expect them to work.</li>
+    </ul>
+  </section>
+</div>
 
-        <aside class="sidebar side-stack">
-          <section class="turn-order">
-            <h3>Turn Order</h3>
-            <div class="players" style="margin-top:10px;">
-              <div class="player active"><span>1. Ken (You)</span><strong>9 cards</strong></div>
-              <div class="player"><span>2. Maya</span><strong>8 cards</strong></div>
-              <div class="player"><span>3. Alex</span><strong>9 cards</strong></div>
-              <div class="player"><span>4. Jo</span><strong>7 cards</strong></div>
-              <div class="player"><span>5. Pat</span><strong>9 cards</strong></div>
-              <div class="player"><span>6. Liv</span><strong>8 cards</strong></div>
+<dialog id="settings" class="sheet" closedby="any" aria-labelledby="settings-title">
+  <form id="settings-form" method="dialog" novalidate>
+    <header class="sheet-head"><h2 id="settings-title">Game settings</h2><span class="chip" id="role-chip"></span></header>
+    <div class="sheet-body" id="sheet-body">
+
+      <p class="banner" id="banner" hidden></p>
+
+      <div id="edit-view">
+        <div style="display:grid;gap:1rem">
+          <fieldset class="group" id="g-diff">
+            <legend>Difficulty</legend>
+            <div class="segmented presets" role="radiogroup" aria-label="Difficulty preset" id="presets">
+              <label><input type="radio" name="preset" value="trivial"><span>Trivial</span></label>
+              <label><input type="radio" name="preset" value="easy"><span>Easy</span></label>
+              <label><input type="radio" name="preset" value="normal"><span>Normal</span></label>
+              <label><input type="radio" name="preset" value="hard"><span>Hard</span></label>
+              <label><input type="radio" name="preset" value="custom" disabled><span>Custom</span></label>
             </div>
-          </section>
-        </aside>
+            <p class="summary" id="summary" aria-live="polite"></p>
+          </fieldset>
+
+          <fieldset class="group" id="g-cards">
+            <legend>Cards</legend>
+            <div class="row">
+              <div class="row-top"><label class="row-label" for="max-card">Highest card</label><output id="max-card-out" for="max-card"></output></div>
+              <input id="max-card" type="range" min="20" max="99" aria-describedby="max-card-hint">
+              <span class="hint" id="max-card-hint">A higher top card means a bigger deck, which is harder.</span>
+            </div>
+            <div class="row" role="group" aria-labelledby="hand-lbl" aria-describedby="hand-hint">
+              <span class="row-label" id="hand-lbl">Hand size</span>
+              <div class="segmented" id="hand-seg"></div>
+              <span class="hint" id="hand-hint">A bigger hand is easier.</span>
+            </div>
+            <div class="row" id="row-turn" role="group" aria-labelledby="turn-lbl" aria-describedby="turn-hint">
+              <span class="row-label" id="turn-lbl">Cards you must play each turn</span>
+              <div class="segmented" id="turn-seg"></div>
+              <span class="hint" id="turn-hint">More cards per turn is harder. The last turn with an empty draw pile only needs 1.</span>
+            </div>
+            <label class="switch" id="row-refill"><span class="text"><span class="row-label">Auto refill hand</span><span class="hint">Draw right after each play instead of at the end of the turn. Easier.</span></span><input id="auto-refill" type="checkbox" role="switch"></label>
+            <details class="adv">
+              <summary>Advanced</summary>
+              <div class="row">
+                <label class="row-label" for="min-card">Lowest card</label>
+                <input id="min-card" type="number" inputmode="numeric" min="2" max="80" style="max-inline-size:7rem" aria-describedby="min-card-hint min-card-err">
+                <span class="hint" id="min-card-hint">Raising it shrinks the deck, which is easier. The deck needs at least 18 cards.</span>
+                <span class="err" id="min-card-err" role="alert"></span>
+              </div>
+            </details>
+          </fieldset>
+
+          <fieldset class="group" id="g-players">
+            <legend>Players</legend>
+            <div class="row">
+              <label class="row-label" for="max-players">Maximum players</label>
+              <select id="max-players" style="max-inline-size:8rem" aria-describedby="max-players-hint"></select>
+              <span class="hint" id="max-players-hint">The host can start the game whenever at least 2 players have joined. More players is harder.</span>
+            </div>
+            <label class="switch"><span class="text"><span class="row-label">Private game</span><span class="hint">Hidden from the public list. Share the game ID to invite people.</span></span><input id="private" type="checkbox" role="switch"></label>
+          </fieldset>
+
+          <fieldset class="group" id="g-game-display">
+            <legend>Everyone sees <span class="tag">set by host</span></legend>
+            <label class="switch"><span class="text"><span class="row-label">Pile arrows</span><span class="hint">An up or down arrow beside every foundation card.</span></span><input id="arrows" type="checkbox" role="switch"></label>
+          </fieldset>
+        </div>
       </div>
 
-      <section class="hand">
-        <h3>Your Hand</h3>
-        <div class="cards-fan">
-          <div class="card selected">12</div><div class="card">21</div><div class="card">35</div><div class="card">46</div><div class="card">57</div>
-          <div class="card">64</div><div class="card">72</div><div class="card">90</div><div class="card">98</div>
-        </div>
-        <div class="controls">
-          <button class="secondary">Sort Hand</button>
-          <button class="undo-btn">Undo Last Turn (v2)</button>
-          <button class="primary">End Turn</button>
-        </div>
-        <div class="hint-row">v2 undo rule: during your active turn, tap a just-played card on a pile to return it to hand. After your turn ends, only the immediately previous player can be undone, and only until the next player completes their turn.</div>
+      <div id="read-view" hidden></div>
+
+      <fieldset class="group" id="g-device">
+        <legend>This device <span class="tag">only you</span></legend>
+        <label class="switch"><span class="text"><span class="row-label">Sound effects</span><span class="hint">Card plays, special moves, turn starts and results.</span></span><input id="sounds" type="checkbox" role="switch" checked></label>
+      </fieldset>
+
+      <details class="adv" id="g-cheats">
+        <summary>Cheats</summary>
+        <label class="switch"><span class="text"><span class="row-label">Card Lookup</span><span class="hint">Press Ctrl+Shift+C in a game to find where a card is. In multiplayer, everyone sees the result.</span></span><input id="lookup" type="checkbox" role="switch"></label>
+      </details>
+    </div>
+    <footer class="sheet-foot">
+      <span class="spacer" id="dirty" aria-live="polite"></span>
+      <span class="ver">v1.10</span>
+      <button class="secondary" type="button" id="btn-close">Close</button>
+      <button class="primary" type="button" id="btn-save">Save settings</button>
+    </footer>
+  </form>
+</dialog>
+
+<script>
+  const COLORS = { red: '#e05555', orange: '#e08c30', green: '#4db86a', cyan: '#30b8d8', purple: '#8855cc', pink: '#d855aa' };
+  const EMOJI = ['👍', '❤️', '🔥'];
+  const LABEL = ['like', 'love', 'really love'];
+  const ARROW = '<svg class="arrow ARROWDIR" viewBox="0 0 14 22" aria-hidden="true" focusable="false"><path d="M7 0 L14 9 L9.5 9 L9.5 22 L4.5 22 L4.5 9 L0 9 Z"/></svg>';
+
+  // reactions[pile][player] = index into EMOJI. Viewer is always player 2 and it is player 1's turn.
+  function render(root, { players, hand, compact, draw, reactions, flash }) {
+    const you = 1, current = 0, n = players.length;
+    const piles = [['asc', 1], ['asc', 1], ['desc', 100], ['desc', 100]];
+    const slot = (p, num, pi) => {
+      const r = reactions?.[pi]?.[p];
+      const mine = p === you;
+      const text = r != null ? EMOJI[r] : num;
+      const name = r != null ? `Player ${num} reacted ${LABEL[r]} to this pile` : `Player ${num}`;
+      return `<button type="button" class="slot${r != null ? ' active' : ''}${mine ? ' mine' : ''}" data-pile="${pi}" data-player="${p}" aria-label="${name}" ${mine ? '' : 'disabled'}>${text}</button>`;
+    };
+    const pileHtml = piles.map(([type, top], i) => {
+      const top3 = players.slice(0, 3).map((_, p) => slot(p, p + 1, i)).join('');
+      const bot = n > 3 ? players.slice(3, 6).map((_, p) => slot(p + 3, p + 4, i)).join('') : '';
+      const dir = type === 'asc' ? 'up' : 'down';
+      const arrow = ARROW.replace('ARROWDIR', dir);
+      const value = type === 'asc' ? [43, 67][i] : [84, 28][i - 2];
+      return `<div class="pile-unit ${type}${flash === i ? ' flash' : ''}">
+        <div class="reaction-row">${top3}</div>
+        <button type="button" class="pile" aria-label="Foundation ${type === 'asc' ? 'ascending' : 'descending'} with top card ${value}">${arrow}<span class="top-card">${value}</span>${arrow}</button>
+        <div class="reaction-row">${bot}</div>
+      </div>`;
+    }).join('');
+    const dots = players.map((p, i) => `<span style="display:flex;align-items:center">${i ? '<span class="turn-connector"></span>' : ''}<span class="turn-dot${i === current ? ' current' : ''}" style="--c:${COLORS[p.color]}" title="${p.name}${i === current ? ' (playing)' : ''}">${i + 1}</span></span>`).join('');
+    const lines = players.map((p, i) => `<div class="player-line${i === current ? ' active' : ''}" ${i === current ? 'aria-current="true"' : ''} style="--c:${COLORS[p.color]}"><span><span class="pip" aria-hidden="true"></span>${i + 1}. ${p.name}${i === you ? ' (You)' : ''}${i === 0 ? ' [Host]' : ''}</span><span>${p.cards} cards</span></div>`).join('');
+    root.innerHTML = `<div class="app">
+      <div class="app-header"><h4>UpNDown</h4><div class="tools"><button class="danger" type="button">End Game</button><button class="secondary" type="button" command="show-modal" commandfor="settings">Settings</button></div></div>
+      <section class="panel foundation" aria-label="foundation piles">
+        <div class="panel-head"><h3>Foundation Piles</h3><span class="pill">Cards in Draw Pile: ${draw}</span></div>
+        <div class="pile-grid">${pileHtml}</div>
       </section>
-    </section>
+      <section class="panel hand" aria-label="your hand">
+        <div class="hand-head"><h3>Your Hand</h3><div class="tools"><button class="primary" type="button" disabled>End Turn</button><button class="secondary" type="button" disabled>Undo</button></div></div>
+        <div class="cards-fan${compact ? ' compact' : ''}">${hand.map((v, i) => `<button type="button" class="card${i === 0 ? ' selected' : ''}" aria-label="Card ${v}">${v}</button>`).join('')}</div>
+      </section>
+      <section class="panel players" aria-label="players list">
+        <div class="panel-head"><div style="display:flex;gap:.4rem;align-items:center"><h3>Players</h3><span class="pill">${n}</span></div><button class="pill" type="button">Game: Q7M2K9</button></div>
+        <div class="turn-sequence" aria-label="turn order"><div class="turn-dots">${dots}</div><span class="turn-label">You're next</span></div>
+        ${lines}
+      </section>
+    </div>`;
+  }
 
-    <section class="mockup">
-      <h2>Mockup B: Phone Comparison (7 vs 9 cards)</h2>
-      <p>Side-by-side comparison of standard 7-card hand and compact 9-card hand, both in vertical orientation.</p>
+  const P = (name, color, cards) => ({ name, color, cards });
+  const six = [P('Ken', 'red', 9), P('Maya', 'orange', 9), P('Alex', 'green', 9), P('Jo', 'cyan', 7), P('Pat', 'purple', 9), P('Liv', 'pink', 8)];
+  const react = { 0: { 0: 0, 3: 1 }, 1: { 2: 2 }, 3: { 0: 1, 1: 0 } };
+  render(document.getElementById('desktop'), { players: six, hand: [12, 21, 35, 46, 57, 64, 72], draw: 38, reactions: react, flash: 3 });
+  render(document.getElementById('phone-a'), { players: six.slice(0, 3), hand: [12, 21, 35, 46, 57, 64, 90], draw: 77, reactions: { 0: { 0: 1 } } });
+  render(document.getElementById('phone-b'), { players: six, hand: [12, 21, 35, 46, 57, 64, 72, 90, 98], compact: true, draw: 38, reactions: react });
 
-      <div class="phone-compare">
-        <div class="phone-col">
-          <h4>Phone - 7 Cards (Standard)</h4>
-          <div class="phone-shell phone">
-            <div class="topbar">
-              <div class="pill">Q7M2K9 • Your turn • Draw 38</div>
-              <div class="pill">Need 2 cards this turn</div>
-              <div class="undo-slot">Undo Slot (v2)</div>
-            </div>
+  // Tapping your own circle cycles like, love, really love, none (nextReaction in App.tsx).
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('.slot.mine');
+    if (!b) return;
+    const cur = EMOJI.indexOf(b.textContent);
+    const next = cur === 2 ? null : cur + 1;
+    b.classList.toggle('active', next !== null);
+    b.textContent = next === null ? String(Number(b.dataset.player) + 1) : EMOJI[next];
+    b.setAttribute('aria-label', next === null ? `Player ${Number(b.dataset.player) + 1}` : `Player ${Number(b.dataset.player) + 1} reacted ${LABEL[next]} to this pile`);
+  });
+  for (const b of document.querySelectorAll('[data-set-theme]')) {
+    b.addEventListener('click', () => { const t = b.dataset.setTheme; t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme; });
+  }
+  // ---- Settings dialog state and rendering (mirrors GameSettings in shared-types) ----
+  const PRESETS = {
+    trivial: { maxCard: 29, hand: 9, perTurn: 1, autoRefill: true },
+    easy:    { maxCard: 59, hand: 8, perTurn: 1, autoRefill: true },
+    normal:  { maxCard: 99, hand: 7, perTurn: 2, autoRefill: false },
+    hard:    { maxCard: 99, hand: 6, perTurn: 3, autoRefill: false },
+  };
+  const DEFAULTS = { minCard: 2, maxCard: 99, hand: 7, perTurn: 2, autoRefill: false, maxPlayers: 6, priv: false, arrows: true, lookup: false };
+  let saved = { ...DEFAULTS }, draft = { ...DEFAULTS }, role = 'host';
+  const $ = (id) => document.getElementById(id);
+  const dlg = $('settings');
+  const cap = (t) => t[0].toUpperCase() + t.slice(1);
 
-            <div class="board" style="margin-top:10px;">
-              <div class="piles">
-                <h3 style="font-size:15px;">Foundation Piles</h3>
-                <div class="pile-grid">
-                  <article class="pile asc"><div class="tag">1↑ A</div><div class="top-card">43</div><div class="hint">&gt;43 or 33</div></article>
-                  <article class="pile asc"><div class="tag">1↑ B</div><div class="top-card">67</div><div class="hint">&gt;67 or 57</div></article>
-                  <article class="pile desc"><div class="tag">100↓ A</div><div class="top-card">84</div><div class="hint">&lt;84 or 94</div></article>
-                  <article class="pile desc"><div class="tag">100↓ B</div><div class="top-card">28</div><div class="hint">&lt;28 or 38</div></article>
-                </div>
-              </div>
+  const seg = (host, name, from, to, onPick) => {
+    for (let v = from; v <= to; v++) host.insertAdjacentHTML('beforeend', `<label><input type="radio" name="${name}" value="${v}"><span>${v}</span></label>`);
+  };
+  seg($('hand-seg'), 'hand', 5, 9); seg($('turn-seg'), 'turn', 1, 3);
+  for (let v = 2; v <= 6; v++) $('max-players').insertAdjacentHTML('beforeend', `<option value="${v}">${v}</option>`);
 
-              <div class="turn-order">
-                <h3 style="font-size:14px;">Turn</h3>
-                <div class="players" style="margin-top:8px;">
-                  <div class="player active"><span>1. You</span><strong>7</strong></div>
-                  <div class="player"><span>2. Maya</span><strong>8</strong></div>
-                  <div class="player"><span>3. Alex</span><strong>9</strong></div>
-                  <div class="player"><span>4. Jo</span><strong>7</strong></div>
-                  <div class="player"><span>5. Pat</span><strong>9</strong></div>
-                  <div class="player"><span>6. Liv</span><strong>8</strong></div>
-                </div>
-              </div>
-            </div>
+  const presetOf = (d) => Object.keys(PRESETS).find((k) => d.minCard === 2 && PRESETS[k].maxCard === d.maxCard && PRESETS[k].hand === d.hand && PRESETS[k].perTurn === d.perTurn && PRESETS[k].autoRefill === d.autoRefill) ?? 'custom';
+  const deckSize = (d) => (d.minCard == null ? null : d.maxCard - d.minCard + 1);
+  function errors(d) {
+    const e = {};
+    if (d.minCard == null || Number.isNaN(d.minCard) || d.minCard < 2 || d.minCard > 80) e.min = 'Enter a number from 2 to 80.';
+    else if (deckSize(d) < 18) e.min = `That leaves a ${deckSize(d)}-card deck. It needs at least 18.`;
+    return e;
+  }
 
-            <section class="hand" style="margin-top:10px;">
-              <h3 style="font-size:15px;">Your Hand</h3>
-              <div class="cards-fan">
-                <div class="card selected">12</div><div class="card">21</div><div class="card">35</div><div class="card">46</div>
-                <div class="card">57</div><div class="card">64</div><div class="card">90</div>
-              </div>
-              <div class="controls">
-                <button class="secondary">Sort</button>
-                <button class="undo-btn">Undo (v2)</button>
-                <button class="primary" style="flex:1;">End Turn</button>
-              </div>
-            </section>
-          </div>
-        </div>
+  function renderSettings() {
+    const editable = role === 'host' || role === 'solo';
+    const solo = role === 'solo';
+    const e = errors(draft);
+    const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
-        <div class="phone-col">
-          <h4>Phone - 9 Cards (Compact)</h4>
-          <div class="phone-shell phone">
-            <div class="topbar">
-              <div class="pill">Q7M2K9 • Your turn • Draw 38</div>
-              <div class="pill">Need 2 cards this turn</div>
-              <div class="undo-slot">Undo Slot (v2)</div>
-            </div>
+    $('role-chip').textContent = { host: 'Host: applies to everyone', guest: 'View only', locked: 'Locked', solo: 'Solitaire' }[role];
+    const banner = $('banner');
+    const msg = { guest: 'Only the host can change these settings.', locked: 'Settings are locked while a game is in progress.', solo: 'Solitaire uses fixed player and turn rules, so those options are not shown.' }[role];
+    banner.hidden = !msg; banner.textContent = msg ?? '';
+    $('edit-view').hidden = !editable; $('read-view').hidden = editable; $('g-cheats').hidden = !editable;
+    for (const id of ['row-turn', 'row-refill', 'g-players']) $(id).hidden = solo;
+    $('g-game-display').hidden = false;
 
-            <div class="board" style="margin-top:10px;">
-              <div class="piles">
-                <h3 style="font-size:15px;">Foundation Piles</h3>
-                <div class="pile-grid">
-                  <article class="pile asc"><div class="tag">1↑ A</div><div class="top-card">43</div><div class="hint">&gt;43 or 33</div></article>
-                  <article class="pile asc"><div class="tag">1↑ B</div><div class="top-card">67</div><div class="hint">&gt;67 or 57</div></article>
-                  <article class="pile desc"><div class="tag">100↓ A</div><div class="top-card">84</div><div class="hint">&lt;84 or 94</div></article>
-                  <article class="pile desc"><div class="tag">100↓ B</div><div class="top-card">28</div><div class="hint">&lt;28 or 38</div></article>
-                </div>
-              </div>
+    const preset = presetOf(draft);
+    for (const r of document.querySelectorAll('input[name=preset]')) r.checked = r.value === preset;
+    for (const r of document.querySelectorAll('input[name=hand]')) r.checked = Number(r.value) === draft.hand;
+    for (const r of document.querySelectorAll('input[name=turn]')) r.checked = Number(r.value) === draft.perTurn;
+    $('max-card').value = draft.maxCard; $('max-card-out').textContent = draft.maxCard;
+    $('auto-refill').checked = draft.autoRefill; $('private').checked = draft.priv; $('arrows').checked = draft.arrows; $('lookup').checked = draft.lookup;
+    $('max-players').value = draft.maxPlayers;
+    if (document.activeElement !== $('min-card')) $('min-card').value = draft.minCard ?? '';
+    $('min-card').setAttribute('aria-invalid', e.min ? 'true' : 'false'); $('min-card-err').textContent = e.min ?? '';
 
-              <div class="turn-order">
-                <h3 style="font-size:14px;">Turn</h3>
-                <div class="players" style="margin-top:8px;">
-                  <div class="player active"><span>1. You</span><strong>9</strong></div>
-                  <div class="player"><span>2. Maya</span><strong>8</strong></div>
-                  <div class="player"><span>3. Alex</span><strong>9</strong></div>
-                  <div class="player"><span>4. Jo</span><strong>7</strong></div>
-                  <div class="player"><span>5. Pat</span><strong>9</strong></div>
-                  <div class="player"><span>6. Liv</span><strong>8</strong></div>
-                </div>
-              </div>
-            </div>
+    const deck = deckSize(draft);
+    $('summary').textContent = `${preset === 'custom' ? 'Custom' : cap(preset)}: ${deck ?? '?'}-card deck (${draft.minCard ?? '?'} to ${draft.maxCard}), hand of ${draft.hand}${solo ? '' : `, play ${draft.perTurn} per turn`}.`;
 
-            <section class="hand" style="margin-top:10px;">
-              <h3 style="font-size:15px;">Your Hand</h3>
-              <div class="cards-fan compact-9">
-                <div class="card selected">12</div><div class="card">21</div><div class="card">35</div>
-                <div class="card">46</div><div class="card">57</div><div class="card">64</div>
-                <div class="card">72</div><div class="card">90</div><div class="card">98</div>
-              </div>
-              <div class="controls">
-                <button class="secondary">Sort</button>
-                <button class="undo-btn">Undo (v2)</button>
-                <button class="primary" style="flex:1;">End Turn</button>
-              </div>
-            </section>
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>
+    const yn = (v) => (v ? 'On' : 'Off');
+    const facts = [
+      ['Difficulty', preset === 'custom' ? 'Custom' : cap(preset)],
+      ['Deck', `${deck} cards (${draft.minCard} to ${draft.maxCard})`],
+      ['Hand size', draft.hand],
+      ...(solo ? [] : [['Cards per turn', draft.perTurn], ['Auto refill hand', yn(draft.autoRefill)], ['Maximum players', draft.maxPlayers], ['Private game', yn(draft.priv)]]),
+      ['Pile arrows', yn(draft.arrows)], ['Card Lookup cheat', yn(draft.lookup)],
+    ];
+    $('read-view').innerHTML = `<dl class="facts">${facts.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
+
+    $('dirty').textContent = editable && dirty ? 'Unsaved changes' : '';
+    $('btn-close').textContent = editable && dirty ? 'Discard' : 'Close';
+    $('btn-save').hidden = !editable;
+    $('btn-save').disabled = !dirty || Object.keys(e).length > 0;
+  }
+
+  $('settings-form').addEventListener('input', (ev) => {
+    const t = ev.target;
+    if (t.name === 'preset') Object.assign(draft, PRESETS[t.value], { minCard: 2 });
+    else if (t.name === 'hand') draft.hand = Number(t.value);
+    else if (t.name === 'turn') draft.perTurn = Number(t.value);
+    else if (t.id === 'max-card') draft.maxCard = Number(t.value);
+    else if (t.id === 'auto-refill') draft.autoRefill = t.checked;
+    else if (t.id === 'min-card') draft.minCard = t.value === '' ? null : Number.parseInt(t.value, 10);
+    else if (t.id === 'max-players') draft.maxPlayers = Number(t.value);
+    else if (t.id === 'private') draft.priv = t.checked;
+    else if (t.id === 'arrows') draft.arrows = t.checked;
+    else if (t.id === 'lookup') draft.lookup = t.checked;
+    renderSettings();
+  });
+  $('btn-save').addEventListener('click', () => { saved = { ...draft }; renderSettings(); dlg.close(); });
+  $('btn-close').addEventListener('click', () => dlg.close());
+  dlg.addEventListener('close', () => { draft = { ...saved }; renderSettings(); });
+  for (const r of document.querySelectorAll('input[name=viewer]')) r.addEventListener('change', () => { role = r.value; draft = { ...saved }; renderSettings(); });
+  renderSettings();
+
+  // Fallbacks: invoker commands are newly available; closedby (click outside) is missing in Safari.
+  if (!('commandForElement' in HTMLButtonElement.prototype)) {
+    document.addEventListener('click', (e) => {
+      const b = e.target.closest('[command="show-modal"]');
+      if (b) document.getElementById(b.getAttribute('commandfor')).showModal();
+    });
+  }
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    const d = document.getElementById('settings');
+    const outside = (e) => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+    let down = false;
+    d.addEventListener('pointerdown', (e) => { down = outside(e); });
+    d.addEventListener('pointerup', (e) => { if (down && outside(e)) d.close(); });
+  }
+</script>
 </body>
 </html>

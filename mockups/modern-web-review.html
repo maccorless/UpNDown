@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="color-scheme" content="light dark" />
+<title>UpNDown Front End Review</title>
+<style>
+  /* Tokens use the project palette (App.css :root) with a dark counterpart for each. */
+  :root {
+    color-scheme: light dark;
+    --bg: light-dark(#d9ecff, #0e1a2b);
+    --panel: light-dark(#f7fbff, #172a42);
+    --ink: light-dark(#102033, #e6f0fb);
+    --muted: light-dark(#4e6480, #9db3cc);
+    --line: light-dark(#9dc1e5, #3a5578);
+    --accent: light-dark(#1a5a9a, #6cc2ff);
+    --asc: light-dark(#84dcc6, #1d6b58);
+    --desc: light-dark(#f28482, #9a3f3d);
+    --pile-ink: light-dark(#06231c, #ffffff);
+    --focus: light-dark(#0b5cad, #ffd166);
+  }
+  :root[data-theme='light'] { color-scheme: light; }
+  :root[data-theme='dark'] { color-scheme: dark; }
+
+  * { box-sizing: border-box; }
+  html { font-size: 18px; }
+  body {
+    margin: 0; padding: 0 1rem 4rem;
+    background: var(--bg); color: var(--ink);
+    font-family: 'Avenir Next', 'Segoe UI', sans-serif; line-height: 1.45;
+  }
+  main { max-width: 56rem; margin: 0 auto; display: grid; gap: 2.2rem; }
+  h1 { margin: 1.5rem 0 0; font-size: 1.6rem; }
+  h2 { margin: 0 0 .4rem; font-size: 1.2rem; }
+  h3 { margin: 0 0 .3rem; font-size: .95rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  p { margin: .3rem 0 .8rem; }
+  code, pre { font-family: ui-monospace, Menlo, monospace; font-size: .75rem; }
+  pre { background: color-mix(in srgb, var(--ink) 8%, transparent); padding: .6rem .8rem; border-radius: .5rem; overflow-x: auto; margin: .4rem 0; }
+  section { background: var(--panel); border: 1px solid var(--line); border-radius: .8rem; padding: 1.1rem 1.2rem; }
+  .cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+  .tag { display: inline-block; font-size: .65rem; font-weight: 700; padding: .1rem .5rem; border-radius: 1rem; border: 1px solid var(--line); margin-left: .4rem; vertical-align: middle; }
+  .meta { color: var(--muted); font-size: .8rem; }
+  table { width: 100%; border-collapse: collapse; font-size: .8rem; }
+  th, td { text-align: left; padding: .35rem .5rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+
+  /* Shared control styles: hover only where hover exists, press feedback, visible focus ring. */
+  button, .btn {
+    font: inherit; font-size: .85rem; cursor: pointer;
+    padding: .45rem .9rem; border-radius: .5rem; min-block-size: 2.5rem;
+    border: 2px solid var(--accent); background: var(--accent); color: light-dark(#fff, #0e1a2b);
+    transition: transform .1s, background-color .15s;
+  }
+  button.secondary { background: transparent; color: var(--accent); }
+  @media (hover: hover) { button:hover { filter: brightness(1.08); } }
+  button:active { transform: translateY(1px) scale(.98); }
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+  /* ---- Native dialog (replaces div role="dialog" + .modal-backdrop) ---- */
+  dialog {
+    width: min(38rem, calc(100% - 2rem)); max-block-size: calc(100dvh - 2rem);
+    padding: 1rem 1.2rem; border: 2px solid var(--line); border-radius: .8rem;
+    background: var(--panel); color: var(--ink);
+    box-shadow: 0 22px 48px rgb(4 12 24 / .45);
+  }
+  dialog:modal { overscroll-behavior: contain; }
+  dialog::backdrop { background: rgb(5 10 18 / .72); overflow: hidden; overscroll-behavior: contain; }
+  /* Entry/exit animation only when motion is allowed; the dialog still works with no animation. */
+  @media (prefers-reduced-motion: no-preference) {
+    dialog { transition: opacity .2s ease-out, scale .2s ease-out, display .2s allow-discrete, overlay .2s allow-discrete; }
+    dialog:not([open]) { opacity: 0; scale: .96; }
+    @starting-style { dialog[open] { opacity: 0; scale: .96; } }
+    dialog::backdrop { transition: background-color .2s, display .2s allow-discrete, overlay .2s allow-discrete; }
+    dialog:not([open])::backdrop { background-color: transparent; }
+    @starting-style { dialog[open]::backdrop { background-color: transparent; } }
+  }
+  .field { display: grid; gap: .25rem; margin: .7rem 0; }
+  .field label { font-weight: 600; font-size: .85rem; }
+  .field output { font-variant-numeric: tabular-nums; font-weight: 700; }
+  input[type='number'] { font: inherit; padding: .4rem .5rem; border: 2px solid var(--line); border-radius: .4rem; background: var(--bg); color: var(--ink); inline-size: 6rem; }
+  input[type='range'], input[type='checkbox'] { accent-color: var(--accent); }
+  .button-row { display: flex; gap: .6rem; justify-content: flex-end; margin-top: 1rem; }
+
+  /* ---- Mini board used for the light/dark and motion demos ---- */
+  .board { padding: .8rem; border-radius: .6rem; background: var(--bg); color: var(--ink); border: 1px solid var(--line); color-scheme: light dark; }
+  .board.force-light { color-scheme: light; }
+  .board.force-dark { color-scheme: dark; }
+  .piles { max-inline-size: 26rem; display: grid; grid-template-columns: repeat(4, 1fr); gap: .5rem; margin-bottom: .6rem; }
+  .pile { aspect-ratio: 3 / 4; border-radius: .5rem; display: grid; place-items: center; font-weight: 800; font-size: 1.1rem; border: 2px solid var(--line); background: var(--panel); }
+  .pile.asc { background: var(--asc); color: var(--pile-ink); }
+  .pile.desc { background: var(--desc); color: var(--pile-ink); }
+  .hand { display: flex; gap: .4rem; flex-wrap: wrap; }
+  .card { inline-size: 2.6rem; aspect-ratio: 2 / 3; padding: 0; font-weight: 800; background: var(--panel); color: var(--ink); border: 2px solid var(--line); }
+  .pulse { @media (prefers-reduced-motion: no-preference) { animation: pulse 1.8s ease-out infinite; } }
+  @keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--desc) 70%, transparent); } 100% { box-shadow: 0 0 0 .9rem transparent; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>UpNDown: modern web review</h1>
+    <p class="meta">Based on <code>apps/client/src/App.tsx</code> (2,916 lines) and <code>App.css</code> (1,553 lines), checked against the Google modern-web-guidance corpus. Everything below is a working demo. Switch your OS between light and dark, or use the buttons, to see the themes.</p>
+    <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+      <button class="secondary" type="button" data-set-theme="">System</button>
+      <button class="secondary" type="button" data-set-theme="light">Light</button>
+      <button class="secondary" type="button" data-set-theme="dark">Dark</button>
+    </div>
+  </header>
+
+  <section>
+    <h2>Findings, ranked</h2>
+    <table>
+      <thead><tr><th>#</th><th>Finding in the current code</th><th>Change</th><th>Effort</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>9 overlays are <code>&lt;div role="dialog" aria-modal&gt;</code> inside a click-to-close <code>.modal-backdrop</code> (settings, stats, end game, kick player, nas cheat, host ended, back to lobby and others). I found no focus trap, <code>inert</code> or focus-return code, and <code>autoFocus</code> is used once.</td><td>Native <code>&lt;dialog&gt;</code> via <code>showModal()</code>. Focus, Esc, top layer and focus return come free.</td><td>Medium, one shared <code>Modal</code> component</td></tr>
+        <tr><td>2</td><td>No <code>:focus-visible</code> rules anywhere. <code>.card-lookup-input</code> sets <code>outline: none</code> and only changes the border colour.</td><td>One global focus ring plus press feedback on buttons and cards.</td><td>Small</td></tr>
+        <tr><td>3</td><td>No <code>prefers-reduced-motion</code>. Four animations run unconditionally (<code>splash-in</code>, <code>toast-in</code>, <code>backward-ten-pulse</code> and <code>backward-ten-label</code>).</td><td>Wrap each in <code>@media (prefers-reduced-motion: no-preference)</code>.</td><td>Small</td></tr>
+        <tr><td>4</td><td>Light theme only. No <code>color-scheme</code>, no <code>prefers-color-scheme</code>. Modals hard-code <code>#f7fbff</code> and <code>#0f2741</code>.</td><td><code>color-scheme: light dark</code> plus <code>light-dark()</code> tokens.</td><td>Medium, many hard-coded colours</td></tr>
+        <tr><td>5</td><td><code>max-height: calc(100vh - 32px)</code> on the settings and stats modals (App.css lines 737, 843). On phones, <code>vh</code> ignores the browser toolbar.</td><td><code>dvh</code>. The board already uses <code>100dvh</code>.</td><td>Trivial</td></tr>
+        <tr><td>6</td><td>Settings use 6 number inputs for values that span 4 to 5 steps (hand size 5 to 9, players, cards per turn).</td><td>Range sliders with a live value for the small ranges. Keep number inputs for 2 to 99.</td><td>Small. My call, not from the guide.</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>1. Native dialog <span class="tag">replaces 9 custom overlays</span></h2>
+    <p>The settings panel rebuilt with <code>&lt;dialog&gt;</code>. Open it, press Esc, click outside, or Tab around: focus stays inside and returns to the button.</p>
+    <div class="cols">
+      <div>
+        <h3>Now</h3>
+<pre>&lt;div className="modal-backdrop" role="presentation"
+     onClick={onClose}&gt;
+  &lt;div className="panel settings-modal"
+       role="dialog" aria-modal="true"
+       aria-label="game settings"
+       onClick={e =&gt; e.stopPropagation()}&gt;</pre>
+      </div>
+      <div>
+        <h3>Suggested</h3>
+<pre>&lt;button command="show-modal"
+        commandfor="settings"&gt;Settings&lt;/button&gt;
+&lt;dialog id="settings" closedby="any"
+        aria-labelledby="settings-title"&gt;
+  &lt;form method="dialog"&gt; ... &lt;/form&gt;
+&lt;/dialog&gt;</pre>
+      </div>
+    </div>
+    <button type="button" command="show-modal" commandfor="settings">Open settings</button>
+
+    <dialog id="settings" closedby="any" aria-labelledby="settings-title">
+      <h2 id="settings-title">Game Settings</h2>
+      <form method="dialog">
+        <div class="field">
+          <label for="hand">Hand size: <output id="hand-out" for="hand">7</output></label>
+          <input id="hand" name="hand" type="range" min="5" max="9" value="7" />
+        </div>
+        <div class="field">
+          <label for="minp">Minimum cards per turn: <output id="minp-out" for="minp">2</output></label>
+          <input id="minp" name="minp" type="range" min="2" max="4" value="2" />
+        </div>
+        <div class="field">
+          <label for="minv">Lowest card value</label>
+          <input id="minv" name="minv" type="number" min="2" max="99" value="2" />
+        </div>
+        <div class="field">
+          <label for="maxv">Highest card value</label>
+          <input id="maxv" name="maxv" type="number" min="2" max="99" value="99" />
+        </div>
+        <label><input type="checkbox" checked /> Sounds</label>
+        <div class="button-row">
+          <button class="secondary" value="cancel" autofocus>Close</button>
+          <button value="save">Save</button>
+        </div>
+      </form>
+    </dialog>
+    <p class="meta">Removed from React: <code>role="dialog"</code>, <code>aria-modal</code>, the backdrop click handler, <code>stopPropagation</code> and the manual Esc handlers. <code>closedby</code> is not in Safari yet, so click-outside there uses the small fallback at the bottom of this page; Esc and the back gesture work everywhere.</p>
+  </section>
+
+  <section>
+    <h2>2. Light and dark themes <span class="tag">color-scheme + light-dark()</span></h2>
+    <p>The same board markup in both schemes. Pile colours stay readable because each token has its own dark value instead of inverting.</p>
+    <div class="cols">
+      <div class="board force-light"><div class="piles"><div class="pile asc">1 ↑</div><div class="pile asc">1 ↑</div><div class="pile desc">100 ↓</div><div class="pile desc">100 ↓</div></div><div class="hand"><button class="card">12</button><button class="card">47</button><button class="card">63</button></div></div>
+      <div class="board force-dark"><div class="piles"><div class="pile asc">1 ↑</div><div class="pile asc">1 ↑</div><div class="pile desc">100 ↓</div><div class="pile desc">100 ↓</div></div><div class="hand"><button class="card">12</button><button class="card">47</button><button class="card">63</button></div></div>
+    </div>
+<pre>:root { color-scheme: light dark; }
+:root { --panel: light-dark(#f7fbff, #172a42);
+        --ink:   light-dark(#102033, #e6f0fb); }</pre>
+    <p class="meta">Also add <code>&lt;meta name="color-scheme" content="light dark"&gt;</code> to <code>index.html</code> to stop a white flash on load. <code>accent-color</code> then themes the checkboxes and sliders for free.</p>
+  </section>
+
+  <section>
+    <h2>3. Focus, press and reduced motion <span class="tag">a11y</span></h2>
+    <p>Tab through these. The ring is a single rule. The pulsing pile is the existing "backward ten" effect, now opt-in: with reduced motion on, it simply does not animate.</p>
+    <div class="board">
+      <div class="piles"><div class="pile asc">1 ↑</div><div class="pile desc pulse">100 ↓</div><div class="pile asc">1 ↑</div><div class="pile desc">100 ↓</div></div>
+      <div class="hand"><button class="card">12</button><button class="card">47</button><button class="card">63</button><button class="card">88</button></div>
+    </div>
+<pre>:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+button:active  { transform: translateY(1px) scale(.98); }
+.pile { @media (prefers-reduced-motion: no-preference) { animation: ... } }</pre>
+    <p class="meta">Do not use a global <code>animation-duration: 0.01ms</code> reset; the guide warns it can make animations more jarring. Handle each animation on its own. Any JS that waits for <code>animationend</code> must continue if no animation ran.</p>
+  </section>
+
+  <section>
+    <h2>Suggested order of work</h2>
+    <p>1) Focus ring, reduced motion and <code>dvh</code> (one hour, no behaviour change). 2) Extract one <code>Modal</code> component backed by <code>&lt;dialog&gt;</code> and move the 9 overlays onto it. That fits the rule in <code>CLAUDE.md</code> to extract components rather than grow <code>App.tsx</code>. 3) Dark tokens. 4) Settings sliders, if you agree.</p>
+    <p class="meta">Not recommended now: view transitions for card plays. The guide covers them, but I did not review how the board updates on server pushes, so I would not add them without that check.</p>
+  </section>
+</main>
+
+<script>
+  // Theme buttons for this page only.
+  for (const b of document.querySelectorAll('[data-set-theme]')) {
+    b.addEventListener('click', () => {
+      const t = b.dataset.setTheme;
+      t ? document.documentElement.dataset.theme = t : delete document.documentElement.dataset.theme;
+    });
+  }
+  // Live values for the sliders.
+  for (const r of document.querySelectorAll('input[type=range]')) {
+    r.addEventListener('input', () => { document.getElementById(r.id + '-out').value = r.value; });
+  }
+  // Fallback: invoker commands are only "newly available" (Safari 26.2, Dec 2025).
+  if (!('commandForElement' in HTMLButtonElement.prototype)) {
+    for (const b of document.querySelectorAll('[command="show-modal"]')) {
+      b.addEventListener('click', () => document.getElementById(b.getAttribute('commandfor')).showModal());
+    }
+  }
+  // Fallback: closedby (light dismiss) is missing in Safari. Require press and release outside the box.
+  if (!('closedBy' in HTMLDialogElement.prototype)) {
+    const outside = (e, d) => { const r = d.getBoundingClientRect(); return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; };
+    for (const d of document.querySelectorAll('dialog[closedby="any"]')) {
+      let down = false;
+      d.addEventListener('pointerdown', (e) => { down = outside(e, d); });
+      d.addEventListener('pointerup', (e) => { if (down && outside(e, d)) d.close(); });
+    }
+  }
+</script>
+</body>
+</html>

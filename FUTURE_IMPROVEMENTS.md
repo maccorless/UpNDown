@@ -17,7 +17,7 @@ This document tracks what has been built and what is planned next.
 | End game confirmation | Custom modal replaces browser confirm() |
 | Player kick (lobby) | Host can remove players; kicked player gets a notification |
 | Card lookup cheat | Ctrl-Shift-C to check if a card is in draw / in hand (who) / played; shift-enter for private result |
-| Settings numeric inputs | Spinner arrows removed; plain typeable fields |
+| Settings dialog redesign | Grouped native dialog: presets with a Custom state, segmented hand size and turn minimum, highest-card slider, typeable Advanced field, read-only summary for non-hosts |
 | Difficulty presets | Trivial / Easy / Normal / Hard buttons above settings grid |
 | Player colours | Six distinct colours assigned by seat; shown on turn dots, player list, reactions |
 | Unplayable card dim | Cards with no legal move on any pile are dimmed always, even during other players' turns |

@@ -160,7 +160,7 @@ tests/e2e               Playwright smoke tests
 | minCardValue     | 2       | 2–99             | Must leave ≥18 card deck size   |
 | maxCardValue     | 99      | 2–99             |                                 |
 | handSize         | 7       | 5–9              |                                 |
-| minPlayers       | 2       | 2–6              |                                 |
+| minPlayers       | 2       | fixed at 2       | Not shown in the UI; the host can start once 2 players have joined |
 | maxPlayers       | 6       | 2–6              |                                 |
 | minCardsPerTurn  | 2       | 1–3              | Final stage always 1            |
 | autoRefillHand   | false   | on/off           | Always on in solitaire          |
@@ -168,6 +168,8 @@ tests/e2e               Playwright smoke tests
 | privateGame      | false   | on/off           | Hides from public join list     |
 | allowCardLookup  | false   | on/off           | Cheat: Ctrl+Shift+C lookup      |
 | showArrows       | true    | on/off           | Up/down arrow each side of pile card |
+
+Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom state), Cards (highest card slider, hand size, cards per turn, auto refill, lowest card under Advanced), Players (maximum, private game), pile arrows and the card-lookup cheat. Non-hosts and in-game viewers see a read-only summary. Sound effects are a per-device preference, not a game setting.
 
 - **Status**: ✅ **Implemented**
 
