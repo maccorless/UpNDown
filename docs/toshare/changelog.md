@@ -6,6 +6,8 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-12 | — | Chore: removed the two-service Railway leftovers (start:client script, Vite preview allowedHosts, VITE_SOCKET_URL runbook steps) |
+| 2026-11-12 | — | Feat: DEPLOY_TARGET=skiff\|railway sets the default TRUSTED_PROXY_HOPS (2 or 1); the Dockerfile no longer bakes it in, and Railway now runs the same single-container image |
 | 2026-11-09 | — | Feat: single-container Skiff deploy (server serves built client, Dockerfile, Skiff skills) |
 | 2026-11-10 | — | Fix: a non-function ack argument no longer crashes the server and wipes all games |
 | 2026-11-10 | — | Fix: seat takeover via game:rejoin now requires a per-seat rejoin token (rotated on use) |

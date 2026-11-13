@@ -24,9 +24,9 @@
 1. Verify service is healthy:
    - `curl https://<server-domain>/health`
 2. Confirm CORS config:
-   - `ALLOWED_ORIGINS` contains exact client URL(s).
-3. Confirm client websocket endpoint:
-   - `VITE_SOCKET_URL` points to current server domain.
+   - `ALLOWED_ORIGINS` contains the exact public URL(s) of the app.
+3. Confirm proxy settings:
+   - `DEPLOY_TARGET` is set (`skiff` or `railway`) and `clientIp` in `socket.connected` logs is the real client IP.
 4. Validate multiplayer smoke path:
    - create -> join -> start -> play -> end turn.
 
@@ -36,8 +36,7 @@
 
 1. Check server deployment status and `/health`.
 2. Check server logs for `process.uncaught_exception` or repeated `game.*_failed`.
-3. Verify `ALLOWED_ORIGINS` and client domain are aligned.
-4. Verify client build was redeployed after `VITE_SOCKET_URL` change.
+3. Verify `ALLOWED_ORIGINS` matches the URL users open (the server serves the client from the same origin).
 
 ### Users cannot join private/public lobbies
 

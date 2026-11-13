@@ -75,9 +75,11 @@ Server (`apps/server/.env`):
 - `PORT` (default `3001`)
 - `NODE_ENV` (`development|test|production`)
 - `ALLOWED_ORIGINS` (comma-separated origins, required in production)
+- `DEPLOY_TARGET` (`skiff|railway`, sets the default `TRUSTED_PROXY_HOPS`; see `DEPLOYMENT.md`)
+- `TRUSTED_PROXY_HOPS` (overrides the `DEPLOY_TARGET` default)
 
 Client (`apps/client/.env`):
-- `VITE_SOCKET_URL` (defaults to `http://localhost:3001` when unset)
+- `VITE_SOCKET_URL` (optional; dev builds default to `http://localhost:3001`, production builds to the page's own origin)
 
 See:
 - `apps/server/.env.example`

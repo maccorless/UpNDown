@@ -7,7 +7,7 @@ RUN npm run build:server && npm run build:client && npm prune --omit=dev
 
 FROM node:22-slim
 WORKDIR /app
-ENV NODE_ENV=production HOME=/tmp PORT=8080 CLIENT_DIST_DIR=/app/apps/client/dist TRUSTED_PROXY_HOPS=2
+ENV NODE_ENV=production HOME=/tmp PORT=8080 CLIENT_DIST_DIR=/app/apps/client/dist
 COPY --from=build /app /app
 USER 1000
 EXPOSE 8080

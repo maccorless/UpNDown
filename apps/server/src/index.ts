@@ -24,8 +24,12 @@ const runtimeEnvSchema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   ALLOWED_ORIGINS: z.string().optional(),
   CLIENT_DIST_DIR: z.string().min(1).optional(),
-  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).default(0)
+  TRUSTED_PROXY_HOPS: z.coerce.number().int().min(0).max(5).optional(),
+  DEPLOY_TARGET: z.enum(['skiff', 'railway']).optional()
 });
+
+// Reverse proxies in front of the server per platform (Skiff: ALB + APISIX). Explicit TRUSTED_PROXY_HOPS wins.
+const proxyHopsByTarget = { skiff: 2, railway: 1 } as const;
 
 type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string }) => void;
 type LogLevel = 'info' | 'warn' | 'error';
@@ -106,7 +110,8 @@ function loadRuntimeConfig(portOverride?: number): RuntimeConfig {
     PORT: process.env.PORT,
     ALLOWED_ORIGINS: process.env.ALLOWED_ORIGINS,
     CLIENT_DIST_DIR: process.env.CLIENT_DIST_DIR,
-    TRUSTED_PROXY_HOPS: process.env.TRUSTED_PROXY_HOPS
+    TRUSTED_PROXY_HOPS: process.env.TRUSTED_PROXY_HOPS,
+    DEPLOY_TARGET: process.env.DEPLOY_TARGET
   });
 
   const configuredOrigins = parseAllowedOrigins(parsed.ALLOWED_ORIGINS);
@@ -122,6 +127,7 @@ function loadRuntimeConfig(portOverride?: number): RuntimeConfig {
       : ['http://localhost:5173', 'http://127.0.0.1:5173'],
     clientDistDir: parsed.CLIENT_DIST_DIR ? path.resolve(parsed.CLIENT_DIST_DIR) : undefined,
     trustedProxyHops: parsed.TRUSTED_PROXY_HOPS
+      ?? (parsed.DEPLOY_TARGET ? proxyHopsByTarget[parsed.DEPLOY_TARGET] : 0)
   };
 }
 
