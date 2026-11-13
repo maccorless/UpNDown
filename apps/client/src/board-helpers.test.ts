@@ -1,6 +1,6 @@
 import type { GameState } from '@upndown/shared-types';
 import { describe, expect, it } from 'vitest';
-import { deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
+import { classifyPlay, deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
 
 // Players learn the game's key trick from this cue, so it must fire only for the exact backward 10 and in the pile's own direction.
 describe('isBackwardTen', () => {
@@ -42,5 +42,29 @@ describe('turnProgress', () => {
 
   it('keeps the count at the requirement when a player plays extra cards', () => {
     expect(turnProgress(4, 2)).toEqual({ text: '2 of 2 played', met: true });
+  });
+});
+
+// Each reaction sound teaches the player how the play went, so the thresholds are the behaviour under test.
+describe('classifyPlay', () => {
+  const base = (tops: number[], played: number, special = 0): GameState => ({
+    foundationPiles: tops.map((value, id) => ({ id, type: 'ascending', topCard: { id: `t${id}-${value}`, value } })),
+    statistics: { players: { a: { cardsPlayed: played, totalMovement: 0, specialPlays: special, nasCheatsUsed: 0 } } }
+  } as unknown as GameState);
+
+  it('cheers for a backward ten, which the engine counts as a special play', () => {
+    expect(classifyPlay(base([43], 5), base([33], 6, 1))).toBe('cheer');
+  });
+
+  it('claps for a move of exactly one and groans for a jump of more than twenty', () => {
+    expect(classifyPlay(base([10], 5), base([11], 6))).toBe('clap');
+    expect(classifyPlay(base([10], 5), base([31], 6))).toBe('groan');
+    expect(classifyPlay(base([10], 5), base([30], 6))).toBe('card'); // exactly 20 is not a jump
+  });
+
+  it('stays silent for undo, turn changes and catch-up bursts so nothing cheers twice', () => {
+    expect(classifyPlay(base([11], 6), base([10], 5))).toBeNull();
+    expect(classifyPlay(base([10], 5), base([10], 5))).toBeNull();
+    expect(classifyPlay(base([10], 5), base([40], 8))).toBeNull();
   });
 });

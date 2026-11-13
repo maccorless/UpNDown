@@ -1,6 +1,6 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
-import { playCardSound, playLoseSound, playSpecialPlaySound, playTurnStartSound, playWinSound } from './sounds.js';
-import { deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
+import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
+import { classifyPlay, deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
@@ -1201,15 +1201,19 @@ export function App(): JSX.Element {
     prevCurrentPlayerRef.current = currentId;
   }, [mode, multiplayerState, playerId]);
 
-  // Sound: special play flash
-  const prevSpecialPlayRef = useRef<number | null>(null);
+  // Sound: every play, by anyone, picked from how far it moved the pile
+  const prevPlayStateRef = useRef<GameState | null>(null);
   useEffect(() => {
-    const pileId = mode === 'multiplayer' ? specialPlayPileId : solitaireSpecialPlayPileId;
-    if (enableSoundsRef.current && pileId !== null && pileId !== prevSpecialPlayRef.current) {
-      playSpecialPlaySound();
-    }
-    prevSpecialPlayRef.current = pileId ?? null;
-  }, [mode, specialPlayPileId, solitaireSpecialPlayPileId]);
+    const state = mode === 'multiplayer' ? multiplayerState : mode === 'solitaire' ? solitaireState : null;
+    const prev = prevPlayStateRef.current;
+    prevPlayStateRef.current = state;
+    if (!enableSoundsRef.current || !prev || !state || prev.gameId !== state.gameId) return;
+    const kind = classifyPlay(prev, state);
+    if (kind === 'cheer') playCheerSound();
+    else if (kind === 'clap') playGolfClapSound();
+    else if (kind === 'groan') playGroanSound();
+    else if (kind === 'card') playCardSound();
+  }, [mode, multiplayerState, solitaireState]);
 
   const requestSocketAck = <T,>(event: string, payload: unknown): Promise<Ack<T>> => {
     const socket = getSocket();
@@ -1319,7 +1323,6 @@ export function App(): JSX.Element {
       setSolitaireState(next);
       setSolitaireSelectedCardId(null);
       setError(null);
-      if (enableSoundsRef.current) playCardSound();
 
       if (newSpecialPlays > oldSpecialPlays) {
         setSolitaireSpecialPlayPileId(pileId);
@@ -1483,7 +1486,6 @@ export function App(): JSX.Element {
     setError(null);
     setMultiplayerSelectedCardId(null);
     setMultiplayerState(ack.data.gameState);
-    if (enableSoundsRef.current) playCardSound();
   };
 
   const handleMultiplayerNasCheat = async (): Promise<void> => {
