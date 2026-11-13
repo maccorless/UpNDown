@@ -287,7 +287,7 @@ Limits are per socket. `game:lookup` and `game:join` are also limited per client
 
 **Tracked per player**:
 - **Cards Played**: Total count
-- **Total Movement**: Sum of `|newPileValue − oldPileValue|` for each play
+- **Total Movement**: Net progress of the piles: each play adds how far it moved the pile in its own direction, so a backward 10 subtracts 10. The team total equals the sum of how far each pile ended from its start.
 - **Special Plays**: Count of backward-10 moves
 - **Nas Cheats Used**: Card-swap cheat uses
 

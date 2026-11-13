@@ -1,4 +1,4 @@
-import type { Card, GameState } from '@upndown/shared-types';
+import type { Card, GameState, PlayerColor } from '@upndown/shared-types';
 
 // The special "backward 10" play: exactly 10 against the pile's direction. Any other legal play moves with it.
 export function isBackwardTen(card: Card, pileType: 'ascending' | 'descending', topValue: number): boolean {
@@ -33,4 +33,47 @@ export function classifyPlay(prev: GameState, next: GameState): PlayKind | null 
   const distance = Math.abs(moved.topCard.value - before.topCard.value);
   if (distance === 1) return 'clap';
   return distance > 20 ? 'groan' : 'card';
+}
+
+export interface StatsHighlights {
+  totalCardsPlayed: number;
+  totalSpecialPlays: number;
+  totalMovement: number;
+  averageMovement: number;
+  topBackwardTen: { names: string[]; count: number } | null;
+}
+
+// Everything the end-of-game screen shows beyond raw per-player rows. Ties name every tied player rather than picking one.
+export function statsHighlights(state: Pick<GameState, 'players' | 'statistics'>): StatsHighlights {
+  const rows = state.players.map((player) => ({
+    name: player.name,
+    stats: state.statistics.players[player.id] ?? { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 }
+  }));
+  const sum = (key: 'cardsPlayed' | 'totalMovement' | 'specialPlays'): number => rows.reduce((total, row) => total + row.stats[key], 0);
+  const totalCardsPlayed = sum('cardsPlayed');
+  const totalMovement = sum('totalMovement');
+  const most = Math.max(0, ...rows.map((row) => row.stats.specialPlays));
+  return {
+    totalCardsPlayed,
+    totalSpecialPlays: sum('specialPlays'),
+    totalMovement,
+    averageMovement: totalCardsPlayed > 0 ? totalMovement / totalCardsPlayed : 0,
+    topBackwardTen: most > 0 ? { names: rows.filter((row) => row.stats.specialPlays === most).map((row) => row.name), count: most } : null
+  };
+}
+
+export const PLAYER_COLOR_HEX: Record<PlayerColor, string> = {
+  red:    '#e05555',
+  orange: '#e08c30',
+  green:  '#4db86a',
+  cyan:   '#30b8d8',
+  purple: '#8855cc',
+  pink:   '#d855aa'
+};
+
+// "So close" only when it was: a loss with most of the deck left is not close, and saying so reads as mocking.
+export function lossLine(left: number, total: number): string {
+  return left <= Math.ceil(total * 0.1)
+    ? `So close: only ${left} of ${total} cards were left to play.`
+    : `${left} of ${total} cards were still to play.`;
 }

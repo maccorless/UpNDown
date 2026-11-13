@@ -128,6 +128,34 @@ describe('playCard', () => {
     expect(next.cardsPlayedThisTurn).toBe(1);
   });
 
+  // Players compare this number with the piles they can see, so it must equal how far the piles ended from where they started.
+  it('counts total movement as net progress, so a backward 10 takes ten away', () => {
+    const state = createStartedGameState({
+      gameId: 'ABC123',
+      hostId: 'p1',
+      players: [
+        { id: 'p1', name: 'Host' },
+        { id: 'p2', name: 'Player 2' }
+      ],
+      settings,
+      isSolitaire: false,
+      deck: [
+        card(12), card(5), card(2), card(6), card(30),
+        card(7), card(8), card(9), card(10), card(11)
+      ]
+    });
+
+    let next = playCard(state, 'p1', 'c-12', 0); // ascending 1 -> 12: +11
+    next = playCard(next, 'p1', 'c-2', 0); // 12 -> 2 is a backward 10: -10
+    next = playCard(next, 'p1', 'c-30', 2); // descending 31 -> 30: +1
+
+    const stats = next.statistics.players.p1;
+    expect(stats?.specialPlays).toBe(1);
+    expect(stats?.totalMovement).toBe(2);
+    const startToEnd = next.foundationPiles.reduce((sum, pile) => sum + Math.abs(pile.topCard.value - (pile.type === 'ascending' ? 1 : 31)), 0);
+    expect(stats?.totalMovement).toBe(startToEnd);
+  });
+
   it('rejects plays from non-active player', () => {
     const state = createStartedGameState({
       gameId: 'ABC123',

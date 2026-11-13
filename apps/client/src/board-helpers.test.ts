@@ -1,6 +1,6 @@
 import type { GameState } from '@upndown/shared-types';
 import { describe, expect, it } from 'vitest';
-import { classifyPlay, deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
+import { classifyPlay, deckProgress, isBackwardTen, lossLine, statsHighlights, turnProgress } from './board-helpers.js';
 
 // Players learn the game's key trick from this cue, so it must fire only for the exact backward 10 and in the pile's own direction.
 describe('isBackwardTen', () => {
@@ -66,5 +66,42 @@ describe('classifyPlay', () => {
     expect(classifyPlay(base([11], 6), base([10], 5))).toBeNull();
     expect(classifyPlay(base([10], 5), base([10], 5))).toBeNull();
     expect(classifyPlay(base([10], 5), base([40], 8))).toBeNull();
+  });
+});
+
+// The recap names who made the backward 10s, so a tie must credit everyone and nobody is credited for zero.
+describe('statsHighlights', () => {
+  const state = (specials: number[], movement: number[] = []): Pick<GameState, 'players' | 'statistics'> => ({
+    players: specials.map((_, i) => ({ id: `p${i}`, name: `P${i}`, isHost: i === 0, hand: [] })),
+    statistics: {
+      turns: 1,
+      startedAtMs: 0,
+      endedAtMs: 1,
+      players: Object.fromEntries(specials.map((n, i) => [`p${i}`, { cardsPlayed: 4, totalMovement: movement[i] ?? 0, specialPlays: n, nasCheatsUsed: 0 }]))
+    }
+  });
+
+  it('credits the player with the most backward tens, and everyone on a tie', () => {
+    expect(statsHighlights(state([1, 3])).topBackwardTen).toEqual({ names: ['P1'], count: 3 });
+    expect(statsHighlights(state([2, 2])).topBackwardTen).toEqual({ names: ['P0', 'P1'], count: 2 });
+  });
+
+  it('credits nobody when no backward ten was played', () => {
+    expect(statsHighlights(state([0, 0])).topBackwardTen).toBeNull();
+  });
+
+  it('keeps net movement signed and averages it over cards played', () => {
+    const result = statsHighlights(state([0, 0], [-6, 14]));
+    expect(result.totalMovement).toBe(8);
+    expect(result.averageMovement).toBe(1);
+  });
+});
+
+describe('lossLine', () => {
+  it('says so close only when a tenth or less of the deck was left', () => {
+    expect(lossLine(9, 98)).toContain('So close');
+    expect(lossLine(10, 98)).toContain('So close');
+    expect(lossLine(11, 98)).not.toContain('So close');
+    expect(lossLine(62, 98)).toBe('62 of 98 cards were still to play.');
   });
 });

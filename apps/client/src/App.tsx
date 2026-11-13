@@ -1,23 +1,15 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
-import { classifyPlay, deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
+import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
+import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import './App.css';
 
 const SOLO_PLAYER_ID = 'solo-player';
-
-const PLAYER_COLOR_HEX: Record<PlayerColor, string> = {
-  red:    '#e05555',
-  orange: '#e08c30',
-  green:  '#4db86a',
-  cyan:   '#30b8d8',
-  purple: '#8855cc',
-  pink:   '#d855aa'
-};
 
 type Mode = 'solitaire' | 'multiplayer';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
@@ -83,14 +75,6 @@ function syncGameIdInUrl(gameId: string | null): void {
     url.searchParams.delete(GAME_QUERY_PARAM);
   }
   window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-}
-
-function formatDurationLabel(ms: number): string {
-  const safeMs = Math.max(0, ms);
-  const totalSeconds = Math.floor(safeMs / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  return `${minutes}m ${seconds.toString().padStart(2, '0')}s`;
 }
 
 function normalizeSolitaireSettings(settings: GameSettings): GameSettings {
@@ -300,13 +284,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
   return (
     <div className={`gameboard ${mode === 'multiplayer' ? 'gameboard-multi' : 'gameboard-solo'}`}>
       {(gameState.gamePhase === 'won' || gameState.gamePhase === 'lost') && !dismissedPhaseSplash ? (
-        <section className={`phase-splash ${gameState.gamePhase}`} data-testid="phase-splash" aria-live="assertive">
-          <div className="phase-splash-label">{gameState.gamePhase === 'won' ? 'Victory' : 'Defeat'}</div>
-          <div className="phase-splash-title">{gameState.gamePhase === 'won' ? 'Game Won' : 'Game Lost'}</div>
-          <div className="phase-splash-subtitle">
-            {gameState.gamePhase === 'won' ? 'All cards cleared.' : 'No legal moves remain.'}
-          </div>
-        </section>
+        <EndGameSplash phase={gameState.gamePhase} state={gameState} />
       ) : null}
 
       <section className="panel foundation-panel" aria-label="foundation piles">
@@ -607,129 +585,6 @@ function validateCreateSettings(settings: GameSettings): string | null {
     return 'Deck must contain at least 18 cards';
   }
   return null;
-}
-
-interface EndGameStatisticsModalProps {
-  open: boolean;
-  mode: Mode;
-  gameState: GameState;
-  statistics: GameState['statistics'];
-  isHost: boolean;
-  onClose: () => void;
-  onPlayAgain: () => void;
-  onBackToLobby: () => void;
-}
-
-function EndGameStatisticsModal({
-  open,
-  mode,
-  gameState,
-  statistics,
-  isHost,
-  onClose,
-  onPlayAgain,
-  onBackToLobby
-}: EndGameStatisticsModalProps): JSX.Element | null {
-  if (!open) {
-    return null;
-  }
-
-  const fallbackPlayerStats = {
-    cardsPlayed: 0,
-    totalMovement: 0,
-    specialPlays: 0,
-    nasCheatsUsed: 0
-  };
-  const playerRows = gameState.players.map((player) => ({
-    ...player,
-    stats: statistics.players[player.id] ?? fallbackPlayerStats
-  }));
-  const totalCardsPlayed = playerRows.reduce((sum, row) => sum + row.stats.cardsPlayed, 0);
-  const totalMovement = playerRows.reduce((sum, row) => sum + row.stats.totalMovement, 0);
-  const totalSpecialPlays = playerRows.reduce((sum, row) => sum + row.stats.specialPlays, 0);
-  const totalNasCheatsUsed = playerRows.reduce((sum, row) => sum + row.stats.nasCheatsUsed, 0);
-  const hasNasCheatMode = gameState.nasCheat.enabledPlayerIds.length > 0;
-  const averageMovement = totalCardsPlayed > 0 ? (totalMovement / totalCardsPlayed) : 0;
-  const durationMs = statistics.startedAtMs
-    ? (statistics.endedAtMs ?? Date.now()) - statistics.startedAtMs
-    : 0;
-  const turnsOrPlaysLabel = mode === 'multiplayer'
-    ? `${statistics.turns} turns`
-    : `${totalCardsPlayed} plays`;
-
-  return (
-    <Modal className="panel stats-modal" dismiss="any" label="end game statistics" onClose={onClose}>
-      <div className="stats-modal-header">
-        <h2>{gameState.gamePhase === 'won' ? 'Game Won' : 'Game Lost'}</h2>
-        <div className="pill">{mode === 'multiplayer' ? `${gameState.players.length} players` : 'Solitaire'} • {turnsOrPlaysLabel} • {formatDurationLabel(durationMs)}</div>
-      </div>
-
-      <div className="stats-grid">
-        <div className="stats-label">Cards Played</div>
-        <div className="stats-value">{totalCardsPlayed}</div>
-        <div className="stats-label">Backward-10 Plays</div>
-        <div className="stats-value">{totalSpecialPlays}</div>
-        {hasNasCheatMode ? (
-          <>
-            <div className="stats-label">Nascheats Used</div>
-            <div className="stats-value">{totalNasCheatsUsed}</div>
-          </>
-        ) : null}
-        <div className="stats-label">Total Movement</div>
-        <div className="stats-value">{totalMovement}</div>
-        <div className="stats-label">Avg Movement / Card</div>
-        <div className="stats-value">{averageMovement.toFixed(1)}</div>
-      </div>
-
-      <div className="stats-table-wrap">
-        <table className="stats-table">
-          <thead>
-            <tr>
-              <th scope="col">Player</th>
-              <th scope="col">Cards Played</th>
-              <th scope="col">Backward-10</th>
-              {hasNasCheatMode ? <th scope="col">Nascheats</th> : null}
-              <th scope="col">Avg Move / Card</th>
-            </tr>
-          </thead>
-          <tbody>
-            {playerRows.map((row) => {
-              const playerAverage = row.stats.cardsPlayed > 0 ? (row.stats.totalMovement / row.stats.cardsPlayed) : 0;
-              return (
-                <tr key={row.id}>
-                  <td>{row.name}</td>
-                  <td>{row.stats.cardsPlayed}</td>
-                  <td>{row.stats.specialPlays}</td>
-                  {hasNasCheatMode ? <td>{row.stats.nasCheatsUsed}</td> : null}
-                  <td>{playerAverage.toFixed(1)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="button-row">
-        <button
-          type="button"
-          className="primary"
-          onClick={onPlayAgain}
-          disabled={mode === 'multiplayer' && !isHost}
-        >
-          {mode === 'multiplayer' ? (isHost ? 'Play Again' : 'Host Restarts') : 'Play Again'}
-        </button>
-        <button
-          type="button"
-          className="secondary"
-          onClick={onBackToLobby}
-          disabled={mode === 'multiplayer' && !isHost}
-        >
-          {mode === 'multiplayer' ? (isHost ? 'Back to Lobby' : 'Host Returns to Lobby') : 'Back to Lobby'}
-        </button>
-        <button type="button" className="secondary" onClick={onClose}>Close</button>
-      </div>
-    </Modal>
-  );
 }
 
 export function App(): JSX.Element {
@@ -2534,7 +2389,6 @@ export function App(): JSX.Element {
 
       {statsModalOpen && activeStatsSummary && activeStatsState ? (
         <EndGameStatisticsModal
-          open={statsModalOpen}
           mode={mode ?? 'multiplayer'}
           gameState={activeStatsState}
           statistics={activeStatsSummary}

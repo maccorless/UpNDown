@@ -6,6 +6,8 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-13 | — | Feat: end-of-game redesign: win splash with confetti (off when reduced motion is on), hero banner, stat tiles, "most backward 10s" callout, per-player bars with colour dots, "so close" wording only for near misses; works in dark theme |
+| 2026-11-13 | — | Fix: Total Movement counts a backward 10 as -10 (it added +10), so it equals how far the piles ended from their starts |
 | 2026-11-13 | — | Fix: Railway accepts sockets from the server's own .up.railway.app address (was rejected by CORS); removed the dead client domain from ALLOWED_ORIGINS |
 | 2026-11-13 | — | Feat: a refused CORS origin is now logged by name (cors.origin_rejected), so a wrong domain can be told from a bot |
 | 2026-11-13 | — | Feat: on desktop the foundation pile cards are the same size as the cards in your hand (one shared size variable); phones unchanged |

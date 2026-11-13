@@ -348,7 +348,8 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
 
   const activeStats = nextState.statistics.players[player.id] ?? emptyPlayerStats();
   const movementDelta = card.value - previousTopValue;
-  const movement = Math.abs(movementDelta);
+  // Net progress along the pile's direction: a backward 10 takes ten away, so the total matches where the piles ended.
+  const movement = pile.type === 'ascending' ? movementDelta : -movementDelta;
   const isBackwardTen = (
     (pile.type === 'ascending' && movementDelta === -10)
     || (pile.type === 'descending' && movementDelta === 10)

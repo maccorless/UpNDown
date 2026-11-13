@@ -240,7 +240,7 @@ All Socket.IO events are rate-limited server-side per socket using a sliding-win
 
 #### Tracked Per Player
 - ✅ **Cards Played**: Total count
-- ✅ **Total Movement**: Sum of `|newPileValue − oldPileValue|`
+- ✅ **Total Movement**: Net progress along each pile's direction (a backward 10 counts as −10); the team total equals how far the piles ended from their starts
 - ✅ **Special Plays**: Count of backward-10 moves
 - ✅ **Nas Cheats Used**: Card-swap cheat uses
 
@@ -250,6 +250,9 @@ End-game statistics modal shows:
 - Individual player stats in a table
 - Average movement per card (efficiency metric)
 - Game duration and turn count
+- Win or loss banner; a loss states how many cards were left (worded "so close" only within a tenth of the deck)
+- Callout naming the player(s) with the most backward 10s
+- Win splash shows confetti, hidden when the system asks for reduced motion
 
 **Status**: ✅ **Implemented**
 
