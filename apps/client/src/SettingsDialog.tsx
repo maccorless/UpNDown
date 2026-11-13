@@ -327,7 +327,7 @@ function OpenSettingsDialog({
             <Switch
               id="settings-sounds"
               label="Sound effects"
-              hint="Card plays, special moves, turn starts and results."
+              hint="Card plays, special moves, turn starts and results. Your turn also vibrates on phones."
               checked={enableSounds}
               onChange={onToggleSounds}
             />

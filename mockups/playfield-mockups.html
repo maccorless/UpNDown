@@ -24,6 +24,7 @@
     --focus: light-dark(#0b5cad, #ffd166);
     --good: #8ac926;
     --danger: light-dark(#9c2f17, #ff9b85);
+    --progress-fill: light-dark(rgb(138 201 38 / .45), rgb(108 194 255 / .28));
   }
   :root[data-theme='light'] { color-scheme: light; }
   :root[data-theme='dark'] { color-scheme: dark; }
@@ -92,6 +93,16 @@
   .reaction-row { display: flex; gap: .2rem; justify-content: center; min-block-size: 1.3rem; }
   .pile { all: unset; display: flex; align-items: center; justify-content: center; gap: .2rem; cursor: pointer; border-radius: .5rem; }
   .pile:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+  /* Gameplay cues: backward-10 badge, cards-left pill, turn progress. */
+  .pile-unit.highlight { box-shadow: 0 0 0 3px rgb(0 180 216 / .45) inset; }
+  .pile-unit.highlight-special { box-shadow: 0 0 0 3px #f2b705 inset; }
+  .pile-unit.highlight-special .pile { position: relative; }
+  .special-badge { position: absolute; top: -.2rem; right: -.1rem; z-index: 2; padding: 0 .35rem; border-radius: 1rem; border: 1px solid #b88600; background: #ffd166; color: #3d2e00; font-size: .6rem; font-weight: 800; line-height: 1.4; pointer-events: none; }
+  .pill.progress-pill { background-image: linear-gradient(to right, var(--progress-fill) var(--progress, 0%), transparent var(--progress, 0%)); }
+  .hand-title { display: flex; flex-direction: column; align-items: flex-start; gap: .2rem; }
+  .turn-progress { padding: .1rem .55rem; border-radius: 1rem; border: 1px solid var(--line); background: var(--bg); font-size: .72rem; font-weight: 700; white-space: nowrap; }
+  .turn-progress.met { border-color: var(--good); }
+  .tabstrip { display: inline-flex; gap: .5rem; align-items: center; padding: .3rem .8rem; border-radius: .5rem .5rem 0 0; border: 1px solid var(--line); background: var(--panel); font-size: .8rem; font-weight: 600; }
   .arrow { inline-size: .8rem; block-size: 1.2rem; fill: var(--slot-ink); flex: none; }
   .arrow.down { transform: scaleY(-1); }
   .top-card { inline-size: clamp(2.2rem, 7cqi, 3.4rem); aspect-ratio: 7 / 10; display: grid; place-items: center; border-radius: .5rem; background: #f4f7fb; color: #112338; border: 2px solid #c3cfdd; font-weight: 800; font-size: clamp(.9rem, 3.2cqi, 1.4rem); }
@@ -100,7 +111,9 @@
      Your slot is a solid ring on a white fill, not a coloured number. */
   .slot { padding: 0; min-block-size: 0; inline-size: 1.3rem; block-size: 1.3rem; border-radius: 50%; border: 1.5px dashed var(--slot-ink); background: transparent; color: var(--slot-ink); font-size: .65rem; font-weight: 700; line-height: 1; display: grid; place-items: center; cursor: default; }
   .slot.active { border-style: solid; background: #fff; color: #102033; font-size: .8rem; }
+  .slot.active { border: 2.5px solid var(--c, var(--slot-ink)); }
   .slot.mine { border: 2px solid var(--slot-ink); background: #fff; color: #102033; cursor: pointer; }
+  .slot.mine.active { border-color: var(--slot-ink); }
   .slot:disabled { cursor: default; color: var(--slot-ink); border: 1.5px dashed var(--slot-ink); background: transparent; }
   .slot.active:disabled { border-style: solid; background: #fff; color: #102033; }
 
@@ -235,13 +248,15 @@
       <li><strong>Removed:</strong> the Sort Hand button (the hand is always sorted), the "Need this turn" pill, the Undo slot banner and the per-pile text tags.</li>
       <li><strong>Contrast:</strong> slot numbers are solid ink, 11px bold or larger. Your own slot is a solid ring on white instead of a coloured number (was 1.5 to 2.3:1). Turn dots and the "You're next" label are readable too (were about 1.4 to 2:1).</li>
       <li><strong>Reactions:</strong> tap your own circle on a pile to cycle 👍, ❤️, 🔥, none. The number and the emoji share one circle.</li>
+      <li><strong>Gameplay cues (new):</strong> the foundation pill shows cards left to play and fills as the team plays the deck down; the active player sees "1 of 2 played" beside Your Hand; a pile that would take the selected card as a backward 10 gets a gold ring and a "−10" or "+10" badge; a reaction circle gets a ring in that player's colour (hover for the name); and the tab title becomes "(Your turn) UpNDown".</li>
       <li><strong>Modern web:</strong> visible focus ring and press feedback, reduced-motion-safe pulse, light and dark themes, <code>dvh</code> for the dialog, and a native <code>&lt;dialog&gt;</code> for Settings (open it from the Settings button).</li>
     </ul>
   </section>
 
   <section class="mockup">
     <h2>A. Desktop or tablet (6 players, you are player 2)</h2>
-    <p class="muted">Players panel is a side column. It is not your turn, so End Turn and Undo are disabled and your reaction circles are live.</p>
+    <p class="muted">Players panel is a side column. It is not your turn, so End Turn and Undo are disabled and your reaction circles are live. The tab above shows the title when it is your turn. Phone A below is your turn: one of two required plays is done, and the selected 33 would be a backward 10 on the 43 pile.</p>
+    <div class="tabstrip" aria-label="Browser tab title while it is your turn">(Your turn) UpNDown</div>
     <div class="frame" id="desktop"></div>
   </section>
 
@@ -371,7 +386,7 @@
 
       <fieldset class="group" id="g-device">
         <legend>This device <span class="tag">only you</span></legend>
-        <label class="switch"><span class="text"><span class="row-label">Sound effects</span><span class="hint">Card plays, special moves, turn starts and results.</span></span><input id="sounds" type="checkbox" role="switch" checked></label>
+        <label class="switch"><span class="text"><span class="row-label">Sound effects</span><span class="hint">Card plays, special moves, turn starts and results. Your turn also vibrates on phones.</span></span><input id="sounds" type="checkbox" role="switch" checked></label>
       </fieldset>
 
       <details class="adv" id="g-cheats">
@@ -381,7 +396,7 @@
     </div>
     <footer class="sheet-foot">
       <span class="spacer" id="dirty" aria-live="polite"></span>
-      <span class="ver">v1.10</span>
+      <span class="ver">v1.11</span>
       <button class="secondary" type="button" id="btn-close">Close</button>
       <button class="primary" type="button" id="btn-save">Save settings</button>
     </footer>
@@ -395,15 +410,17 @@
   const ARROW = '<svg class="arrow ARROWDIR" viewBox="0 0 14 22" aria-hidden="true" focusable="false"><path d="M7 0 L14 9 L9.5 9 L9.5 22 L4.5 22 L4.5 9 L0 9 Z"/></svg>';
 
   // reactions[pile][player] = index into EMOJI. Viewer is always player 2 and it is player 1's turn.
-  function render(root, { players, hand, compact, draw, reactions, flash }) {
-    const you = 1, current = 0, n = players.length;
+  function render(root, { players, hand, compact, draw, reactions, flash, you = 1, current = 0, played = 0, required = 2, selected = null }) {
+    const n = players.length;
+    const left = draw + players.reduce((a, p) => a + p.cards, 0);
+    const pct = Math.round(((98 - left) / 98) * 100);
     const piles = [['asc', 1], ['asc', 1], ['desc', 100], ['desc', 100]];
     const slot = (p, num, pi) => {
       const r = reactions?.[pi]?.[p];
       const mine = p === you;
       const text = r != null ? EMOJI[r] : num;
       const name = r != null ? `Player ${num} reacted ${LABEL[r]} to this pile` : `Player ${num}`;
-      return `<button type="button" class="slot${r != null ? ' active' : ''}${mine ? ' mine' : ''}" data-pile="${pi}" data-player="${p}" aria-label="${name}" ${mine ? '' : 'disabled'}>${text}</button>`;
+      return `<button type="button" class="slot${r != null ? ' active' : ''}${mine ? ' mine' : ''}" style="--c:${COLORS[players[p].color]}" data-pile="${pi}" data-player="${p}" aria-label="${name}" title="${r != null && !mine ? `${players[p].name} reacted ${LABEL[r]}` : ''}" ${mine ? '' : 'disabled'}>${text}</button>`;
     };
     const pileHtml = piles.map(([type, top], i) => {
       const top3 = players.slice(0, 3).map((_, p) => slot(p, p + 1, i)).join('');
@@ -411,9 +428,12 @@
       const dir = type === 'asc' ? 'up' : 'down';
       const arrow = ARROW.replace('ARROWDIR', dir);
       const value = type === 'asc' ? [43, 67][i] : [84, 28][i - 2];
-      return `<div class="pile-unit ${type}${flash === i ? ' flash' : ''}">
+      const legal = selected != null && (type === 'asc' ? (selected > value || selected === value - 10) : (selected < value || selected === value + 10));
+      const special = selected != null && legal && (type === 'asc' ? selected === value - 10 : selected === value + 10);
+      const badge = special ? `<span class="special-badge" aria-hidden="true">${type === 'asc' ? '\u221210' : '+10'}</span>` : '';
+      return `<div class="pile-unit ${type}${legal ? ' highlight' : ''}${special ? ' highlight-special' : ''}${flash === i ? ' flash' : ''}">
         <div class="reaction-row">${top3}</div>
-        <button type="button" class="pile" aria-label="Foundation ${type === 'asc' ? 'ascending' : 'descending'} with top card ${value}">${arrow}<span class="top-card">${value}</span>${arrow}</button>
+        <button type="button" class="pile" aria-label="Foundation ${type === 'asc' ? 'ascending' : 'descending'} with top card ${value}${special ? ', a backward ten play' : ''}">${badge}${arrow}<span class="top-card">${value}</span>${arrow}</button>
         <div class="reaction-row">${bot}</div>
       </div>`;
     }).join('');
@@ -422,12 +442,12 @@
     root.innerHTML = `<div class="app">
       <div class="app-header"><h4>UpNDown</h4><div class="tools"><button class="danger" type="button">End Game</button><button class="secondary" type="button" command="show-modal" commandfor="settings">Settings</button></div></div>
       <section class="panel foundation" aria-label="foundation piles">
-        <div class="panel-head"><h3>Foundation Piles</h3><span class="pill">Cards in Draw Pile: ${draw}</span></div>
+        <div class="panel-head"><h3>Foundation Piles</h3><span class="pill progress-pill" style="--progress:${pct}%" aria-label="${left} cards left to play, ${draw} in the draw pile">${left} left \u00b7 draw pile ${draw}</span></div>
         <div class="pile-grid">${pileHtml}</div>
       </section>
       <section class="panel hand" aria-label="your hand">
-        <div class="hand-head"><h3>Your Hand</h3><div class="tools"><button class="primary" type="button" disabled>End Turn</button><button class="secondary" type="button" disabled>Undo</button></div></div>
-        <div class="cards-fan${compact ? ' compact' : ''}">${hand.map((v, i) => `<button type="button" class="card${i === 0 ? ' selected' : ''}" aria-label="Card ${v}">${v}</button>`).join('')}</div>
+        <div class="hand-head"><div class="hand-title"><h3>Your Hand</h3>${you === current ? `<span class="turn-progress${played >= required ? ' met' : ''}" aria-live="polite">${Math.min(played, required)} of ${required} played${played >= required ? ' \u2713' : ''}</span>` : ''}</div><div class="tools"><button class="primary" type="button" ${you === current && played >= required ? '' : 'disabled'}>End Turn</button><button class="secondary" type="button" ${you === current && played > 0 ? '' : 'disabled'}>Undo</button></div></div>
+        <div class="cards-fan${compact ? ' compact' : ''}">${hand.map((v, i) => `<button type="button" class="card${v === selected ? ' selected' : ''}" aria-label="Card ${v}">${v}</button>`).join('')}</div>
       </section>
       <section class="panel players" aria-label="players list">
         <div class="panel-head"><div style="display:flex;gap:.4rem;align-items:center"><h3>Players</h3><span class="pill">${n}</span></div><button class="pill" type="button">Game: Q7M2K9</button></div>
@@ -440,9 +460,10 @@
   const P = (name, color, cards) => ({ name, color, cards });
   const six = [P('Ken', 'red', 9), P('Maya', 'orange', 9), P('Alex', 'green', 9), P('Jo', 'cyan', 7), P('Pat', 'purple', 9), P('Liv', 'pink', 8)];
   const react = { 0: { 0: 0, 3: 1 }, 1: { 2: 2 }, 3: { 0: 1, 1: 0 } };
-  render(document.getElementById('desktop'), { players: six, hand: [12, 21, 35, 46, 57, 64, 72], draw: 38, reactions: react, flash: 3 });
-  render(document.getElementById('phone-a'), { players: six.slice(0, 3), hand: [12, 21, 35, 46, 57, 64, 90], draw: 77, reactions: { 0: { 0: 1 } } });
-  render(document.getElementById('phone-b'), { players: six, hand: [12, 21, 35, 46, 57, 64, 72, 90, 98], compact: true, draw: 38, reactions: react });
+  render(document.getElementById('desktop'), { players: six, hand: [12, 21, 35, 46, 57, 64, 72], draw: 38, reactions: react, flash: 3, selected: 60 });
+  const three = [P('Ken', 'red', 7), P('Maya', 'orange', 7), P('Alex', 'green', 7)];
+  render(document.getElementById('phone-a'), { players: three, hand: [33, 46, 57, 64, 72, 80, 90], draw: 76, you: 0, current: 0, played: 1, selected: 33, reactions: { 0: { 1: 1 }, 1: { 2: 0 } } });
+  render(document.getElementById('phone-b'), { players: six, hand: [12, 21, 35, 46, 57, 64, 72, 90, 98], compact: true, draw: 38, reactions: react, selected: 12 });
 
   // Tapping your own circle cycles like, love, really love, none (nextReaction in App.tsx).
   document.addEventListener('click', (e) => {

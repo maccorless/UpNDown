@@ -25,6 +25,7 @@
   --on-accent: #ffffff;
   --danger-text: #9c2f17;
   --focus: #0b5cad;
+  --progress-fill: rgba(138, 201, 38, 0.45);
 }
 
 * {
@@ -384,6 +385,63 @@ body {
   box-shadow: 0 0 0 3px rgba(0, 180, 216, 0.45) inset;
 }
 
+/* The selected card would be a backward 10 here: gold ring and a text badge (the cue is not colour alone). */
+.pile-unit.highlight-special {
+  box-shadow: 0 0 0 3px #f2b705 inset;
+}
+
+.pile-unit.highlight-special .pile {
+  position: relative;
+}
+
+.special-badge {
+  position: absolute;
+  top: -4px;
+  right: -2px;
+  z-index: 2;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid #b88600;
+  background: #ffd166;
+  color: #3d2e00;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  pointer-events: none;
+}
+
+/* Remaining cards: the pill fills as the team plays the deck down. */
+.pill.progress-pill {
+  background-image: linear-gradient(to right, var(--progress-fill) var(--progress, 0%), transparent var(--progress, 0%));
+}
+
+.hand-title {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.hand-title h2 {
+  margin: 0;
+}
+
+.turn-progress {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--soft);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.turn-progress.met {
+  border-color: var(--good);
+  background: color-mix(in srgb, var(--good) 35%, var(--soft));
+}
+
 /* Reaction slots in a row above (players 1-3) and below (players 4-6) the card */
 .reaction-row {
   display: flex;
@@ -413,7 +471,7 @@ body {
 }
 
 .reaction-slot.active {
-  border: 1.5px solid var(--slot-ink);
+  border: 2.5px solid var(--player-color, var(--slot-ink));
   background: #ffffff;
   font-size: 17px;
   color: inherit;
@@ -1880,6 +1938,7 @@ button:not(:disabled):not(.card):not(.pile):not(.reaction-slot):active {
     --on-accent: #0e1a2b;
     --danger-text: #ff9b85;
     --focus: #ffd166;
+    --progress-fill: rgba(108, 194, 255, 0.28);
   }
 
   body {

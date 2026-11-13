@@ -6,6 +6,11 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-13 | — | Feat: turn progress ("1 of 2 played") beside Your Hand for the active player, so a disabled End Turn explains itself |
+| 2026-11-13 | — | Feat: a pile gets a gold ring and a "−10" or "+10" badge when the selected card would be a backward 10 there |
+| 2026-11-13 | — | Feat: foundation pill shows cards left to play and fills as the deck is played down |
+| 2026-11-13 | — | Feat: reaction circles carry a ring in the reacting player's colour (hover for the name) |
+| 2026-11-13 | — | Feat: tab title shows "(Your turn)" when it is your turn; your turn also vibrates on phones when sound effects are on |
 | 2026-11-13 | — | Feat: Settings dialog redesigned (grouped, presets with Custom state, segmented hand size and turn minimum, highest-card slider, visible help text, sticky Save/Discard, read-only summary for non-hosts); minimum players is fixed at 2 |
 | 2026-11-13 | — | Fix: Settings number fields could not be cleared or retyped (every keystroke was clamped); lowest card is now a typeable Advanced field with an inline error |
 | 2026-11-13 | — | Fix: pile reaction numbers, your own slot, turn dots and the "You're next" label meet 4.5:1 contrast (your own slot measured 1.5 to 2.3:1) |

@@ -1,5 +1,6 @@
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { playCardSound, playLoseSound, playSpecialPlaySound, playTurnStartSound, playWinSound } from './sounds.js';
+import { deckProgress, isBackwardTen, turnProgress } from './board-helpers.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type PlayerColor, type ReactionState, type ReactionType } from '@upndown/shared-types';
@@ -253,6 +254,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
   }
 
   const sortedHand = sortByValue(me.hand);
+  const progress = deckProgress(gameState);
   const selectedCard = sortedHand.find((card) => card.id === selectedCardId) ?? null;
   const isCompactHand = sortedHand.length >= 8;
 
@@ -310,11 +312,18 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
       <section className="panel foundation-panel" aria-label="foundation piles">
         <div className="foundation-header">
           <h2>Foundation Piles</h2>
-          <div className="pill mini">Cards in Draw Pile: {gameState.drawPile.length}</div>
+          <div
+            className="pill mini progress-pill"
+            style={{ '--progress': `${Math.round(((progress.total - progress.left) / progress.total) * 100)}%` } as React.CSSProperties}
+            aria-label={`${progress.left} cards left to play, ${gameState.drawPile.length} in the draw pile`}
+          >
+            {progress.left} left · draw pile {gameState.drawPile.length}
+          </div>
         </div>
         <div className="pile-grid">
           {gameState.foundationPiles.map((pile) => {
             const highlighted = canPlayOnPile(selectedCard, pile.topCard, pile.type);
+            const backwardTen = !!selectedCard && highlighted && isBackwardTen(selectedCard, pile.type, pile.topCard.value);
 
             const leftPlayers = mode === 'multiplayer' ? gameState.players.slice(0, 3) : [];
             const rightPlayers = mode === 'multiplayer' ? gameState.players.slice(3, 6) : [];
@@ -342,7 +351,9 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                     : `Player ${playerNum}`}
                   title={isMine && !isMyTurn && gameState.gamePhase === 'playing'
                     ? 'Click to react'
-                    : undefined}
+                    : reaction
+                      ? `${player.name} reacted ${reaction.replace('_', ' ')}`
+                      : undefined}
                 >
                   {reaction ? REACTION_EMOJI[reaction] : playerNum}
                 </div>
@@ -363,7 +374,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             return (
               <div
                 key={pile.id}
-                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}`}
+                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''}${backwardTen ? ' highlight-special' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}`}
               >
                 {isSpecialFlash && (
                   <span className="backward-ten-label">{specialLabel}</span>
@@ -379,8 +390,9 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                   onClick={() => onPlayPile(pile.id)}
                   data-testid={`pile-${pile.id}`}
                   disabled={inputsDisabled}
-                  aria-label={`Foundation ${pile.type} with top card ${pile.topCard.value}`}
+                  aria-label={`Foundation ${pile.type} with top card ${pile.topCard.value}${backwardTen ? ', a backward ten play' : ''}`}
                 >
+                  {backwardTen ? <span className="special-badge" aria-hidden="true">{pile.type === 'ascending' ? '\u221210' : '+10'}</span> : null}
                   {showArrows ? pileArrow : null}
                   <span className="top-card" data-testid={`pile-top-${pile.id}`}>{pile.topCard.value}</span>
                   {showArrows ? pileArrow : null}
@@ -515,7 +527,17 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
 
       <section className="panel hand-panel" aria-label="your hand">
         <div className="hand-header">
-          <h2>Your Hand</h2>
+          <div className="hand-title">
+            <h2>Your Hand</h2>
+            {mode === 'multiplayer' && gameState.gamePhase === 'playing' && isMyTurn ? (() => {
+              const played = turnProgress(gameState.cardsPlayedThisTurn, requiredPlaysThisTurn);
+              return (
+                <span className={`turn-progress${played.met ? ' met' : ''}`} aria-live="polite" data-testid="turn-progress">
+                  {played.text}{played.met ? ' \u2713' : ''}
+                </span>
+              );
+            })() : null}
+          </div>
           <div className="button-row">
             {onEndTurn ? (
               <button
@@ -1158,6 +1180,15 @@ export function App(): JSX.Element {
     prevPhaseRef.current = phase;
   }, [mode, multiplayerState?.gamePhase, solitaireState.gamePhase, solitaireActive]);
 
+  // Tab title: a hidden tab shows when it is your turn
+  const isMyTurnNow = mode === 'multiplayer'
+    && multiplayerState?.gamePhase === 'playing'
+    && multiplayerState.players[multiplayerState.currentPlayerIndex]?.id === playerId;
+  useEffect(() => {
+    document.title = isMyTurnNow ? '(Your turn) UpNDown' : 'UpNDown';
+    return () => { document.title = 'UpNDown'; };
+  }, [isMyTurnNow]);
+
   // Sound: your turn starts (multiplayer only)
   const prevCurrentPlayerRef = useRef<string | null>(null);
   useEffect(() => {
@@ -1165,6 +1196,7 @@ export function App(): JSX.Element {
     const currentId = multiplayerState.players[multiplayerState.currentPlayerIndex]?.id ?? null;
     if (enableSoundsRef.current && currentId === playerId && currentId !== prevCurrentPlayerRef.current && multiplayerState.gamePhase === 'playing') {
       playTurnStartSound();
+      if ('vibrate' in navigator) navigator.vibrate(150);
     }
     prevCurrentPlayerRef.current = currentId;
   }, [mode, multiplayerState, playerId]);
