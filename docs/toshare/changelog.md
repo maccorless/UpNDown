@@ -6,6 +6,8 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-13 | — | Fix: Railway accepts sockets from the server's own .up.railway.app address (was rejected by CORS); removed the dead client domain from ALLOWED_ORIGINS |
+| 2026-11-13 | — | Feat: a refused CORS origin is now logged by name (cors.origin_rejected), so a wrong domain can be told from a bot |
 | 2026-11-13 | — | Feat: on desktop the foundation pile cards are the same size as the cards in your hand (one shared size variable); phones unchanged |
 | 2026-11-13 | — | Feat: play sounds for everyone: golf clap for a move of 1, groan for a jump over 20, cheer for a backward 10 (replaces the old blip); other players' plays now tick too |
 | 2026-11-13 | — | Feat: turn progress ("1 of 2 played") beside Your Hand for the active player, so a disabled End Turn explains itself |

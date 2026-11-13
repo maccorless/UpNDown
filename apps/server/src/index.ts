@@ -167,6 +167,8 @@ export function createRealtimeServer(port?: number) {
       callback(null, true);
       return;
     }
+    // Name the origin: the bare error says nothing about who was refused. Cap it, since the header is client-controlled.
+    log('warn', 'cors.origin_rejected', { origin: String(origin).slice(0, 200) });
     callback(new Error('Origin not allowed by CORS'));
   };
 
