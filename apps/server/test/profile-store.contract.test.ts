@@ -1,12 +1,17 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { migrate } from '../src/db/migrate.js';
-import { PgProfileStore, type ProfileStore } from '../src/profile/store.js';
+import { PgProfileStore, type GameResultRow, type ProfileStore } from '../src/profile/store.js';
 import { MemoryProfileStore } from './helpers/memory-store.js';
 
 const url = process.env.TEST_DATABASE_URL;
 const hash = (n: number): Buffer => Buffer.from(`token-hash-${n}`.padEnd(32, '0'));
 const at = (iso: string): Date => new Date(iso);
+const resultRow = (userId: string, gameId: string, over: Partial<GameResultRow> = {}): GameResultRow => ({
+  userId, gameId, mode: 'multiplayer', outcome: 'won', startedAt: at('2030-01-01T10:00:00Z'), endedAt: at('2030-01-01T10:20:00Z'),
+  durationMs: 1_200_000, turns: 14, playerCount: 3, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 30, myTotalMovement: -8,
+  mySpecialPlays: 2, myNasCheats: 0, handSize: 7, minCardsPerTurn: 2, maxCard: 99, settings: { handSize: 7 }, ...over
+});
 
 // One set of rules, run against both stores, so route tests on the in-memory store say something about Postgres.
 function contract(make: () => Promise<ProfileStore>): void {
@@ -82,6 +87,29 @@ function contract(make: () => Promise<ProfileStore>): void {
     expect(await store.getNameConfirmed(userId)).toBe(true);
     await store.replaceSettings(userId, { playerName: 'A B', enableSounds: true }, { confirmName: false });
     expect(await store.getNameConfirmed(userId)).toBe(true);
+  });
+
+  it('records a result once: the same game written again is a duplicate, a different game is a new row', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-results');
+    expect(await store.recordResults([resultRow(userId, 'run-1')])).toEqual([{ userId, outcome: 'inserted' }]);
+    expect(await store.recordResults([resultRow(userId, 'run-1')])).toEqual([{ userId, outcome: 'duplicate' }]);
+    expect(await store.recordResults([resultRow(userId, 'run-2')])).toEqual([{ userId, outcome: 'inserted' }]);
+  });
+
+  // A player who deleted their account between joining and the end must not cost the others their result.
+  it('skips a row whose account is gone and still records the rest of the game', async () => {
+    const a = await store.findOrCreateUser('google', 'acct-res-a');
+    const b = await store.findOrCreateUser('google', 'acct-res-b');
+    const ghost = '00000000-0000-0000-0000-000000000000';
+    const outcomes = await store.recordResults([resultRow(a.userId, 'run-3'), resultRow(ghost, 'run-3'), resultRow(b.userId, 'run-3')]);
+    expect(outcomes.map((o) => o.outcome)).toEqual(['inserted', 'user_missing', 'inserted']);
+  });
+
+  it('records two players of the same game, each under their own account', async () => {
+    const a = await store.findOrCreateUser('google', 'acct-res-c');
+    const b = await store.findOrCreateUser('google', 'acct-res-d');
+    const outcomes = await store.recordResults([resultRow(a.userId, 'run-4'), resultRow(b.userId, 'run-4')]);
+    expect(outcomes.map((o) => o.outcome)).toEqual(['inserted', 'inserted']);
   });
 
   it('replaces the whole settings document', async () => {
@@ -165,3 +193,62 @@ describe.skipIf(!url)('PgProfileStore with a small pool', () => {
     expect(new Set(results.map((r) => r.userId)).size).toBe(1);
   }, 10_000);
 });
+
+describe.skipIf(!url)('PgProfileStore result rows', () => {
+  const schema = `r_${Date.now()}_${Math.floor(Math.random() * 1e6)}`;
+  let admin: pg.Pool;
+  let pool: pg.Pool;
+  let store: PgProfileStore;
+  beforeAll(async () => {
+    admin = new pg.Pool({ connectionString: url, max: 1 });
+    await admin.query(`create schema ${schema}`);
+    pool = new pg.Pool({ connectionString: url, max: 4, options: `-c search_path=${schema}` });
+    await migrate(pool);
+    store = new PgProfileStore(pool);
+  });
+  afterAll(async () => {
+    await pool?.end();
+    await admin?.query(`drop schema ${schema} cascade`);
+    await admin?.end();
+  });
+
+  it('stores every field as given, including a negative net movement and the settings snapshot', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'pg-fields');
+    await store.recordResults([resultRow(userId, 'run-fields', { myTotalMovement: -8, settings: { handSize: 7, allowUndo: true } })]);
+    const { rows } = await pool.query('select * from game_results where user_id = $1', [userId]);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      game_id: 'run-fields', mode: 'multiplayer', outcome: 'won', duration_ms: 1_200_000, turns: 14, player_count: 3,
+      cards_total: 98, cards_left: 0, my_cards_played: 30, my_total_movement: -8, my_special_plays: 2, my_nas_cheats: 0,
+      hand_size: 7, min_cards_per_turn: 2, max_card: 99, settings: { handSize: 7, allowUndo: true }
+    });
+    expect(rows[0].started_at.toISOString()).toBe('2030-01-01T10:00:00.000Z');
+    expect(rows[0].ended_at.toISOString()).toBe('2030-01-01T10:20:00.000Z');
+  });
+
+  // One row the database refuses (here a made-up outcome) must be reported, and the neighbours must still be written.
+  it('reports a row the database rejects as failed with its code, and still writes the rows around it', async () => {
+    const a = await store.findOrCreateUser('google', 'pg-bad-a');
+    const b = await store.findOrCreateUser('google', 'pg-bad-b');
+    const outcomes = await store.recordResults([
+      resultRow(a.userId, 'run-bad'),
+      resultRow(b.userId, 'run-bad', { outcome: 'tied' as never }),
+      resultRow(a.userId, 'run-bad-2')
+    ]);
+    expect(outcomes.map((o) => o.outcome)).toEqual(['inserted', 'failed', 'inserted']);
+    expect(outcomes[1]?.code).toBe('23514');
+    expect((await pool.query('select 1 from game_results where user_id = $1', [b.userId])).rowCount).toBe(0);
+    expect((await pool.query('select 1 from game_results where user_id = $1', [a.userId])).rowCount).toBe(2);
+  });
+
+  // The same game arriving twice at once (a retry racing the original) must leave exactly one row.
+  it('leaves one row when the same game is written many times at once', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'pg-concurrent');
+    const outcomes = await Promise.all(Array.from({ length: 6 }, () => store.recordResults([resultRow(userId, 'run-race')])));
+    const flat = outcomes.flat().map((o) => o.outcome).sort();
+    expect(flat.filter((o) => o === 'inserted')).toHaveLength(1);
+    expect(flat.filter((o) => o === 'duplicate')).toHaveLength(5);
+    expect((await pool.query('select 1 from game_results where user_id = $1', [userId])).rowCount).toBe(1);
+  });
+});
+

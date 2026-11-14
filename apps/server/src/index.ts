@@ -221,7 +221,9 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     }
   });
 
-  const manager = new GameManager();
+  const manager = new GameManager({ onResults: (rows) => auth.recordResults(rows) });
+  // The account behind a socket, from the session cookie at the handshake. Guests have none.
+  const userIdOf = (socket: Socket): string | undefined => (typeof socket.data.userId === 'string' ? socket.data.userId : undefined);
   const broadcastState = (gameId: string, state: Parameters<typeof toPlayerView>[0]): void => {
     for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
       io.to(socketId).emit('game:updated', toPlayerView(state, socketId));
@@ -303,7 +305,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       }
       try {
         const { gameId, previousPlayerId, rejoinToken } = rejoinGamePayloadSchema.parse(payload);
-        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken);
+        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken, userIdOf(socket));
         io.in(previousPlayerId).socketsLeave(gameId);
         socket.join(gameId);
         broadcastState(gameId, gameState);
@@ -328,7 +330,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       }
       try {
         const parsed = createGamePayloadSchema.parse(payload);
-        const gameState = manager.createGame(socket.id, parsed);
+        const gameState = manager.createGame(socket.id, parsed, userIdOf(socket));
         socket.join(gameState.gameId);
         broadcastState(gameState.gameId, gameState);
         log('info', 'game.created', { socketId: socket.id, gameId: gameState.gameId, hostId: socket.id });
@@ -352,7 +354,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       }
       try {
         const parsed = joinGamePayloadSchema.parse(payload);
-        const gameState = manager.joinGame(socket.id, parsed);
+        const gameState = manager.joinGame(socket.id, parsed, userIdOf(socket));
         socket.join(gameState.gameId);
         broadcastState(gameState.gameId, gameState);
         log('info', 'game.joined', { socketId: socket.id, gameId: gameState.gameId });
@@ -664,7 +666,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     });
   };
 
-  return { app, io, httpServer, config, auth, start: () => httpServer.listen(config.port), stop };
+  return { app, io, httpServer, config, auth, manager, start: () => httpServer.listen(config.port), stop };
 }
 
 if (process.env.NODE_ENV !== 'test') {

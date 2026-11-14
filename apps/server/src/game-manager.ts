@@ -18,6 +18,8 @@ import type {
 import { defaultMultiplayerSettings, PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
 import { uniqueInGameName } from './player-names.js';
+import { buildResultRows } from './profile/result-rows.js';
+import type { GameResultRow } from './profile/store.js';
 
 interface GameRoom {
   gameState: GameState;
@@ -25,7 +27,14 @@ interface GameRoom {
   updatedAtMs: number;
   turnUndoStack: GameState[];
   rejoinTokens: Map<string, string>;
+  // Which signed-in account holds each seat, recorded when the player sits down. Guests have no entry.
+  userIdByPlayerId: Map<string, string>;
+  // A room code is not a game: a finished room goes back to the lobby and starts again under the same code. Each start
+  // gets a fresh run id, and that is what a recorded result is keyed on.
+  runId: string | null;
 }
+
+const isFinished = (state: GameState): boolean => state.gamePhase === 'won' || state.gamePhase === 'lost';
 
 function tokensMatch(expected: string, actual: string): boolean {
   const a = Buffer.from(expected);
@@ -73,7 +82,14 @@ function generateGameId(): string {
   return id;
 }
 
+export interface GameManagerHooks {
+  // Called with the rows to record, never awaited: a slow or failing database must not slow or break play.
+  onResults?: (rows: GameResultRow[]) => void;
+}
+
 export class GameManager {
+  constructor(private readonly hooks: GameManagerHooks = {}) {}
+
   private readonly rooms = new Map<string, GameRoom>();
   private readonly reactions = new Map<string, Map<string, Map<number, ReactionType>>>();
 
@@ -136,7 +152,7 @@ export class GameManager {
     return token;
   }
 
-  rejoinPlayer(gameId: string, oldPlayerId: string, newPlayerId: string, rejoinToken: string): GameState {
+  rejoinPlayer(gameId: string, oldPlayerId: string, newPlayerId: string, rejoinToken: string, userId?: string): GameState {
     const room = this.requireRoom(gameId);
     const { gameState } = room;
     const expectedToken = room.rejoinTokens.get(oldPlayerId);
@@ -157,6 +173,12 @@ export class GameManager {
     room.rejoinTokens.delete(oldPlayerId);
     room.rejoinTokens.set(newPlayerId, randomUUID());
 
+    // The seat keeps the account it was taken with. A rejoining socket with a different account, or none, is still seated
+    // by its token but does not take the credit; a seat taken as a guest may adopt the account that comes back signed in.
+    const seatUser = room.userIdByPlayerId.get(oldPlayerId) ?? userId;
+    room.userIdByPlayerId.delete(oldPlayerId);
+    if (seatUser) room.userIdByPlayerId.set(newPlayerId, seatUser);
+
     // Swap reactions
     const gameReactions = this.reactions.get(gameId);
     if (gameReactions?.has(oldPlayerId)) {
@@ -174,7 +196,7 @@ export class GameManager {
     return room.gameState.statistics.players[playerId]?.specialPlays ?? 0;
   }
 
-  createGame(ownerPlayerId: string, payload: CreateGamePayload): GameState {
+  createGame(ownerPlayerId: string, payload: CreateGamePayload, userId?: string): GameState {
     if (payload.isSolitaire) {
       throw new Error('Solitaire is client-only in v1');
     }
@@ -222,7 +244,9 @@ export class GameManager {
       createdAtMs: now,
       updatedAtMs: now,
       turnUndoStack: [],
-      rejoinTokens: new Map([[ownerPlayerId, randomUUID()]])
+      rejoinTokens: new Map([[ownerPlayerId, randomUUID()]]),
+      userIdByPlayerId: new Map(userId ? [[ownerPlayerId, userId]] : []),
+      runId: null
     });
     return state;
   }
@@ -258,7 +282,7 @@ export class GameManager {
       .sort((a, b) => b.createdAtMs - a.createdAtMs);
   }
 
-  joinGame(playerId: string, payload: JoinGamePayload): GameState {
+  joinGame(playerId: string, payload: JoinGamePayload, userId?: string): GameState {
     const room = this.rooms.get(payload.gameId);
     if (!room) {
       throw new Error(GAME_UNAVAILABLE_MESSAGE);
@@ -298,6 +322,7 @@ export class GameManager {
 
     room.gameState = nextState;
     room.rejoinTokens.set(playerId, randomUUID());
+    if (userId) room.userIdByPlayerId.set(playerId, userId);
     room.updatedAtMs = Date.now();
     return nextState;
   }
@@ -342,9 +367,13 @@ export class GameManager {
       deck: shuffle(buildDeck(gameState.settings))
     });
 
+    const before = room.gameState;
     room.gameState = started;
+    room.runId = randomUUID();
     room.turnUndoStack = [];
     room.updatedAtMs = Date.now();
+    // The engine checks for a win or loss as it deals, so a game can end the moment it starts.
+    this.recordIfFinished(room, before, started);
     return started;
   }
 
@@ -360,6 +389,7 @@ export class GameManager {
     }
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
+    this.recordIfFinished(room, previous, nextState);
     return nextState;
   }
 
@@ -386,18 +416,22 @@ export class GameManager {
 
   nasCheat(playerId: string, payload: NasCheatPayload): GameState {
     const room = this.requireRoom(payload.gameId);
-    const nextState = useNasCheat(room.gameState, playerId, payload.cardId);
+    const previous = room.gameState;
+    const nextState = useNasCheat(previous, playerId, payload.cardId);
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
+    this.recordIfFinished(room, previous, nextState);
     return nextState;
   }
 
   endTurn(playerId: string, gameId: string): GameState {
     const room = this.requireRoom(gameId);
-    const nextState = endTurn(room.gameState, playerId);
+    const previous = room.gameState;
+    const nextState = endTurn(previous, playerId);
     room.gameState = nextState;
     room.turnUndoStack = [];
     room.updatedAtMs = Date.now();
+    this.recordIfFinished(room, previous, nextState);
     return nextState;
   }
 
@@ -412,6 +446,20 @@ export class GameManager {
     if (gameState.gamePhase === 'lobby') {
       throw new Error('Game is already in lobby');
     }
+
+    // Ending a game that is still being played is the one way to quit a started game in v1, and only the host can do it.
+    // A finished game was already recorded when it finished, so ending it again records nothing.
+    if (gameState.gamePhase === 'playing' && room.runId) {
+      this.emitResults(buildResultRows({
+        state: gameState,
+        runId: room.runId,
+        outcome: 'abandoned',
+        userIdByPlayerId: room.userIdByPlayerId,
+        nowMs: Date.now(),
+        onlyPlayerId: gameState.hostId
+      }));
+    }
+    room.runId = null;
 
     const nextState: GameState = {
       ...gameState,
@@ -481,6 +529,7 @@ export class GameManager {
     }
 
     const players = gameState.players.filter((player) => player.id !== playerId);
+    room.userIdByPlayerId.delete(playerId);
     if (players.length === 0) {
       this.rooms.delete(gameId);
       return null;
@@ -539,6 +588,7 @@ export class GameManager {
 
     const kickedPlayer = gameState.players[kickedPlayerIndex]!;
     const players = gameState.players.filter((p) => p.id !== payload.targetPlayerId);
+    room.userIdByPlayerId.delete(payload.targetPlayerId);
 
     // Return kicked player's cards to draw pile in random order
     let drawPile = [...gameState.drawPile];
@@ -614,6 +664,28 @@ export class GameManager {
     }
 
     return updates;
+  }
+
+  // Every assignment of a new state that can finish a game goes through this. It fires only when a state that was not
+  // finished becomes finished, so a rejoin or a kick that re-assigns an already finished state cannot record it again.
+  private recordIfFinished(room: GameRoom, before: GameState, after: GameState): void {
+    if (isFinished(before) || !isFinished(after) || !room.runId) return;
+    this.emitResults(buildResultRows({
+      state: after,
+      runId: room.runId,
+      outcome: after.gamePhase as 'won' | 'lost',
+      userIdByPlayerId: room.userIdByPlayerId,
+      nowMs: Date.now()
+    }));
+  }
+
+  private emitResults(rows: GameResultRow[]): void {
+    if (rows.length === 0) return;
+    try {
+      this.hooks.onResults?.(rows);
+    } catch {
+      // Recording is best effort. Nothing it does may break the game it is recording.
+    }
   }
 
   private generateUniqueGameId(): string {

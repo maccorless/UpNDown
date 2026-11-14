@@ -1,7 +1,7 @@
 import type { RequestHandler, Router } from 'express';
 import pg from 'pg';
 import { migrate } from '../db/migrate.js';
-import { PgProfileStore, type ProfileStore } from '../profile/store.js';
+import { PgProfileStore, type GameResultRow, type ProfileStore } from '../profile/store.js';
 import { resolveAuthSettings, type AuthSettings } from './config.js';
 import { legacyHostRedirect } from './legacy-host.js';
 import { createGoogleProvider, type Provider } from './providers.js';
@@ -15,6 +15,8 @@ export interface AuthRuntime {
   isEnabled(): boolean;
   sessionFromCookie(cookieHeader: string | undefined): Promise<SessionInfo | null>;
   onSessionRevoked(listener: (sessionId: string) => void): void;
+  // Fire and forget. A no-op when auth is off. Failures are logged here, once, and the rows are dropped: no retry, no queue.
+  recordResults(rows: GameResultRow[]): void;
   start(): Promise<void>;
   stop(): Promise<void>;
 }
@@ -33,7 +35,7 @@ const SESSION_SWEEP_MS = 60 * 60 * 1000;
 export function createAuthRuntime(
   env: Record<string, string | undefined>,
   log: Log,
-  options: { trustedProxyHops?: number; overrides?: AuthTestOverrides } = {}
+  options: { trustedProxyHops?: number; overrides?: AuthTestOverrides; drainTimeoutMs?: number } = {}
 ): AuthRuntime {
   const resolved = resolveAuthSettings(env);
   const { overrides } = options;
@@ -41,6 +43,20 @@ export function createAuthRuntime(
   let pool: pg.Pool | undefined;
   let sweepTimer: NodeJS.Timeout | undefined;
   const revokedListeners: Array<(sessionId: string) => void> = [];
+  const pendingWrites = new Set<Promise<void>>();
+  const drainTimeoutMs = options.drainTimeoutMs ?? 5000;
+
+  // Waits for writes in flight, including ones that start while it waits, but never longer than the timeout: a stuck
+  // database must not hold a redeploy hostage. Results that arrive after that are best effort.
+  const drain = async (): Promise<void> => {
+    const deadline = Date.now() + drainTimeoutMs;
+    while (pendingWrites.size > 0 && Date.now() < deadline) {
+      await Promise.race([
+        Promise.allSettled([...pendingWrites]),
+        new Promise<void>((resolve) => { setTimeout(resolve, Math.max(0, deadline - Date.now())).unref(); })
+      ]);
+    }
+  };
 
   const { router, stop: stopRouter, sessionFromCookie } = createAuthRouter({
     services: () => services,
@@ -66,6 +82,24 @@ export function createAuthRuntime(
     isEnabled: () => services !== null,
     sessionFromCookie,
     onSessionRevoked: (listener) => { revokedListeners.push(listener); },
+    recordResults(rows) {
+      const current = services;
+      if (!current || rows.length === 0) return;
+      const runId = rows[0]?.gameId;
+      const job: Promise<void> = current.store.recordResults(rows)
+        .then((outcomes) => {
+          const count = (outcome: string): number => outcomes.filter((o) => o.outcome === outcome).length;
+          log('info', 'game.results_recorded', { runId, rows: rows.length, inserted: count('inserted'), duplicate: count('duplicate'), userMissing: count('user_missing'), failed: count('failed') });
+          const failed = outcomes.filter((o) => o.outcome === 'failed');
+          // Codes only: a database error message can carry the values that were being written.
+          if (failed.length > 0) log('warn', 'game.result_write_failed', { runId, count: failed.length, codes: [...new Set(failed.map((f) => f.code ?? 'unknown'))] });
+        })
+        .catch((err: unknown) => {
+          log('warn', 'game.result_write_failed', { runId, count: rows.length, codes: [err instanceof Error ? err.name : 'unknown'] });
+        })
+        .finally(() => { pendingWrites.delete(job); });
+      pendingWrites.add(job);
+    },
     async start() {
       if (overrides) {
         services = { store: overrides.store, providers: new Map([[overrides.provider.id, overrides.provider]]), settings: overrides.settings };
@@ -92,6 +126,7 @@ export function createAuthRuntime(
       }
     },
     async stop() {
+      await drain();
       services = null;
       if (sweepTimer) clearInterval(sweepTimer);
       stopRouter();

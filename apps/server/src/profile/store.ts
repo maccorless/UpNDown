@@ -2,6 +2,32 @@ import type { Pool, PoolClient } from 'pg';
 
 type Queryable = Pick<Pool | PoolClient, 'query'>;
 
+export interface GameResultRow {
+  userId: string;
+  // The run id of a started game (see GameManager), never the room code: a code is reused across games and rooms.
+  gameId: string;
+  mode: 'solitaire' | 'multiplayer';
+  outcome: 'won' | 'lost' | 'abandoned';
+  startedAt: Date;
+  endedAt: Date;
+  durationMs: number;
+  turns: number;
+  playerCount: number;
+  cardsTotal: number;
+  cardsLeft: number;
+  myCardsPlayed: number;
+  myTotalMovement: number;
+  mySpecialPlays: number;
+  myNasCheats: number;
+  handSize: number;
+  minCardsPerTurn: number;
+  maxCard: number;
+  settings: Record<string, unknown>;
+}
+
+// `duplicate` is the same game written twice. `user_missing` is an account deleted after joining: permanent, never retried.
+export type RecordOutcome = 'inserted' | 'duplicate' | 'user_missing' | 'failed';
+
 export interface StoredSession {
   userId: string;
   createdAt: Date;
@@ -26,9 +52,12 @@ export interface ProfileStore {
   touchSession(tokenHash: Buffer, lastSeenAt: Date, expiresAt: Date): Promise<void>;
   revokeSession(tokenHash: Buffer): Promise<void>;
   deleteExpiredSessions(now: Date): Promise<number>;
+  // One row at a time, so one bad row never costs the others theirs. Never throws for a row: the outcome says what happened.
+  recordResults(rows: GameResultRow[]): Promise<Array<{ userId: string; outcome: RecordOutcome; code?: string }>>;
 }
 
 const UNIQUE_VIOLATION = '23505';
+const FOREIGN_KEY_VIOLATION = '23503';
 
 export class PgProfileStore implements ProfileStore {
   constructor(private readonly pool: Pool) {}
@@ -118,6 +147,30 @@ export class PgProfileStore implements ProfileStore {
 
   async revokeSession(tokenHash: Buffer): Promise<void> {
     await this.pool.query('delete from sessions where token_hash = $1', [tokenHash]);
+  }
+
+  async recordResults(rows: GameResultRow[]): Promise<Array<{ userId: string; outcome: RecordOutcome; code?: string }>> {
+    const results: Array<{ userId: string; outcome: RecordOutcome; code?: string }> = [];
+    for (const row of rows) {
+      try {
+        const inserted = await this.pool.query(
+          `insert into game_results (user_id, game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count,
+             cards_total, cards_left, my_cards_played, my_total_movement, my_special_plays, my_nas_cheats, hand_size,
+             min_cards_per_turn, max_card, settings)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb)
+           on conflict (user_id, game_id) do nothing`,
+          [row.userId, row.gameId, row.mode, row.outcome, row.startedAt, row.endedAt, row.durationMs, row.turns, row.playerCount,
+            row.cardsTotal, row.cardsLeft, row.myCardsPlayed, row.myTotalMovement, row.mySpecialPlays, row.myNasCheats, row.handSize,
+            row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings)]
+        );
+        results.push({ userId: row.userId, outcome: (inserted.rowCount ?? 0) > 0 ? 'inserted' : 'duplicate' });
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        // The account was deleted after the player joined. That is permanent, so it is skipped rather than retried.
+        results.push({ userId: row.userId, outcome: code === FOREIGN_KEY_VIOLATION ? 'user_missing' : 'failed', ...(code ? { code } : {}) });
+      }
+    }
+    return results;
   }
 
   async deleteExpiredSessions(now: Date): Promise<number> {

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ProfileStore, StoredSession } from '../../src/profile/store.js';
+import type { GameResultRow, ProfileStore, RecordOutcome, StoredSession } from '../../src/profile/store.js';
 
 // In-memory ProfileStore for route tests. test/profile-store.contract.test.ts holds it to the same rules as Postgres.
 export class MemoryProfileStore implements ProfileStore {
@@ -30,6 +30,16 @@ export class MemoryProfileStore implements ProfileStore {
   }
 
   readonly confirmed = new Set<string>();
+  readonly results: GameResultRow[] = [];
+
+  async recordResults(rows: GameResultRow[]): Promise<Array<{ userId: string; outcome: RecordOutcome; code?: string }>> {
+    return rows.map((row) => {
+      if (!this.users.has(row.userId)) return { userId: row.userId, outcome: 'user_missing' as const };
+      if (this.results.some((r) => r.userId === row.userId && r.gameId === row.gameId)) return { userId: row.userId, outcome: 'duplicate' as const };
+      this.results.push(row);
+      return { userId: row.userId, outcome: 'inserted' as const };
+    });
+  }
 
   async replaceSettings(userId: string, settings: Record<string, unknown>, options: { confirmName?: boolean } = {}): Promise<void> {
     const user = this.users.get(userId);

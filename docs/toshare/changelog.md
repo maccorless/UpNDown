@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-14 | — | Feat: signed-in players' multiplayer games are recorded (win or loss, or an abandoned game for the host who ends a live one) with their own counters, game length and settings. Guests are not recorded. Recording never slows or breaks play, never writes a game twice, and a redeploy waits up to 5 seconds for writes in flight |
 | 2026-11-14 | — | Feat: first sign-in asks for your player name ("Input your player name or accept a random one"): editable field, shuffle for another random name, a preview of how others will see you, Continue. Existing accounts are asked once; "Change name" on the landing reopens it |
 | 2026-11-14 | — | Feat: new landing screen: big Up/Down wordmark in pile colours, tagline, two mode cards showing a pile of numbers, and a sign-in strip that says why to sign in. Entrance plays once per page load, never under reduced motion |
 | 2026-11-14 | — | Fix: at 320px the multiplayer header clipped the Settings button; the header now wraps. Also: buttons use the page font, placeholder text meets contrast, How to Play looks like a control, the join-screen Join button is the primary action, the public games list has an accessible name, and the name field says it is a name to browsers |
