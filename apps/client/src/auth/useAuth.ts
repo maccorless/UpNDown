@@ -1,3 +1,4 @@
+import { storedSettingsSchema, type StoredSettings } from '@upndown/shared-types';
 import { useCallback, useEffect, useState } from 'react';
 
 export type LoginMessage = 'cancelled' | 'failed';
@@ -6,6 +7,8 @@ export interface AuthState {
   // 'loading' shows nothing at all, so a signed-in player never sees login buttons flash.
   status: 'loading' | 'disabled' | 'guest' | 'signedIn';
   playerName: string | null;
+  // The account's stored document from /api/me. Null when signed out or the server sent nothing usable.
+  settings: StoredSettings | null;
   loginMessage: LoginMessage | null;
   signIn: () => void;
   signOut: () => Promise<void>;
@@ -27,6 +30,7 @@ function takeLoginMessage(): LoginMessage | null {
 export function useAuth(navigate: (url: string) => void = (url) => window.location.assign(url)): AuthState {
   const [status, setStatus] = useState<AuthState['status']>('loading');
   const [playerName, setPlayerName] = useState<string | null>(null);
+  const [settings, setSettings] = useState<StoredSettings | null>(null);
   const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
 
   useEffect(() => {
@@ -38,8 +42,10 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
       const me = await fetch('/api/me', { ...sameOrigin, signal: controller.signal });
       if (me.status === 401) return setStatus('guest');
       if (!me.ok) return setStatus('disabled');
-      const body = await me.json() as { playerName?: string | null };
+      const body = await me.json() as { playerName?: string | null; settings?: unknown };
       setPlayerName(typeof body.playerName === 'string' ? body.playerName : null);
+      const parsed = storedSettingsSchema.safeParse(body.settings);
+      setSettings(parsed.success ? parsed.data : null);
       return setStatus('signedIn');
     };
     // Any failure (offline, an old server, the client page served for an unknown path) means plain guest play.
@@ -60,11 +66,12 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
     });
     if (response.ok) {
       setPlayerName(null);
+      setSettings(null);
       setStatus('guest');
     }
   }, []);
 
   const dismissLoginMessage = useCallback(() => setLoginMessage(null), []);
 
-  return { status, playerName, loginMessage, signIn, signOut, dismissLoginMessage };
+  return { status, playerName, settings, loginMessage, signIn, signOut, dismissLoginMessage };
 }

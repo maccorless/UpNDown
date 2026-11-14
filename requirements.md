@@ -138,7 +138,9 @@ tests/e2e               Playwright smoke tests
 ### 3.3 User Management
 - **No Formal Registration**: Quick play without accounts
 - **Session Identity**: Socket ID is the player ID; reconnection swaps old → new ID
-- **Player Names**: User-provided display names (persisted in `localStorage`)
+- **Player Names**: a new player starts with a random name made of a US president's first and last name (for example "Donald Washington"), kept in `localStorage` for guests, and can type their own at any time. In a game a generated name is shown as first name and last initial ("Donald W"); a name someone typed is never shortened. Signed-in players have the name stored on the account and the landing field follows it, so edits are saved
+- **Name collisions (multiplayer)**: names are compared as shown, ignoring case. The first player to take a name keeps it; the next gets `-1`, then `-2`, and so on (`Abe`, `Abe-1`, `abe-2`; `Donald W`, `Donald W-1`). A name is freed when its owner is kicked
+- **Settings sync (signed in)**: solitaire and multiplayer settings, sounds and the player name follow the account across devices. The first sign-in on a device takes the account's settings when it has any, otherwise uploads the device's; after that changes are saved automatically (last write wins). Guests keep everything in the browser as before
 - **Guests need no account**: every feature works without signing in
 - **Optional Google sign-in** (only where `DATABASE_URL`, `PUBLIC_BASE_URL`, `AUTH_STATE_SECRET`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set and the database answers; off on Skiff and local runs without them): a card on the landing screen offers "Continue with Google". Only the Google account id is stored, never an email. A signed-in browser stays signed in for 90 days of use (capped at one year). Sign-in is a full-page redirect and sign-out is unavailable while in solitaire or seated in a multiplayer lobby or game. New accounts have empty settings; statistics, saved settings and history are later phases (see `docs/design/login-and-profiles.md`)
 - **Status**: ✅ **Implemented** (guest play); ✅ sign-in and sign-out (phase 2 of the login design)
@@ -152,7 +154,7 @@ tests/e2e               Playwright smoke tests
 - Collision detection with up to 20 retry attempts
 - Host creates game and controls when to start
 - Other players join via game ID or shareable invite link (`?game=XXXXXX`)
-- Deep-link auto-join: if player name is already stored, join proceeds immediately
+- Deep-link auto-join: joins at once only for a player who has already chosen a name (edited it, used it to host or join, or saved one before generated names existed). A first-time visitor, who only has a generated name, sees the join screen with the game id and name filled in and joins with one tap. Typing a name never joins by itself
 - **Status**: ✅ **Implemented**
 
 #### Game Settings (Configurable by Host)

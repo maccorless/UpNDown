@@ -45,6 +45,19 @@ describe('useAuth', () => {
     expect(unnamed.result.current.playerName).toBeNull();
   });
 
+  it('exposes the stored settings from /api/me, and null when they are not valid', async () => {
+    const cfg = () => json({ enabled: true, providers: ['google'] });
+    stubFetch({ '/api/auth/config': cfg, '/api/me': () => json({ playerName: 'Abraham Lincoln', settings: { playerName: 'Abraham Lincoln', enableSounds: false, junk: 1 } }) });
+    const good = renderHook(() => useAuth());
+    await waitFor(() => expect(good.result.current.status).toBe('signedIn'));
+    expect(good.result.current.settings).toEqual({ playerName: 'Abraham Lincoln', enableSounds: false });
+
+    stubFetch({ '/api/auth/config': cfg, '/api/me': () => json({ playerName: 'Abraham Lincoln', settings: { enableSounds: 'loud' } }) });
+    const bad = renderHook(() => useAuth());
+    await waitFor(() => expect(bad.result.current.status).toBe('signedIn'));
+    expect(bad.result.current.settings).toBeNull();
+  });
+
   // The game must play exactly as before whenever auth cannot be used.
   it.each([
     ['the network is down', () => { throw new TypeError('Failed to fetch'); }],

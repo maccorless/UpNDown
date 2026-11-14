@@ -4,11 +4,13 @@ import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgre
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, randomPresidentName, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
 import { SignInCard } from './auth/SignInCard.js';
+import { useAccountSync } from './auth/useAccountSync.js';
+import { readNameConfirmed, writeNameConfirmed } from './player-name-confirmed.js';
 import { useAuth } from './auth/useAuth.js';
 import './App.css';
 
@@ -615,7 +617,8 @@ export function App(): JSX.Element {
   const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
   const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
   const [kickedFromGameId, setKickedFromGameId] = useState<string | null>(null);
-  const [playerName, setPlayerName] = useState(() => readPersistedPlayerName());
+  const [playerName, setPlayerName] = useState(() => readPersistedPlayerName() || randomPresidentName());
+  const nameConfirmedRef = useRef(readNameConfirmed(readPersistedPlayerName()));
   const [joinGameId, setJoinGameId] = useState('');
   const [showJoinById, setShowJoinById] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
@@ -633,6 +636,11 @@ export function App(): JSX.Element {
   const [enableSounds, setEnableSounds] = useState(() => readSoundsEnabled());
   const enableSoundsRef = useRef(enableSounds);
   enableSoundsRef.current = enableSounds;
+  const changeSounds = (val: boolean): void => {
+    setEnableSounds(val);
+    try { window.localStorage.setItem(SOUNDS_STORAGE_KEY, String(val)); } catch { /* ignore */ }
+  };
+  useAccountSync(auth, { playerName, setPlayerName, solitaire: solitaireConfig, setSolitaire: setSolitaireConfig, multiplayer: multiplayerCreateSettings, setMultiplayer: setMultiplayerCreateSettings, enableSounds, setEnableSounds: changeSounds });
   const [cardLookupOpen, setCardLookupOpen] = useState(false);
   const [cardLookupValue, setCardLookupValue] = useState('');
   const [cardLookupToast, setCardLookupToast] = useState<CardLookupResult | null>(null);
@@ -644,6 +652,8 @@ export function App(): JSX.Element {
   playerIdRef.current = playerId;
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
   const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
+  // Touching the name hands control to the player: no auto-join while they type (the first letter would otherwise join as "S").
+  const confirmName = (): void => { nameConfirmedRef.current = true; writeNameConfirmed(); pendingAutoJoinGameIdRef.current = null; };
   const shownNasCheatGameKeyRef = useRef<string | null>(null);
   const previousMultiplayerSnapshotRef = useRef<{ gameId: string; phase: GameState['gamePhase'] } | null>(null);
   const suppressHostEndedNoticeRef = useRef(false);
@@ -763,7 +773,8 @@ export function App(): JSX.Element {
     if (normalizeGameId(joinGameId) !== deepLinkGameId) {
       return;
     }
-    if (!playerName.trim()) {
+    // A generated name the player never chose waits on the join screen instead.
+    if (!playerName.trim() || !nameConfirmedRef.current) {
       return;
     }
 
@@ -1206,6 +1217,7 @@ export function App(): JSX.Element {
 
   const handleCreateGame = async (): Promise<void> => {
     const trimmedName = playerName.trim();
+    confirmName();
     if (!trimmedName) {
       setError('Player name is required');
       return;
@@ -1244,6 +1256,7 @@ export function App(): JSX.Element {
 
   const handleJoinGame = async (forcedGameId?: string): Promise<void> => {
     const trimmedName = playerName.trim();
+    confirmName();
     const gameId = (forcedGameId ?? joinGameId).trim().toUpperCase();
 
     if (!trimmedName) {
@@ -1769,7 +1782,7 @@ export function App(): JSX.Element {
       <section className="app-header">
         <h1>UpNDown</h1>
         <div className="header-actions">
-          <ProfileMenu auth={auth} locked={mode === 'solitaire' || multiplayerState !== null} />
+          <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} />
           {mode === null ? (
             <a
               className="secondary link-button"
@@ -1817,15 +1830,19 @@ export function App(): JSX.Element {
             ) : null
           ) : null}
           {mode ? (
-            <button
-              type="button"
-              className="secondary"
-              onClick={handleOpenSettings}
-              disabled={mode === 'multiplayer' && connectionState === 'connecting'}
-              data-testid="open-settings"
-            >
-              Settings
-            </button>
+            <>
+              <button
+                type="button"
+                className={settingsEditable ? 'secondary' : 'secondary settings-frozen'}
+                onClick={handleOpenSettings}
+                disabled={mode === 'multiplayer' && connectionState === 'connecting'}
+                data-testid="open-settings"
+                aria-describedby={settingsEditable ? undefined : 'settings-frozen-hint'}
+              >
+                Settings
+              </button>
+              {settingsEditable ? null : <span id="settings-frozen-hint" className="sr-only">Settings are view only right now</span>}
+            </>
           ) : null}
         </div>
       </section>
@@ -1937,7 +1954,7 @@ export function App(): JSX.Element {
                   <input
                     id="player-name-input"
                     value={playerName}
-                    onChange={(e) => setPlayerName(e.target.value)}
+                    onChange={(e) => { setPlayerName(e.target.value); confirmName(); }}
                     maxLength={32}
                     placeholder="Your Name"
                     disabled={multiplayerInteractionDisabled}
@@ -2228,10 +2245,7 @@ export function App(): JSX.Element {
           onSave={() => { void handleSaveSettings(); }}
           onChange={setSettingsDraft}
           enableSounds={enableSounds}
-          onToggleSounds={(val) => {
-            setEnableSounds(val);
-            try { window.localStorage.setItem(SOUNDS_STORAGE_KEY, String(val)); } catch { /* ignore */ }
-          }}
+          onToggleSounds={changeSounds}
         />
       ) : null}
 

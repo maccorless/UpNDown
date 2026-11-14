@@ -22,6 +22,18 @@ export class MemoryProfileStore implements ProfileStore {
     return this.users.get(userId)?.settings ?? null;
   }
 
+  async ensurePlayerName(userId: string, candidate: string): Promise<string | null> {
+    const user = this.users.get(userId);
+    if (!user) return null;
+    if (typeof user.settings.playerName !== 'string') user.settings = { ...user.settings, playerName: candidate };
+    return user.settings.playerName as string;
+  }
+
+  async replaceSettings(userId: string, settings: Record<string, unknown>): Promise<void> {
+    const user = this.users.get(userId);
+    if (user) user.settings = { ...settings };
+  }
+
   async createSession(userId: string, tokenHash: Buffer, expiresAt: Date): Promise<void> {
     const now = new Date();
     this.sessions.set(tokenHash.toString('hex'), { userId, createdAt: now, lastSeenAt: now, expiresAt });

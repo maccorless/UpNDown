@@ -1,3 +1,4 @@
+import { cleanPlayerName, shortPlayerName } from '@upndown/shared-types';
 import { useEffect, useId, useRef } from 'react';
 import type { AuthState } from './useAuth.js';
 
@@ -8,7 +9,7 @@ const anchorPositioning = typeof CSS !== 'undefined' && CSS.supports('position-a
 
 // `locked` is true while seated in a game: signing out would drop the player from it. The item stays
 // focusable (aria-disabled, not disabled) so the reason is reachable by keyboard and touch.
-export function ProfileMenu({ auth, locked }: { auth: AuthState; locked: boolean }): JSX.Element | null {
+export function ProfileMenu({ auth, locked, currentName }: { auth: AuthState; locked: boolean; currentName?: string }): JSX.Element | null {
   const menuId = useId();
   const hintId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -16,6 +17,8 @@ export function ProfileMenu({ auth, locked }: { auth: AuthState; locked: boolean
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openedByPointer = useRef(false);
   const signedIn = auth.status === 'signedIn';
+  // The name being typed in the landing field shows at once; an empty field falls back to the saved name.
+  const label = cleanPlayerName(currentName ?? '') || auth.playerName;
 
   // React 18 has no typed onToggle for a div, so listen natively. The menu only exists while signed in.
   useEffect(() => {
@@ -58,7 +61,7 @@ export function ProfileMenu({ auth, locked }: { auth: AuthState; locked: boolean
           <circle cx="12" cy="8" r="4" />
           <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" />
         </svg>
-        <span className="profile-name">{auth.playerName ?? 'Signed in'}</span>
+        <span className="profile-name">{label ? shortPlayerName(label) : 'Signed in'}</span>
       </button>
       <div ref={menuRef} id={menuId} className="profile-menu-list" {...({ popover: 'auto' } as object)}>
         {/* Nested, not on the popover: Chromium drops focusgroup keyboard behaviour otherwise. One item, so no arrow-key fallback. */}

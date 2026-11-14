@@ -305,3 +305,12 @@ Phase 1 (89eb8d0) and phase 2 changed or found the following. The sections above
 - **Provider calls use the discovery document**, not a library: `openid profile`, PKCE `S256`, `client_secret_post`, userinfo for `sub` and `name`.
 - **Sign-in and sign-out locks** use `mode === 'solitaire' || seated in multiplayer`. Below 361px wide the profile menu is hidden while locked because the header cannot hold it.
 
+Phase 3 (project owner decisions, 14-Nov-2026):
+
+- **No name step.** Section 6.1 step 9 is replaced: every account has a name, assigned on its first `/api/me` as a random mash-up of a US president's first and last name ("Donald Washington"), and the player can type their own. The Google name is never read or stored, which closes the question above. Guests get a generated name too, kept in `localStorage`.
+- **Where the name is shown.** The account and the landing field keep the full name. When a name enters a game the server shortens an exact mash-up to first name and last initial ("Donald W"), so every screen shows the short form without client changes. A typed name is never shortened.
+- **Collisions** are decided on the short form, ignoring case: the next player to join with a name already in the game becomes `Name-1`, then `Name-2` (`GameManager.joinGame`, `uniqueInGameName`). Different people can shorten the same way (Washington and Wilson), which is why the comparison is on what players see.
+- **Editing.** The landing field is the one place to edit the name (no Settings-dialog field, unlike section 8). While signed in, edits are saved to the account; section 8's "editing the field changes only that game" was dropped.
+- **`PUT /api/me/settings`** replaces the whole document, keeps the stored name when the body has none, and is limited per user (30 a minute) on top of the per-IP limit.
+- **Invite links.** Auto-join now needs a name the player chose: one they edited, used to host or join, or saved before generated names existed (`player-name-confirmed.ts`). A first-time visitor sees the join screen with the generated name filled in and joins with one tap. Touching the name field also stops auto-join for that visit; before, the first typed letter joined the game as that letter.
+

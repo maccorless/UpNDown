@@ -492,6 +492,8 @@ describe('multiplayer ack handling', () => {
     const firstRender = render(<App />);
 
     await user.click(screen.getByTestId('mode-multiplayer'));
+    // The field now starts with a generated president name, so replace it rather than append.
+    await user.clear(screen.getByLabelText('Player Name'));
     await user.type(screen.getByLabelText('Player Name'), 'Alex');
     expect((screen.getByLabelText('Player Name') as HTMLInputElement).value).toBe('Alex');
 

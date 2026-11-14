@@ -6,6 +6,7 @@ import { useAuth, type AuthState } from './useAuth.js';
 const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   status: 'signedIn',
   playerName: 'Ken',
+  settings: null,
   loginMessage: null,
   signIn: vi.fn(),
   signOut: vi.fn(async () => undefined),
@@ -25,6 +26,18 @@ describe('ProfileMenu', () => {
     unmount();
     render(<ProfileMenu auth={makeAuth({ playerName: null })} locked={false} />);
     expect(screen.getByRole('button', { name: 'Signed in' })).toBeTruthy();
+  });
+
+  // Editing the name on the landing page must show in the header straight away, not after a reload.
+  it('shows the name being edited in short form, and falls back to the saved name when the field is empty', () => {
+    const { rerender } = render(<ProfileMenu auth={makeAuth({ playerName: 'Warren Harrison' })} locked={false} currentName="Warren Harrison" />);
+    expect(screen.getByRole('button', { name: 'Warren H' })).toBeTruthy();
+    rerender(<ProfileMenu auth={makeAuth({ playerName: 'Warren Harrison' })} locked={false} currentName="Zed Zee" />);
+    expect(screen.getByRole('button', { name: 'Zed Zee' })).toBeTruthy();
+    rerender(<ProfileMenu auth={makeAuth({ playerName: 'Warren Harrison' })} locked={false} currentName="   " />);
+    expect(screen.getByRole('button', { name: 'Warren H' })).toBeTruthy();
+    rerender(<ProfileMenu auth={makeAuth({ playerName: 'Warren Harrison' })} locked={false} currentName={'\u202E'} />);
+    expect(screen.getByRole('button', { name: 'Warren H' })).toBeTruthy();
   });
 
   it('wires the button to its popover with an invoker, not popovertarget', () => {
@@ -91,5 +104,13 @@ describe('ProfileMenu', () => {
       expect(logouts(fetchMock)).toHaveLength(0);
       expect(screen.getByRole('button', { name: 'Ken' })).toBeTruthy();
     });
+  });
+
+  // The header is tight on phones, so a "First Last" mash-up shows as "First L". The button keeps that as its name.
+  it('shows a generated two-part name shortened, and any other name as it is', () => {
+    const { rerender } = render(<ProfileMenu auth={makeAuth({ playerName: 'Donald Washington' })} locked={false} />);
+    expect(screen.getByRole('button', { name: 'Donald W' })).toBeTruthy();
+    rerender(<ProfileMenu auth={makeAuth({ playerName: 'Sam Typed' })} locked={false} />);
+    expect(screen.getByRole('button', { name: 'Sam Typed' })).toBeTruthy();
   });
 });

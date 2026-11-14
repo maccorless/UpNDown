@@ -2357,3 +2357,46 @@ button.google-signin:focus-visible,
     display: none;
   }
 }
+
+/* View-only Settings is iced over, on the same condition as the dialog's "View only" chip. Ice reads the same in
+   light and dark, so it keeps its own palette. The blue ring and outlined icicles are what show on the pale light
+   theme. No motion, so reduced-motion needs no override. */
+button.settings-frozen {
+  position: relative;
+  z-index: 2; /* the icicles hang over the panel below, which is later in the page */
+  background:
+    radial-gradient(circle at 16% 30%, rgba(255, 255, 255, 0.95) 0 1.5px, transparent 2.5px),
+    radial-gradient(circle at 82% 24%, rgba(255, 255, 255, 0.9) 0 1px, transparent 2px),
+    radial-gradient(circle at 60% 72%, rgba(255, 255, 255, 0.85) 0 1px, transparent 2px),
+    linear-gradient(170deg, #f8fdff 0%, #d9f0fd 55%, #bfe3f8 100%);
+  color: #0e3553;
+  border: 1px solid #4fa6de;
+  box-shadow:
+    0 0 0 3px rgba(150, 214, 252, 0.95),
+    0 0 0 4px #4fa6de,
+    0 0 14px 5px rgba(79, 166, 222, 0.55),
+    inset 0 1px 2px #ffffff,
+    inset 0 -3px 6px rgba(110, 185, 235, 0.55);
+}
+
+/* Icicles hang off the bottom edge as an outlined SVG, so they show on a pale page. Out of the layout, and clicks go to the button. */
+button.settings-frozen::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 100%;
+  height: 20px;
+  margin-top: 3px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 12' preserveAspectRatio='none'%3E%3Cpolygon points='0,0 100,0 100,0.6 94,12 88,0.6 80,9 73,0.6 64,12 56,0.6 48,8 40,0.6 30,12 22,0.6 14,9 7,0.6 0,0.6' fill='%23a9dbf6' stroke='%233f95d0' stroke-width='1.6' stroke-linejoin='round' vector-effect='non-scaling-stroke'/%3E%3C/svg%3E") center / 100% 100% no-repeat;
+  pointer-events: none;
+}
+
+button.settings-frozen:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 3px rgba(190, 230, 255, 1),
+    0 0 0 4px #4fa6de,
+    0 0 18px 7px rgba(79, 166, 222, 0.7),
+    inset 0 1px 2px #ffffff,
+    inset 0 -3px 6px rgba(110, 185, 235, 0.55);
+}

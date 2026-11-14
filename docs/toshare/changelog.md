@@ -6,6 +6,11 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-14 | — | Fix: an invite link no longer joins a first-time visitor under a name they never saw; they get the join screen with the name filled in. Typing a name no longer joins the game on the first letter |
+| 2026-11-14 | — | Feat: new players get a random president name ("Donald Washington"); in a game it shows as "Donald W". Players can type their own |
+| 2026-11-14 | — | Feat: in multiplayer a name already taken in the game gets -1, -2 and so on, compared as shown and ignoring case |
+| 2026-11-14 | — | Feat: signed-in players keep their name, solitaire and multiplayer settings and sounds on the account, synced across devices (PUT /api/me/settings, 30 saves a minute per user) |
+| 2026-11-14 | — | Feat: the Settings button is iced over, with frost and icicles, whenever settings are view only |
 | 2026-11-14 | — | Feat: optional Google sign-in (phase 2): "Continue with Google" card on the landing screen, a profile menu with Sign out (locked while in a game), 90-day remembered login, server-side sessions, rate-limited sign-in routes, and the signed-in user attached to the socket. Guests are unchanged. Old-address redirect is built but stays off until LEGACY_HOST is set |
 | 2026-11-14 | — | Feat: login groundwork (phase 1, no visible change): Postgres connection, schema migrations for users, sessions and game results, and GET /api/auth/config. Login stays off unless all five settings are present and the database answers; the game never depends on it |
 | 2026-11-14 | — | Feat: privacy policy (privacy.html) and terms of service (tos.html) pages, needed for the Google consent screen; .gitignore now excludes Google OAuth client_secret downloads |

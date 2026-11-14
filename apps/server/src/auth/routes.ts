@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
+import { randomPresidentName, storedSettingsSchema } from '@upndown/shared-types';
 import type { ProfileStore } from '../profile/store.js';
 import { createIpRateLimiter } from './http-rate-limit.js';
 import type { AuthSettings } from './config.js';
@@ -174,10 +175,20 @@ export function createAuthRouter(options: AuthRouterOptions): {
       res.status(401).json({});
       return;
     }
-    const stored = await current.store.getSettings(session.userId);
+    let stored = await current.store.getSettings(session.userId);
     if (!stored) {
       res.status(401).json({});
       return;
+    }
+    // Every account has a name: new ones, and ones made before names existed, get a random president mash-up.
+    let playerName = typeof stored.playerName === 'string' && stored.playerName ? stored.playerName : null;
+    if (!playerName) {
+      playerName = await current.store.ensurePlayerName(session.userId, randomPresidentName());
+      if (!playerName) {
+        res.status(401).json({});
+        return;
+      }
+      stored = { ...stored, playerName };
     }
     if (session.extended) {
       // The browser's copy would otherwise expire before the extended row does.
@@ -185,7 +196,38 @@ export function createAuthRouter(options: AuthRouterOptions): {
       const token = readCookie(req.headers.cookie, sessionCookieName(secure)) as string;
       res.append('Set-Cookie', serializeCookie(sessionCookieName(secure), token, { maxAgeSec: Math.floor((session.expiresAt.getTime() - Date.now()) / 1000), path: '/', secure }));
     }
-    res.json({ playerName: typeof stored.playerName === 'string' ? stored.playerName : null });
+    const parsed = storedSettingsSchema.safeParse(stored);
+    res.json({ playerName, settings: parsed.success ? parsed.data : { playerName } });
+  }));
+
+  // The whole document, last write wins. A body without a name keeps the stored one, so an account is never nameless.
+  router.put('/api/me/settings', withServices('api.settings', 60, 60_000, async (req, res, current) => {
+    if (!req.is('application/json') || req.headers.origin !== current.settings.publicBaseUrl) {
+      res.status(403).json({});
+      return;
+    }
+    const session = await resolveSession(req.headers.cookie, current, true);
+    if (!session) {
+      res.status(401).json({});
+      return;
+    }
+    if (!limiter.allowUser(session.userId, 'api.settings', 30, 60_000)) {
+      res.status(429).json({});
+      return;
+    }
+    const body = storedSettingsSchema.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: 'invalid settings' });
+      return;
+    }
+    const existing = await current.store.getSettings(session.userId);
+    if (!existing) {
+      res.status(401).json({});
+      return;
+    }
+    const next = { ...body.data, ...(body.data.playerName === undefined && typeof existing.playerName === 'string' ? { playerName: existing.playerName } : {}) };
+    await current.store.replaceSettings(session.userId, next);
+    res.json({ settings: next });
   }));
 
   router.post('/api/auth/logout', withServices('api.logout', 20, 60_000, async (req, res, current) => {

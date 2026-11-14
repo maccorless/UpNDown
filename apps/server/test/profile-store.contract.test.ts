@@ -31,6 +31,36 @@ function contract(make: () => Promise<ProfileStore>): void {
     expect(await store.getSettings('00000000-0000-0000-0000-000000000000')).toBeNull();
   });
 
+  it('sets a name once: later candidates and later callers get the first name back', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-name');
+    expect(await store.ensurePlayerName(userId, 'Harry Truman')).toBe('Harry Truman');
+    expect(await store.ensurePlayerName(userId, 'Other Name')).toBe('Harry Truman');
+    expect((await store.getSettings(userId))?.playerName).toBe('Harry Truman');
+  });
+
+  it('keeps the rest of the settings when it adds a name, and reports a missing account as null', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-name-keep');
+    await store.replaceSettings(userId, { enableSounds: false });
+    expect(await store.ensurePlayerName(userId, 'Gerald Ford')).toBe('Gerald Ford');
+    expect(await store.getSettings(userId)).toEqual({ enableSounds: false, playerName: 'Gerald Ford' });
+    expect(await store.ensurePlayerName('00000000-0000-0000-0000-000000000000', 'X Y')).toBeNull();
+  });
+
+  // Two tabs loading a brand new account at once must end up with one name, not two.
+  it('gives every caller the same name when several race to name a new account', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-name-race');
+    const names = await Promise.all(Array.from({ length: 6 }, (_, i) => store.ensurePlayerName(userId, `Candidate ${i}`)));
+    expect(new Set(names).size).toBe(1);
+    expect((await store.getSettings(userId))?.playerName).toBe(names[0]);
+  });
+
+  it('replaces the whole settings document', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-replace');
+    await store.replaceSettings(userId, { playerName: 'A B', enableSounds: false });
+    await store.replaceSettings(userId, { playerName: 'C D' });
+    expect(await store.getSettings(userId)).toEqual({ playerName: 'C D' });
+  });
+
   it('finds a live session, hides an expired one, and forgets a revoked one', async () => {
     const { userId } = await store.findOrCreateUser('google', 'acct-sessions');
     await store.createSession(userId, hash(1), at('2030-01-10T00:00:00Z'));

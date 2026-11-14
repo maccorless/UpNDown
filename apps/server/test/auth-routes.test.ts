@@ -3,9 +3,11 @@ import { request } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { PRESIDENT_FIRST_NAMES, PRESIDENT_LAST_NAMES } from '@upndown/shared-types';
 import { io as connect } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AuthSettings } from '../src/auth/config.js';
+import { hashToken } from '../src/auth/sessions.js';
 import { createRealtimeServer } from '../src/index.js';
 import { createFakeProvider } from './helpers/fake-provider.js';
 import { MemoryProfileStore } from './helpers/memory-store.js';
@@ -134,7 +136,9 @@ describe('auth routes', () => {
 
     const me = await get('/api/me', jar);
     expect(me.status).toBe(200);
-    expect(await me.json()).toEqual({ playerName: null });
+    const body = await me.json() as { playerName: string; settings: { playerName: string } };
+    expect(body.playerName).toMatch(/^\S+ .+$/);
+    expect(body.settings).toEqual({ playerName: body.playerName });
     expect(me.headers.get('cache-control')).toBe('no-store');
   });
 
@@ -261,6 +265,103 @@ describe('auth routes', () => {
     it('is harmless with no session', async () => {
       await boot();
       expect((await logout(new Map())).status).toBe(200);
+    });
+  });
+
+  describe('account name and settings', () => {
+    const json = { 'content-type': 'application/json', origin: BASE };
+    const put = (jar: Jar, body: unknown, headers: Record<string, string> = json) =>
+      fetch(`${url}/api/me/settings`, { method: 'PUT', headers: { ...headers, cookie: cookieHeader(jar) }, body: JSON.stringify(body) });
+    const me = async (jar: Jar) => (await (await get('/api/me', jar)).json()) as { playerName: string; settings: Record<string, unknown> };
+    // A genuinely different account: the fake provider always returns one Google account, so sign-in cannot make a second.
+    const otherUserJar = async (googleId: string): Promise<Jar> => {
+      const { userId } = await store.findOrCreateUser('google', googleId);
+      await store.createSession(userId, hashToken(`token-${googleId}`), new Date(Date.now() + 1e9));
+      return new Map([['__Host-upndown_session', `token-${googleId}`]]);
+    };
+    const solitaire = { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 1, maxPlayers: 1, minCardsPerTurn: 2, autoRefillHand: true, allowUndo: true, privateGame: false, allowCardLookup: false, showArrows: true };
+
+    it('names a new account with a president mash-up and keeps that name', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const first = await me(jar);
+      const [firstName, ...rest] = first.playerName.split(' ');
+      expect(PRESIDENT_FIRST_NAMES as readonly string[]).toContain(firstName);
+      expect(PRESIDENT_LAST_NAMES as readonly string[]).toContain(rest.join(' '));
+      expect((await me(jar)).playerName).toBe(first.playerName);
+    });
+
+    it('names an older account that has settings but no name, without losing the settings', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const [user] = [...store.users.values()];
+      user!.settings = { enableSounds: false };
+      const body = await me(jar);
+      expect(body.settings).toEqual({ enableSounds: false, playerName: body.playerName });
+    });
+
+    it('replaces the stored document, keeps the name when the body has none, and drops unknown keys', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const { playerName } = await me(jar);
+      expect((await put(jar, { enableSounds: false, solitaire, evil: 'x' })).status).toBe(200);
+      expect((await me(jar)).settings).toEqual({ playerName, enableSounds: false, solitaire });
+      // A second write replaces the first rather than merging into it.
+      expect((await put(jar, { enableSounds: true })).status).toBe(200);
+      expect((await me(jar)).settings).toEqual({ playerName, enableSounds: true });
+    });
+
+    it('saves a new name, cleaned of control and bidirectional characters', async () => {
+      await boot();
+      const { jar } = await signIn();
+      await me(jar);
+      const res = await put(jar, { playerName: '  Ab\u202Ee\u0007  ' });
+      expect(res.status).toBe(200);
+      expect((await me(jar)).playerName).toBe('Abe');
+    });
+
+    it('refuses a name that is empty after cleaning, and an invalid settings block, and changes nothing', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const { playerName } = await me(jar);
+      for (const bad of [{ playerName: '   ' }, { playerName: '\u202E' }, { solitaire: { minCardValue: 1 } }, { enableSounds: 'yes' }]) {
+        expect((await put(jar, bad)).status).toBe(400);
+      }
+      expect((await me(jar)).settings).toEqual({ playerName });
+    });
+
+    it('requires a session, the canonical Origin and a JSON body', async () => {
+      await boot();
+      expect((await put(new Map(), { enableSounds: false })).status).toBe(401);
+      const { jar } = await signIn();
+      expect((await put(jar, { enableSounds: false }, { 'content-type': 'application/json', origin: 'http://localhost:5173' })).status).toBe(403);
+      expect((await put(jar, { enableSounds: false }, { 'content-type': 'application/json' })).status).toBe(403);
+      expect((await put(jar, { enableSounds: false }, { 'content-type': 'text/plain', origin: BASE })).status).toBe(403);
+    });
+
+    it('keeps one account\'s settings away from another\'s', async () => {
+      await boot();
+      const a = (await signIn()).jar;
+      await me(a);
+      await put(a, { enableSounds: false });
+      const b = await otherUserJar('someone-else');
+      const bSettings = (await me(b)).settings;
+      expect(bSettings).not.toHaveProperty('enableSounds');
+      expect((await me(a)).settings).toHaveProperty('enableSounds', false);
+    });
+
+    // The per-IP limit would let one person write all day; many people share an address, so a user limit sits on top.
+    it('limits one user to 30 saves a minute without blocking other users on the same address', async () => {
+      await boot();
+      const a = (await signIn()).jar;
+      await me(a);
+      const codes: number[] = [];
+      for (let i = 0; i < 32; i += 1) codes.push((await put(a, { enableSounds: i % 2 === 0 })).status);
+      expect(codes.slice(0, 30).every((c) => c === 200)).toBe(true);
+      expect(codes.slice(30)).toEqual([429, 429]);
+      const b = await otherUserJar('another-person');
+      await me(b);
+      expect((await put(b, { enableSounds: false })).status).toBe(200);
     });
   });
 

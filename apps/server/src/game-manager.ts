@@ -17,6 +17,7 @@ import type {
 } from '@upndown/shared-types';
 import { defaultMultiplayerSettings, PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
+import { uniqueInGameName } from './player-names.js';
 
 interface GameRoom {
   gameState: GameState;
@@ -182,7 +183,7 @@ export class GameManager {
 
     const host: Player = {
       id: ownerPlayerId,
-      name: payload.playerName,
+      name: uniqueInGameName(payload.playerName, []),
       hand: [],
       isHost: true,
       color: PLAYER_COLORS[0] as PlayerColor
@@ -278,7 +279,7 @@ export class GameManager {
 
     const nextState: GameState = {
       ...gameState,
-      players: [...gameState.players, { id: playerId, name: payload.playerName, hand: [], isHost: false, color: PLAYER_COLORS[gameState.players.length % PLAYER_COLORS.length] as PlayerColor }],
+      players: [...gameState.players, { id: playerId, name: uniqueInGameName(payload.playerName, gameState.players.map((player) => player.name)), hand: [], isHost: false, color: PLAYER_COLORS[gameState.players.length % PLAYER_COLORS.length] as PlayerColor }],
       statistics: {
         ...gameState.statistics,
         players: {

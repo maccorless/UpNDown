@@ -6,6 +6,7 @@ import type { AuthState } from './useAuth.js';
 const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   status: 'guest',
   playerName: null,
+  settings: null,
   loginMessage: null,
   signIn: vi.fn(),
   signOut: vi.fn(async () => undefined),

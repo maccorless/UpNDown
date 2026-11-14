@@ -13,6 +13,10 @@ export interface StoredSession {
 export interface ProfileStore {
   findOrCreateUser(provider: 'google', providerUserId: string): Promise<{ userId: string }>;
   getSettings(userId: string): Promise<Record<string, unknown> | null>;
+  // Sets the player name only if the account has none, and returns the name the account ends up with
+  // (null if the account is gone). Two tabs signing in together cannot overwrite each other's choice.
+  ensurePlayerName(userId: string, candidate: string): Promise<string | null>;
+  replaceSettings(userId: string, settings: Record<string, unknown>): Promise<void>;
   createSession(userId: string, tokenHash: Buffer, expiresAt: Date): Promise<void>;
   findSession(tokenHash: Buffer, now: Date): Promise<StoredSession | null>;
   touchSession(tokenHash: Buffer, lastSeenAt: Date, expiresAt: Date): Promise<void>;
@@ -60,6 +64,21 @@ export class PgProfileStore implements ProfileStore {
   async getSettings(userId: string): Promise<Record<string, unknown> | null> {
     const row = (await this.pool.query<{ settings: Record<string, unknown> }>('select settings from users where id = $1', [userId])).rows[0];
     return row?.settings ?? null;
+  }
+
+  async ensurePlayerName(userId: string, candidate: string): Promise<string | null> {
+    const updated = await this.pool.query<{ name: string }>(
+      `update users set settings = jsonb_set(settings, '{playerName}', to_jsonb($2::text))
+       where id = $1 and not (settings ? 'playerName') returning settings->>'playerName' as name`,
+      [userId, candidate]
+    );
+    if (updated.rows[0]) return updated.rows[0].name;
+    const existing = await this.pool.query<{ name: string | null }>("select settings->>'playerName' as name from users where id = $1", [userId]);
+    return existing.rows[0]?.name ?? null;
+  }
+
+  async replaceSettings(userId: string, settings: Record<string, unknown>): Promise<void> {
+    await this.pool.query('update users set settings = $2::jsonb where id = $1', [userId, JSON.stringify(settings)]);
   }
 
   async createSession(userId: string, tokenHash: Buffer, expiresAt: Date): Promise<void> {
