@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-14 | — | Feat: optional Google sign-in (phase 2): "Continue with Google" card on the landing screen, a profile menu with Sign out (locked while in a game), 90-day remembered login, server-side sessions, rate-limited sign-in routes, and the signed-in user attached to the socket. Guests are unchanged. Old-address redirect is built but stays off until LEGACY_HOST is set |
 | 2026-11-14 | — | Feat: login groundwork (phase 1, no visible change): Postgres connection, schema migrations for users, sessions and game results, and GET /api/auth/config. Login stays off unless all five settings are present and the database answers; the game never depends on it |
 | 2026-11-14 | — | Feat: privacy policy (privacy.html) and terms of service (tos.html) pages, needed for the Google consent screen; .gitignore now excludes Google OAuth client_secret downloads |
 | 2026-11-13 | — | Docs: design for Google login, guest play, remembered sessions, profile settings and play history (docs/design/login-and-profiles.md); reviewed twice, no code yet |

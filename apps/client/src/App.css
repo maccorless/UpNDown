@@ -2196,3 +2196,164 @@ button:not(:disabled):not(.card):not(.pile):not(.reaction-slot):active {
     opacity: 0;
   }
 }
+
+/* ===== Login: sign-in card and profile menu (theme tokens, so light and dark both work; no motion to reduce) ===== */
+.signin-row {
+  /* Its own full-width row, so the card sits above the mode buttons instead of beside them. */
+  flex: 0 0 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.signin-card {
+  flex: 1 1 auto;
+  width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  max-width: 420px;
+  margin: 0 0 6px;
+  padding: 10px 12px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.signin-alert {
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border-left: 4px solid var(--danger-text);
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--danger-text);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.signin-hint {
+  margin: 0;
+  color: var(--muted-strong);
+  font-size: 14px;
+  text-align: center;
+}
+
+/* Google's light-theme button spec; the dark variant below is theirs too. */
+button.google-signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  width: 100%;
+  max-width: 320px;
+  padding: 0 14px;
+  background: #ffffff;
+  color: #1f1f1f;
+  border: 1px solid #747775;
+  font-size: 15px;
+  font-weight: 500;
+}
+
+button.google-signin:focus-visible,
+.profile-trigger:focus-visible,
+.profile-menu-list button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.profile-trigger {
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-trigger[aria-expanded="true"] {
+  background: var(--soft);
+  border-color: var(--line-strong);
+}
+
+/* A popover is fixed and centred by default; place it at the trigger's right edge, below it. */
+.profile-menu-list {
+  inset: auto;
+  margin: 0;
+  min-width: 180px;
+  max-width: calc(100vw - 16px);
+  box-sizing: border-box;
+  padding: 6px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+@supports (position-area: block-end) {
+  .profile-menu-list {
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-block, flip-inline;
+  }
+}
+
+.profile-menu-list button {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: transparent;
+  color: var(--text);
+}
+
+.profile-menu-list button:hover {
+  background: var(--soft);
+}
+
+.profile-menu-list button[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.profile-menu-hint {
+  margin: 4px 6px 2px;
+  color: var(--muted-strong);
+  font-size: 14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  button.google-signin {
+    background: #131314;
+    color: #e3e3e3;
+    border-color: #8e918f;
+  }
+}
+
+.profile-glyph {
+  display: none;
+  fill: currentColor;
+}
+
+@media (max-width: 480px) {
+  .profile-glyph {
+    display: block;
+  }
+
+  .profile-name {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+/* On the narrowest phones the header cannot hold the title and three buttons. While seated the menu's only item is disabled, so hide it there. */
+@media (max-width: 360px) {
+  .profile-menu[data-locked="true"] {
+    display: none;
+  }
+}

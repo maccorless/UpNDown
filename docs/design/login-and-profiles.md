@@ -293,3 +293,15 @@ Each phase ships behind the auth switch and leaves guest play untouched.
 ## 17. Open questions
 
 None blocking. Decided on 13-Nov-2026: Google is the only provider, the old Railway address redirects (5.1), OAuth is hand-written (5.3), the project owner holds the Google developer account, a host-ended game records an `abandoned` row for the host only, and solitaire records no quits. The privacy policy text, including how to delete an account, has to be written and approved by the project owner before the Google consent screen goes to production.
+
+## 18. Implementation notes
+
+Phase 1 (89eb8d0) and phase 2 changed or found the following. The sections above describe intent; where they differ, this section is what was built.
+
+- **No Google name is stored.** Section 6.1 step 9 prefills the name step from "the Google name", but section 7 has no column for it and the privacy page promises only the confirmed player name. Phase 2 therefore shows "Signed in" (and the name once `playerName` exists). Phase 3 must choose: hand the Google name to the browser once in the callback response without storing it, or accept an empty prefill.
+- **`RAILWAY_PUBLIC_DOMAIN` is the canonical domain here.** Section 5.1 assumed it defaults to the old `.up.railway.app` address. On this project it is `upndown.cloud`, so the redirect is a no-op until `LEGACY_HOST` is set. The redirect refuses to send a host to itself.
+- **Hop count.** With `DEPLOY_TARGET=railway` (1 hop) the logged client address is an intermediary, not the player (see `DEPLOYMENT.md`). Section 5.4 asked for this check.
+- **Pool deadlock found by test.** The first version of `findOrCreateUser` asked the pool for a second connection while holding one when two sign-ins for one new account raced. With the pool capped at 3 that hangs. It now re-reads on the connection it holds, and `test/profile-store.contract.test.ts` fails on the old shape.
+- **Provider calls use the discovery document**, not a library: `openid profile`, PKCE `S256`, `client_secret_post`, userinfo for `sub` and `name`.
+- **Sign-in and sign-out locks** use `mode === 'solitaire' || seated in multiplayer`. Below 361px wide the profile menu is hidden while locked because the header cannot hold it.
+

@@ -7,6 +7,9 @@ import { SettingsDialog } from './SettingsDialog.js';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
+import { ProfileMenu } from './auth/ProfileMenu.js';
+import { SignInCard } from './auth/SignInCard.js';
+import { useAuth } from './auth/useAuth.js';
 import './App.css';
 
 const SOLO_PLAYER_ID = 'solo-player';
@@ -590,6 +593,7 @@ function validateCreateSettings(settings: GameSettings): string | null {
 export function App(): JSX.Element {
   const persisted = readPersistedSettings();
   const [mode, setMode] = useState<Mode | null>(null);
+  const auth = useAuth();
   const [solitaireConfig, setSolitaireConfig] = useState<GameSettings>(() => persisted?.solitaire ?? solitaireSettings);
   const [solitaireActive, setSolitaireActive] = useState(false);
 
@@ -1765,6 +1769,7 @@ export function App(): JSX.Element {
       <section className="app-header">
         <h1>UpNDown</h1>
         <div className="header-actions">
+          <ProfileMenu auth={auth} locked={mode === 'solitaire' || multiplayerState !== null} />
           {mode === null ? (
             <a
               className="secondary link-button"
@@ -1831,6 +1836,7 @@ export function App(): JSX.Element {
 
       {mode === null ? (
         <section className="panel mode-switch compact landing" aria-label="mode switch">
+          <SignInCard auth={auth} />
           {mode === null ? (
           <>
             <button

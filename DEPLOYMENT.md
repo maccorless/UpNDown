@@ -16,7 +16,9 @@ The platform is chosen with env vars on the service, not in code.
 | `PUBLIC_BASE_URL` | with login | The one address login works on, an origin with no path or trailing slash, e.g. `https://upndown.cloud`. `http` is accepted only for localhost. |
 | `AUTH_STATE_SECRET` | with login | 32+ random characters, e.g. `openssl rand -base64 32`. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | with login | From the Google Cloud OAuth client. Treat the secret like a password. |
-| `LEGACY_HOST` | no | Host that will redirect to `PUBLIC_BASE_URL` once login ships. Defaults to Railway's `RAILWAY_PUBLIC_DOMAIN`. |
+| `LEGACY_HOST` | no | Old address whose page loads redirect (302) to `PUBLIC_BASE_URL`, keeping the path and query so invite links survive. Defaults to Railway's `RAILWAY_PUBLIC_DOMAIN`, but on this project that variable is `upndown.cloud` itself (the canonical host never redirects to itself), so the redirect stays off until you set `LEGACY_HOST=upndown-server-production.up.railway.app`. |
+
+`TRUSTED_PROXY_HOPS` matters more with login: the sign-in routes are rate limited per client address. Measured 14-Nov-2026 with the Railway default of 1: the `socket.connected` log showed `152.233.40.x` rather than the real client on both `upndown.cloud` and the `.up.railway.app` address, so unrelated players share one limit bucket. The error is on the safe side (a client cannot spoof its way past it). Try `TRUSTED_PROXY_HOPS=2`, connect once, and confirm the logged `clientIp` is your own address.
 
 Login is on only when all five of `DATABASE_URL`, `PUBLIC_BASE_URL`, `AUTH_STATE_SECRET`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set and the database answers. Otherwise the server logs `auth.disabled` with the reason (variable names only) and everyone plays as a guest. `GET /api/auth/config` reports the state.
 

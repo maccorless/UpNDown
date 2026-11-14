@@ -139,8 +139,9 @@ tests/e2e               Playwright smoke tests
 - **No Formal Registration**: Quick play without accounts
 - **Session Identity**: Socket ID is the player ID; reconnection swaps old → new ID
 - **Player Names**: User-provided display names (persisted in `localStorage`)
-- **No Authentication**: Suitable for private/trusted deployment
-- **Status**: ✅ **Implemented**
+- **Guests need no account**: every feature works without signing in
+- **Optional Google sign-in** (only where `DATABASE_URL`, `PUBLIC_BASE_URL`, `AUTH_STATE_SECRET`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set and the database answers; off on Skiff and local runs without them): a card on the landing screen offers "Continue with Google". Only the Google account id is stored, never an email. A signed-in browser stays signed in for 90 days of use (capped at one year). Sign-in is a full-page redirect and sign-out is unavailable while in solitaire or seated in a multiplayer lobby or game. New accounts have empty settings; statistics, saved settings and history are later phases (see `docs/design/login-and-profiles.md`)
+- **Status**: ✅ **Implemented** (guest play); ✅ sign-in and sign-out (phase 2 of the login design)
 
 ---
 
@@ -305,9 +306,9 @@ End-game statistics modal shows:
 
 ### Explicitly Not Planned ❌
 - Mid-game joining (disrupts cooperative balance)
-- Player authentication
+- Required accounts (sign-in stays optional)
 - Individual win conditions (cooperative game only)
-- External database / game-state persistence across server restarts
+- Game-state persistence across server restarts (the database holds accounts only)
 
 ---
 

@@ -12,7 +12,9 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    allowedHosts: ['localhost', '127.0.0.1']
+    allowedHosts: ['localhost', '127.0.0.1'],
+    // Login and its API are same-origin in production; in dev the server is on :3001.
+    proxy: { '/auth': 'http://localhost:3001', '/api': 'http://localhost:3001' }
   },
   test: {
     environment: 'jsdom',

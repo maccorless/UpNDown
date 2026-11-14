@@ -15,7 +15,7 @@ import {
   setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
-import { authRouter, createAuthRuntime } from './auth/runtime.js';
+import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { GameManager } from './game-manager.js';
 import { toPlayerView } from './player-view.js';
 
@@ -155,7 +155,7 @@ function normalizeError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export function createRealtimeServer(port?: number) {
+export function createRealtimeServer(port?: number, authOverrides?: AuthTestOverrides) {
   const config = loadRuntimeConfig(port);
   const isOriginAllowed = (origin: string | undefined): boolean => {
     if (!origin) {
@@ -181,8 +181,10 @@ export function createRealtimeServer(port?: number) {
     res.json({ ok: true, service: 'upndown-server', uptimeSec: Math.floor(process.uptime()) });
   });
 
-  const auth = createAuthRuntime(process.env, log);
-  app.use(authRouter(auth));
+  const auth = createAuthRuntime(process.env, log, { trustedProxyHops: config.trustedProxyHops, ...(authOverrides ? { overrides: authOverrides } : {}) });
+  // Before the static handler and the single-page fallback, which would otherwise answer these paths.
+  app.use(auth.legacyRedirect);
+  app.use(auth.router);
 
   // Single-container deploys (Skiff) serve the built client from the socket server's origin.
   const { clientDistDir } = config;
@@ -197,6 +199,25 @@ export function createRealtimeServer(port?: number) {
   const io = new SocketIOServer(httpServer, {
     cors: {
       origin: corsOriginHandler
+    }
+  });
+
+  // A signed-in browser's cookie rides along on the websocket upgrade. The user id stays on the server:
+  // `playerId` is still the socket id, and no other player ever sees it. A bad lookup means guest, never a refusal.
+  io.use(async (socket, next) => {
+    const session = await auth.sessionFromCookie(socket.handshake.headers.cookie);
+    if (session) {
+      socket.data.userId = session.userId;
+      socket.data.sessionId = session.sessionId;
+    }
+    next();
+  });
+  auth.onSessionRevoked((sessionId) => {
+    for (const socket of io.sockets.sockets.values()) {
+      if (socket.data.sessionId === sessionId) {
+        delete socket.data.userId;
+        delete socket.data.sessionId;
+      }
     }
   });
 
