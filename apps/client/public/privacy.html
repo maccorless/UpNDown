@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UpNDown - Privacy Policy</title>
+  <style>
+    :root { --bg: #0d1b2a; --ink: #f1f5f9; --muted: #b7c5d8; --line: #2b4869; --link: #8ac926; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      background: radial-gradient(circle at 10% 10%, #1b263b 0%, #0d1b2a 55%, #0a1420 100%);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+    main { max-width: 760px; margin: 0 auto; padding: 20px; }
+    section {
+      background: rgba(13, 27, 42, 0.92);
+      border: 1px solid rgba(183, 197, 216, 0.2);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+    h1, h2 { margin: 0 0 8px; }
+    p { margin: 0 0 8px; color: var(--muted); }
+    ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+    li { margin-bottom: 6px; }
+    a { color: var(--link); }
+    nav { margin-bottom: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <nav><a href="/">Back to the game</a> &middot; <a href="/tos.html">Terms of Service</a></nav>
+    <section>
+      <h1>Privacy Policy</h1>
+      <p>Last updated: 14 November 2026</p>
+    </section>
+    <section>
+      <h2>Summary</h2>
+      <p>UpNDown is a card game. You can play as a guest with no account. If you choose, you can sign in with Google so the game remembers your settings and your results. We do not sell your data, show ads or use analytics trackers.</p>
+    </section>
+
+    <section>
+      <h2>Playing as a guest</h2>
+      <ul>
+        <li>You pick a player name. Other players in your game see it.</li>
+        <li>Game state is held in the server's memory while the game runs and is gone when the game ends or the server restarts.</li>
+        <li>Your browser stores your settings and a rejoin token on your own device (local storage). We do not receive them as an account.</li>
+        <li>Guests have no profile and no history.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Signing in with Google</h2>
+      <p>Signing in is optional. We ask Google only for your basic profile (the <code>openid</code> and <code>profile</code> scopes). We do not request your email address, contacts, Drive or any other Google data.</p>
+      <p>We store:</p>
+      <ul>
+        <li>Your Google account identifier, so we can recognize you next time. It is not shown to anyone.</li>
+        <li>The player name you confirm for use in games, and your settings (for example sounds and game options).</li>
+        <li>A record of each game you finish while signed in: result, date, duration, number of players, and your own card counts. We do not store the names or identities of the other players.</li>
+        <li>A login session. Only a hash of the session token is stored on our server, and your browser keeps a cookie that is HttpOnly, Secure and SameSite.</li>
+      </ul>
+      <p>Your statistics are private to you. Other players only ever see the player name you use in a game.</p>
+    </section>
+    <section>
+      <h2>Server logs</h2>
+      <p>Like any web service, our hosting records technical request details (such as IP address, time and page requested) for security and troubleshooting. We do not put cookies, session tokens or Google identifiers in our own application logs.</p>
+    </section>
+
+    <section>
+      <h2>Where data is kept</h2>
+      <p>The game runs on Railway. Account data is stored in a PostgreSQL database hosted by Railway. Google processes your sign-in under its own privacy policy.</p>
+    </section>
+
+    <section>
+      <h2>Your choices and deleting your data</h2>
+      <ul>
+        <li>Sign out at any time from the game menu. This ends your session on that device.</li>
+        <li>To delete your account, email privacy@corless.com from any address and say you want your account deleted. We will delete your profile, settings, sessions and all game history within 30 days. Deletion cannot be undone.</li>
+        <li>You can also remove UpNDown's access in your Google Account settings under security, third-party access.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Children</h2>
+      <p>UpNDown is not directed at children under 13, and we do not knowingly collect their data. If you believe a child has signed in, contact us and we will delete the account.</p>
+    </section>
+
+    <section>
+      <h2>Changes and contact</h2>
+      <p>If this policy changes, we will update the date above. Questions: privacy@corless.com.</p>
+    </section>
+
+  </main>
+</body>
+</html>
