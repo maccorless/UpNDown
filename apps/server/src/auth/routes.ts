@@ -1,6 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import { randomPresidentName, storedSettingsSchema } from '@upndown/shared-types';
+import { accountNameSchema, randomPresidentName, storedSettingsSchema } from '@upndown/shared-types';
+import { z } from 'zod';
 import type { ProfileStore } from '../profile/store.js';
 import { createIpRateLimiter } from './http-rate-limit.js';
 import type { AuthSettings } from './config.js';
@@ -197,7 +198,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       res.append('Set-Cookie', serializeCookie(sessionCookieName(secure), token, { maxAgeSec: Math.floor((session.expiresAt.getTime() - Date.now()) / 1000), path: '/', secure }));
     }
     const parsed = storedSettingsSchema.safeParse(stored);
-    res.json({ playerName, settings: parsed.success ? parsed.data : { playerName } });
+    res.json({ playerName, nameConfirmed: (await current.store.getNameConfirmed(session.userId)) === true, settings: parsed.success ? parsed.data : { playerName } });
   }));
 
   // The whole document, last write wins. A body without a name keeps the stored one, so an account is never nameless.
@@ -226,8 +227,37 @@ export function createAuthRouter(options: AuthRouterOptions): {
       return;
     }
     const next = { ...body.data, ...(body.data.playerName === undefined && typeof existing.playerName === 'string' ? { playerName: existing.playerName } : {}) };
-    await current.store.replaceSettings(session.userId, next);
+    // Changing the name is choosing one. Re-sending the stored name (the sync does on every save) is not.
+    const renamed = body.data.playerName !== undefined && body.data.playerName !== existing.playerName;
+    await current.store.replaceSettings(session.userId, next, { confirmName: renamed });
     res.json({ settings: next });
+  }));
+
+  // First sign-in: the player types a name or accepts the suggested one. Either way it is now theirs.
+  router.put('/api/me/name', withServices('api.name', 30, 60_000, async (req, res, current) => {
+    if (!req.is('application/json') || req.headers.origin !== current.settings.publicBaseUrl) {
+      res.status(403).json({});
+      return;
+    }
+    const session = await resolveSession(req.headers.cookie, current, true);
+    if (!session) {
+      res.status(401).json({});
+      return;
+    }
+    if (!limiter.allowUser(session.userId, 'api.name', 10, 60_000)) {
+      res.status(429).json({});
+      return;
+    }
+    const body = z.object({ playerName: accountNameSchema }).safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: 'invalid name' });
+      return;
+    }
+    if (!(await current.store.confirmPlayerName(session.userId, body.data.playerName))) {
+      res.status(401).json({});
+      return;
+    }
+    res.json({ playerName: body.data.playerName, nameConfirmed: true });
   }));
 
   router.post('/api/auth/logout', withServices('api.logout', 20, 60_000, async (req, res, current) => {

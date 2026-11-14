@@ -29,9 +29,25 @@ export class MemoryProfileStore implements ProfileStore {
     return user.settings.playerName as string;
   }
 
-  async replaceSettings(userId: string, settings: Record<string, unknown>): Promise<void> {
+  readonly confirmed = new Set<string>();
+
+  async replaceSettings(userId: string, settings: Record<string, unknown>, options: { confirmName?: boolean } = {}): Promise<void> {
     const user = this.users.get(userId);
-    if (user) user.settings = { ...settings };
+    if (!user) return;
+    user.settings = { ...settings };
+    if (options.confirmName) this.confirmed.add(userId);
+  }
+
+  async getNameConfirmed(userId: string): Promise<boolean | null> {
+    return this.users.has(userId) ? this.confirmed.has(userId) : null;
+  }
+
+  async confirmPlayerName(userId: string, name: string): Promise<boolean> {
+    const user = this.users.get(userId);
+    if (!user) return false;
+    user.settings = { ...user.settings, playerName: name };
+    this.confirmed.add(userId);
+    return true;
   }
 
   async createSession(userId: string, tokenHash: Buffer, expiresAt: Date): Promise<void> {

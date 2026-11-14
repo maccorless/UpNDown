@@ -16,7 +16,11 @@ export interface ProfileStore {
   // Sets the player name only if the account has none, and returns the name the account ends up with
   // (null if the account is gone). Two tabs signing in together cannot overwrite each other's choice.
   ensurePlayerName(userId: string, candidate: string): Promise<string | null>;
-  replaceSettings(userId: string, settings: Record<string, unknown>): Promise<void>;
+  // `confirmName` marks the name as chosen by the player; it never un-marks one.
+  replaceSettings(userId: string, settings: Record<string, unknown>, options?: { confirmName?: boolean }): Promise<void>;
+  getNameConfirmed(userId: string): Promise<boolean | null>;
+  // Stores a name the player chose and marks it confirmed. False when the account is gone.
+  confirmPlayerName(userId: string, name: string): Promise<boolean>;
   createSession(userId: string, tokenHash: Buffer, expiresAt: Date): Promise<void>;
   findSession(tokenHash: Buffer, now: Date): Promise<StoredSession | null>;
   touchSession(tokenHash: Buffer, lastSeenAt: Date, expiresAt: Date): Promise<void>;
@@ -77,8 +81,24 @@ export class PgProfileStore implements ProfileStore {
     return existing.rows[0]?.name ?? null;
   }
 
-  async replaceSettings(userId: string, settings: Record<string, unknown>): Promise<void> {
-    await this.pool.query('update users set settings = $2::jsonb where id = $1', [userId, JSON.stringify(settings)]);
+  async replaceSettings(userId: string, settings: Record<string, unknown>, options: { confirmName?: boolean } = {}): Promise<void> {
+    await this.pool.query(
+      'update users set settings = $2::jsonb, name_confirmed = name_confirmed or $3 where id = $1',
+      [userId, JSON.stringify(settings), options.confirmName === true]
+    );
+  }
+
+  async getNameConfirmed(userId: string): Promise<boolean | null> {
+    const row = (await this.pool.query<{ name_confirmed: boolean }>('select name_confirmed from users where id = $1', [userId])).rows[0];
+    return row ? row.name_confirmed : null;
+  }
+
+  async confirmPlayerName(userId: string, name: string): Promise<boolean> {
+    const result = await this.pool.query(
+      `update users set settings = jsonb_set(settings, '{playerName}', to_jsonb($2::text)), name_confirmed = true where id = $1`,
+      [userId, name]
+    );
+    return (result.rowCount ?? 0) > 0;
   }
 
   async createSession(userId: string, tokenHash: Buffer, expiresAt: Date): Promise<void> {

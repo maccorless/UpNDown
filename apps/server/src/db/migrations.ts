@@ -58,5 +58,11 @@ create table game_results (
 );
 create index game_results_user_ended_idx on game_results(user_id, ended_at desc);
 `
+  },
+  {
+    // Whether the player chose their name (typed one, or accepted the suggestion) rather than being handed a random one.
+    // Existing accounts start false, so they are asked once.
+    id: '002_name_confirmed',
+    sql: `alter table users add column name_confirmed boolean not null default false;`
   }
 ];

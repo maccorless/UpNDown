@@ -29,6 +29,9 @@
   --danger-text: #9c2f17;
   --focus: #0b5cad;
   --progress-fill: rgba(138, 201, 38, 0.45);
+  /* Wordmark inks: Up is teal like the ascending piles, Down is coral like the descending ones. Darker than the pile fills, which are too pale for text. */
+  --ink-up: #0a6b58;
+  --ink-down: #b23a2c;
 }
 
 * {
@@ -606,6 +609,7 @@ button {
   border: 0;
   border-radius: 8px;
   padding: 10px 12px;
+  font-family: inherit;
   font-size: 16px;
   font-weight: 700;
   cursor: pointer;
@@ -616,7 +620,8 @@ button.primary {
   color: #132b00;
 }
 
-button.secondary {
+button.secondary,
+a.secondary {
   background: #cde4ff;
   color: #173252;
   border: 1px solid #8cb4df;
@@ -635,6 +640,9 @@ button:disabled {
 .link-button {
   display: inline-flex;
   align-items: center;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-weight: 700;
   text-decoration: none;
 }
 
@@ -965,11 +973,12 @@ input {
   padding: 9px 11px;
   background: #f7fbff;
   color: #112741;
+  font-family: inherit;
   font-size: 16px;
 }
 
 input::placeholder {
-  color: #95a6bb;
+  color: var(--muted);
 }
 
 .players-list {
@@ -1909,6 +1918,8 @@ button:not(:disabled):not(.card):not(.pile):not(.reaction-slot):active {
     --danger-text: #ff9b85;
     --focus: #ffd166;
     --progress-fill: rgba(108, 194, 255, 0.28);
+    --ink-up: #7fe3c9;
+    --ink-down: #ff9b85;
   }
 
   body {
@@ -1958,7 +1969,8 @@ button:not(:disabled):not(.card):not(.pile):not(.reaction-slot):active {
     background: rgba(230, 240, 251, 0.15);
   }
 
-  button.secondary {
+  button.secondary,
+  a.secondary {
     background: #243e60;
     color: #e6f0fb;
     border-color: #4a6a92;
@@ -2399,4 +2411,316 @@ button.settings-frozen:hover:not(:disabled) {
     0 0 18px 7px rgba(79, 166, 222, 0.7),
     inset 0 1px 2px #ffffff,
     inset 0 -3px 6px rgba(110, 185, 235, 0.55);
+}
+
+/* ===== Header: wrap instead of clipping. At 320px the multiplayer header (title, Settings, profile) was wider than the screen, with Settings cut off ===== */
+@media (max-width: 480px) {
+  .app-header {
+    flex-wrap: wrap;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}
+
+/* Wordmark: Up and Down take the inks of the piles they name. */
+.app-header h1 .word-up {
+  color: var(--ink-up);
+}
+
+.app-header h1 .word-down {
+  color: var(--ink-down);
+}
+
+/* ===== Landing ===== */
+/* The title leads: on the landing it is centred under the header actions and much larger. DOM order stays title first. */
+.app.landing-mode .app-header {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: 0;
+}
+
+.app.landing-mode .app-header h1 {
+  order: 2;
+  flex: 1 1 100%;
+  text-align: center;
+  font-size: clamp(44px, 11vw, 84px);
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.app.landing-mode .header-actions {
+  order: 1;
+}
+
+.landing-hero {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 22px;
+  padding: 4px 0 8px;
+}
+
+.hero-tagline {
+  margin: 0;
+  max-width: 36ch;
+  text-align: center;
+  text-wrap: balance;
+  font-size: clamp(18px, 2.6vw, 22px);
+  line-height: 1.3;
+  color: var(--muted-strong);
+}
+
+.mode-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 16px;
+  width: min(100%, 720px);
+}
+
+/* A whole card is the button. The transparent border keeps an edge in forced-colors mode. */
+button.mode-card {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-height: 150px;
+  padding: 18px 20px;
+  border: 1px solid transparent;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(15, 39, 65, 0.14), 0 10px 26px -10px rgba(15, 39, 65, 0.4);
+}
+
+button.mode-card-primary {
+  background: var(--good);
+  color: #132b00;
+}
+
+.mode-card-title {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.mode-card-desc {
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+/* Cards in a row, each a step along a pile: up from 1, or down from 100. */
+.chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.chips .chip {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 46px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: #f2f5f9;
+  color: #102033;
+  border: 1px solid #b6c6d8;
+  box-shadow: 0 1px 2px rgba(15, 39, 65, 0.2);
+  font-size: 16px;
+  font-weight: 800;
+  rotate: calc((var(--i) - 1) * 5deg);
+}
+
+.chips-up .chip { border-bottom: 3px solid #4fc3a7; }
+.chips-down .chip { border-bottom: 3px solid #f28482; }
+
+.account-strip {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  width: min(100%, 420px);
+}
+
+.welcome {
+  margin: 0;
+  color: var(--muted-strong);
+  text-align: center;
+}
+
+.welcome strong {
+  color: var(--text);
+}
+
+button.link-action {
+  padding: 4px 6px;
+  background: none;
+  color: var(--accent-strong);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.landing-hint {
+  margin: 0;
+  color: var(--muted-strong);
+  text-align: center;
+}
+
+/* ===== Name prompt (first sign-in, and Change name) ===== */
+.name-prompt {
+  inline-size: min(28rem, calc(100% - 2rem));
+  padding: 0;
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--line-strong);
+  border-radius: 16px;
+  box-shadow: 0 22px 48px rgba(4, 12, 24, 0.45);
+}
+
+.name-form {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+}
+
+.name-form h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.name-lead {
+  margin: 0 0 4px;
+  color: var(--muted-strong);
+}
+
+.name-form label {
+  color: var(--text);
+}
+
+.name-field {
+  display: flex;
+  gap: 8px;
+}
+
+.name-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+button.name-shuffle {
+  flex: 0 0 auto;
+  display: inline-grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  background: var(--soft);
+  color: var(--accent-strong);
+  border: 1px solid var(--line-strong);
+}
+
+.name-preview {
+  margin: 0;
+  color: var(--muted-strong);
+}
+
+.name-preview strong {
+  color: var(--text);
+}
+
+.name-error {
+  margin: 0;
+  padding: 7px 10px;
+  border-left: 4px solid var(--danger-text);
+  border-radius: 6px;
+  background: var(--soft);
+  color: var(--danger-text);
+  font-weight: 600;
+}
+
+.name-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.name-actions button.primary {
+  flex: 1 1 auto;
+  min-height: 44px;
+}
+
+/* Multiplayer and join screens: three controls should not stretch across the whole page. */
+.lobby-grid,
+.flow-choice {
+  max-width: 28rem;
+  margin-inline: auto;
+}
+
+/* ===== Hover, press and entrance. Motion is for pointers that hover and for people who have not asked for less. ===== */
+@media (hover: hover) {
+  button.mode-card,
+  button.google-signin,
+  button.primary,
+  button.secondary,
+  a.secondary {
+    transition: translate 150ms ease-out, box-shadow 150ms ease-out, background-color 150ms ease-out;
+  }
+
+  button.mode-card:hover {
+    translate: 0 -3px;
+    box-shadow: 0 2px 4px rgba(15, 39, 65, 0.16), 0 16px 32px -10px rgba(15, 39, 65, 0.5);
+  }
+
+  button.primary:not(:disabled):not(.mode-card):hover,
+  button.secondary:not(:disabled):hover,
+  a.secondary:hover,
+  button.google-signin:hover {
+    box-shadow: 0 2px 8px rgba(15, 39, 65, 0.25);
+  }
+}
+
+button.mode-card:not(:disabled):active {
+  transform: none;
+  scale: 0.97;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing-enter .hero-tagline,
+  .landing-enter .mode-card,
+  .landing-enter .account-strip {
+    /* backwards, not both: holding the end state would override the hover lift for good */
+    animation: landing-rise 320ms ease-out backwards;
+  }
+
+  .landing-enter .mode-card:nth-child(1) { animation-delay: 80ms; }
+  .landing-enter .mode-card:nth-child(2) { animation-delay: 170ms; }
+  .landing-enter .account-strip { animation-delay: 260ms; }
+  .landing-enter .hero-tagline { animation-delay: 0ms; }
+
+  @keyframes landing-rise {
+    from { opacity: 0; translate: 0 12px; filter: blur(4px); }
+    to { opacity: 1; translate: 0 0; filter: blur(0); }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  button.mode-card {
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5), 0 10px 26px -10px rgba(0, 0, 0, 0.7);
+    border-color: var(--line);
+  }
+
+  button.mode-card-primary {
+    border-color: transparent;
+  }
 }

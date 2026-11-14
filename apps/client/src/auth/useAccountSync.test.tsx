@@ -11,6 +11,7 @@ const serverSolitaire: GameSettings = { ...defaultSolitaireSettings, handSize: 9
 
 const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   status: 'signedIn', playerName: 'Abraham Lincoln', settings: { playerName: 'Abraham Lincoln' }, loginMessage: null,
+  nameConfirmed: true, confirmName: async (name: string) => name,
   signIn: () => undefined, signOut: async () => undefined, dismissLoginMessage: () => undefined, ...overrides
 });
 

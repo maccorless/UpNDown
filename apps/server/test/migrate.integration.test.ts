@@ -55,6 +55,23 @@ describe.skipIf(!url)('migrations against Postgres', () => {
     expect(recorded.rowCount).toBe(0);
   });
 
+  // Accounts made before the column existed must come out unconfirmed, so their owners are asked once.
+  it('adds name_confirmed as false to accounts that already existed', async () => {
+    const other = `${schema}_c`;
+    await admin.query(`create schema ${other}`);
+    const p = new pg.Pool({ connectionString: url, max: 2, options: `-c search_path=${other}` });
+    try {
+      await migrate(p, [MIGRATIONS[0]!]);
+      const { rows } = await p.query<{ id: string }>('insert into users default values returning id');
+      expect(await migrate(p)).toEqual(['002_name_confirmed']);
+      const after = await p.query('select name_confirmed from users where id = $1', [rows[0]!.id]);
+      expect(after.rows[0].name_confirmed).toBe(false);
+    } finally {
+      await p.end();
+      await admin.query(`drop schema ${other} cascade`);
+    }
+  });
+
   const addUser = async () => (await pool.query<{ id: string }>('insert into users default values returning id')).rows[0]!.id;
   const addResult = (userId: string, gameId: string, outcome = 'won') => pool.query(
     `insert into game_results (user_id, game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count,

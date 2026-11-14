@@ -6,6 +6,9 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-14 | — | Feat: first sign-in asks for your player name ("Input your player name or accept a random one"): editable field, shuffle for another random name, a preview of how others will see you, Continue. Existing accounts are asked once; "Change name" on the landing reopens it |
+| 2026-11-14 | — | Feat: new landing screen: big Up/Down wordmark in pile colours, tagline, two mode cards showing a pile of numbers, and a sign-in strip that says why to sign in. Entrance plays once per page load, never under reduced motion |
+| 2026-11-14 | — | Fix: at 320px the multiplayer header clipped the Settings button; the header now wraps. Also: buttons use the page font, placeholder text meets contrast, How to Play looks like a control, the join-screen Join button is the primary action, the public games list has an accessible name, and the name field says it is a name to browsers |
 | 2026-11-14 | — | Fix: an invite link no longer joins a first-time visitor under a name they never saw; they get the join screen with the name filled in. Typing a name no longer joins the game on the first letter |
 | 2026-11-14 | — | Feat: new players get a random president name ("Donald Washington"); in a game it shows as "Donald W". Players can type their own |
 | 2026-11-14 | — | Feat: in multiplayer a name already taken in the game gets -1, -2 and so on, compared as shown and ignoring case |

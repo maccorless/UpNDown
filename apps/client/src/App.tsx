@@ -8,7 +8,8 @@ import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchem
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
-import { SignInCard } from './auth/SignInCard.js';
+import { Landing } from './Landing.js';
+import { NamePrompt } from './auth/NamePrompt.js';
 import { useAccountSync } from './auth/useAccountSync.js';
 import { readNameConfirmed, writeNameConfirmed } from './player-name-confirmed.js';
 import { useAuth } from './auth/useAuth.js';
@@ -596,6 +597,8 @@ export function App(): JSX.Element {
   const persisted = readPersistedSettings();
   const [mode, setMode] = useState<Mode | null>(null);
   const auth = useAuth();
+  const [firstVisit] = useState(() => readPersistedSettings() === null);
+  const [editingName, setEditingName] = useState(false);
   const [solitaireConfig, setSolitaireConfig] = useState<GameSettings>(() => persisted?.solitaire ?? solitaireSettings);
   const [solitaireActive, setSolitaireActive] = useState(false);
 
@@ -1780,7 +1783,7 @@ export function App(): JSX.Element {
   return (
     <main className={`app ${isBoardMode ? 'board-mode' : ''} ${showSupportBar ? 'support-mode' : ''} ${mode === null ? 'landing-mode' : ''}`}>
       <section className="app-header">
-        <h1>UpNDown</h1>
+        <h1><span className="word-up">Up</span>N<span className="word-down">Down</span></h1>
         <div className="header-actions">
           <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} />
           {mode === null ? (
@@ -1847,48 +1850,37 @@ export function App(): JSX.Element {
         </div>
       </section>
 
+      <NamePrompt
+        auth={auth}
+        suppress={mode === 'solitaire' || multiplayerState !== null}
+        editing={editingName}
+        onClose={() => setEditingName(false)}
+        onConfirmed={(name) => { setPlayerName(name); confirmName(); }}
+      />
+
       <p className="sr-only" role="status" aria-live="polite">
         {pendingAction ? `Action in progress: ${pendingAction}` : 'Ready'}
       </p>
 
       {mode === null ? (
-        <section className="panel mode-switch compact landing" aria-label="mode switch">
-          <SignInCard auth={auth} />
-          {mode === null ? (
-          <>
-            <button
-              type="button"
-              className="primary mode-current"
-              onClick={() => {
-                setMode('solitaire');
-                handleSolitaireNewGame();
-                setMultiplayerFlow('choose');
-                setShowJoinById(false);
-                setError(null);
-              }}
-              data-testid="mode-solitaire"
-            >
-              Solitaire
-            </button>
-            <button
-              type="button"
-              className="primary mode-current"
-              onClick={() => {
-                setMode('multiplayer');
-                setMultiplayerFlow('choose');
-                setShowJoinById(false);
-                setError(null);
-              }}
-              data-testid="mode-multiplayer"
-            >
-              Multiplayer
-            </button>
-            {!persisted ? (
-              <p className="landing-hint">First time here? Click "How to Play" above.</p>
-            ) : null}
-          </>
-          ) : null}
-        </section>
+        <Landing
+          auth={auth}
+          firstVisit={firstVisit}
+          onChangeName={() => setEditingName(true)}
+          onSolitaire={() => {
+            setMode('solitaire');
+            handleSolitaireNewGame();
+            setMultiplayerFlow('choose');
+            setShowJoinById(false);
+            setError(null);
+          }}
+          onMultiplayer={() => {
+            setMode('multiplayer');
+            setMultiplayerFlow('choose');
+            setShowJoinById(false);
+            setError(null);
+          }}
+        />
       ) : null}
 
       {mode === 'multiplayer' && connectionState !== 'connected' ? (
@@ -1955,6 +1947,10 @@ export function App(): JSX.Element {
                     id="player-name-input"
                     value={playerName}
                     onChange={(e) => { setPlayerName(e.target.value); confirmName(); }}
+                    name="playerName"
+                    autoComplete="nickname"
+                    autoCapitalize="words"
+                    spellCheck={false}
                     maxLength={32}
                     placeholder="Your Name"
                     disabled={multiplayerInteractionDisabled}
@@ -2010,8 +2006,8 @@ export function App(): JSX.Element {
                     </button>
                   </div>
 
-                  <div className="joinable-list" aria-label="joinable games">
-                    <h3>Public Games</h3>
+                  <section className="joinable-list" aria-labelledby="joinable-games-title">
+                    <h3 id="joinable-games-title">Public Games</h3>
                     {joinableGames.length === 0 ? (
                       <div className="info-message">No public lobby games right now.</div>
                     ) : (
@@ -2030,7 +2026,7 @@ export function App(): JSX.Element {
                         </div>
                       ))
                     )}
-                  </div>
+                  </section>
 
                   <div className="button-row">
                     <button
@@ -2076,7 +2072,7 @@ export function App(): JSX.Element {
                         </button>
                         <button
                           type="button"
-                          className="secondary"
+                          className="primary"
                           onClick={() => { void handleJoinGame(); }}
                           disabled={multiplayerInteractionDisabled || !playerName.trim() || joinGameId.trim().length !== 6}
                           data-testid="join-game"

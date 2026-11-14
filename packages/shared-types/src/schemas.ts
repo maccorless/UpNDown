@@ -133,8 +133,11 @@ export const rejoinGamePayloadSchema = z.object({
 export type GameSettingsInput = z.infer<typeof gameSettingsSchema>;
 
 // What an account keeps. Every key is optional so a partial document is valid; unknown keys are dropped.
+// Cleaned of control and bidirectional characters, then 1 to 32 characters. Used for the name on an account.
+export const accountNameSchema = z.string().max(200).transform(cleanPlayerName).pipe(z.string().min(1).max(32));
+
 export const storedSettingsSchema = z.object({
-  playerName: z.string().max(200).transform(cleanPlayerName).pipe(z.string().min(1).max(32)).optional(),
+  playerName: accountNameSchema.optional(),
   solitaire: gameSettingsSchema.optional(),
   multiplayer: gameSettingsSchema.optional(),
   enableSounds: z.boolean().optional()

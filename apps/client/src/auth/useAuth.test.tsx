@@ -153,3 +153,61 @@ describe('useAuth', () => {
     });
   });
 });
+
+describe('useAuth name confirmation', () => {
+  beforeEach(() => window.history.replaceState(null, '', '/'));
+  afterEach(() => vi.unstubAllGlobals());
+
+  const signedInWith = (me: unknown, extra: Record<string, () => Response | Promise<Response>> = {}) =>
+    stubFetch({ '/api/auth/config': () => json({ enabled: true, providers: ['google'] }), '/api/me': () => json(me), ...extra });
+
+  it('reports a name the player has not chosen yet, which is what triggers the first-sign-in prompt', async () => {
+    signedInWith({ playerName: 'Grover Arthur', nameConfirmed: false });
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.status).toBe('signedIn'));
+    expect(result.current.nameConfirmed).toBe(false);
+  });
+
+  // An older server does not say. Treating silence as "ask" would show a prompt that nothing can answer.
+  it('treats a server that says nothing, or says true, as already chosen', async () => {
+    signedInWith({ playerName: 'Ken' });
+    const silent = renderHook(() => useAuth());
+    await waitFor(() => expect(silent.result.current.status).toBe('signedIn'));
+    expect(silent.result.current.nameConfirmed).toBe(true);
+
+    signedInWith({ playerName: 'Ken', nameConfirmed: true });
+    const said = renderHook(() => useAuth());
+    await waitFor(() => expect(said.result.current.status).toBe('signedIn'));
+    expect(said.result.current.nameConfirmed).toBe(true);
+  });
+
+  it('confirmName sends the name, then shows it as chosen everywhere', async () => {
+    const fetchMock = signedInWith({ playerName: 'Grover Arthur', nameConfirmed: false, settings: { playerName: 'Grover Arthur' } }, {
+      '/api/me/name': () => json({ playerName: 'Pat', nameConfirmed: true })
+    });
+    const { result } = renderHook(() => useAuth());
+    await waitFor(() => expect(result.current.status).toBe('signedIn'));
+    let saved: string | null = null;
+    await act(async () => { saved = await result.current.confirmName('Pat'); });
+    expect(saved).toBe('Pat');
+    expect(result.current).toMatchObject({ playerName: 'Pat', nameConfirmed: true, settings: { playerName: 'Pat' } });
+    const call = fetchMock.mock.calls.find(([url]) => url === '/api/me/name') as unknown as [string, RequestInit];
+    expect(call[1].method).toBe('PUT');
+    expect(JSON.parse(call[1].body as string)).toEqual({ playerName: 'Pat' });
+  });
+
+  it('keeps the prompt open when saving fails, over a bad status or a dead network', async () => {
+    signedInWith({ playerName: 'Grover Arthur', nameConfirmed: false }, { '/api/me/name': () => json({}, 400) });
+    const bad = renderHook(() => useAuth());
+    await waitFor(() => expect(bad.result.current.status).toBe('signedIn'));
+    await act(async () => { expect(await bad.result.current.confirmName('Pat')).toBeNull(); });
+    expect(bad.result.current).toMatchObject({ playerName: 'Grover Arthur', nameConfirmed: false });
+
+    signedInWith({ playerName: 'Grover Arthur', nameConfirmed: false }, { '/api/me/name': () => { throw new TypeError('offline'); } });
+    const down = renderHook(() => useAuth());
+    await waitFor(() => expect(down.result.current.status).toBe('signedIn'));
+    await act(async () => { expect(await down.result.current.confirmName('Pat')).toBeNull(); });
+    expect(down.result.current.nameConfirmed).toBe(false);
+  });
+});
+

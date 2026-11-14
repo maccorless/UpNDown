@@ -10,6 +10,8 @@ const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   loginMessage: null,
   signIn: vi.fn(),
   signOut: vi.fn(async () => undefined),
+  nameConfirmed: true,
+  confirmName: async (name: string) => name,
   dismissLoginMessage: vi.fn(),
   ...overrides
 });

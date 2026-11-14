@@ -7,11 +7,15 @@ export interface AuthState {
   // 'loading' shows nothing at all, so a signed-in player never sees login buttons flash.
   status: 'loading' | 'disabled' | 'guest' | 'signedIn';
   playerName: string | null;
+  // False until the player has typed a name or accepted the suggested one, which is what the first-sign-in prompt asks.
+  nameConfirmed: boolean;
   // The account's stored document from /api/me. Null when signed out or the server sent nothing usable.
   settings: StoredSettings | null;
   loginMessage: LoginMessage | null;
   signIn: () => void;
   signOut: () => Promise<void>;
+  // Saves the name the player chose (or accepted) and marks it theirs. Resolves to the saved name, or null if it failed.
+  confirmName: (name: string) => Promise<string | null>;
   dismissLoginMessage: () => void;
 }
 
@@ -30,6 +34,7 @@ function takeLoginMessage(): LoginMessage | null {
 export function useAuth(navigate: (url: string) => void = (url) => window.location.assign(url)): AuthState {
   const [status, setStatus] = useState<AuthState['status']>('loading');
   const [playerName, setPlayerName] = useState<string | null>(null);
+  const [nameConfirmed, setNameConfirmed] = useState(true);
   const [settings, setSettings] = useState<StoredSettings | null>(null);
   const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
 
@@ -42,8 +47,10 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
       const me = await fetch('/api/me', { ...sameOrigin, signal: controller.signal });
       if (me.status === 401) return setStatus('guest');
       if (!me.ok) return setStatus('disabled');
-      const body = await me.json() as { playerName?: string | null; settings?: unknown };
+      const body = await me.json() as { playerName?: string | null; nameConfirmed?: boolean; settings?: unknown };
       setPlayerName(typeof body.playerName === 'string' ? body.playerName : null);
+      // A server that does not say (an older one) must not trigger a prompt it cannot answer.
+      setNameConfirmed(body.nameConfirmed !== false);
       const parsed = storedSettingsSchema.safeParse(body.settings);
       setSettings(parsed.success ? parsed.data : null);
       return setStatus('signedIn');
@@ -66,12 +73,33 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
     });
     if (response.ok) {
       setPlayerName(null);
+      setNameConfirmed(true);
       setSettings(null);
       setStatus('guest');
     }
   }, []);
 
+  const confirmName = useCallback(async (name: string): Promise<string | null> => {
+    try {
+      const response = await fetch('/api/me/name', {
+        ...sameOrigin,
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ playerName: name })
+      });
+      if (!response.ok) return null;
+      const saved = (await response.json() as { playerName?: string }).playerName;
+      if (typeof saved !== 'string') return null;
+      setPlayerName(saved);
+      setNameConfirmed(true);
+      setSettings((current) => (current ? { ...current, playerName: saved } : current));
+      return saved;
+    } catch {
+      return null;
+    }
+  }, []);
+
   const dismissLoginMessage = useCallback(() => setLoginMessage(null), []);
 
-  return { status, playerName, settings, loginMessage, signIn, signOut, dismissLoginMessage };
+  return { status, playerName, nameConfirmed, settings, loginMessage, signIn, signOut, confirmName, dismissLoginMessage };
 }

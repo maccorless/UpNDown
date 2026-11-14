@@ -54,6 +54,36 @@ function contract(make: () => Promise<ProfileStore>): void {
     expect((await store.getSettings(userId))?.playerName).toBe(names[0]);
   });
 
+  it('starts every account unconfirmed, and confirming stores the name and marks it chosen', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-confirm');
+    expect(await store.getNameConfirmed(userId)).toBe(false);
+    await store.ensurePlayerName(userId, 'Grover Arthur');
+    expect(await store.getNameConfirmed(userId)).toBe(false);
+    expect(await store.confirmPlayerName(userId, 'Pat')).toBe(true);
+    expect(await store.getNameConfirmed(userId)).toBe(true);
+    expect((await store.getSettings(userId))?.playerName).toBe('Pat');
+  });
+
+  it('keeps the other settings when a name is confirmed, and reports a missing account', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-confirm-keep');
+    await store.replaceSettings(userId, { playerName: 'A B', enableSounds: false });
+    await store.confirmPlayerName(userId, 'C D');
+    expect(await store.getSettings(userId)).toEqual({ playerName: 'C D', enableSounds: false });
+    const ghost = '00000000-0000-0000-0000-000000000000';
+    expect(await store.getNameConfirmed(ghost)).toBeNull();
+    expect(await store.confirmPlayerName(ghost, 'X Y')).toBe(false);
+  });
+
+  it('confirms through replaceSettings only when asked, and never un-confirms', async () => {
+    const { userId } = await store.findOrCreateUser('google', 'acct-confirm-replace');
+    await store.replaceSettings(userId, { playerName: 'A B' });
+    expect(await store.getNameConfirmed(userId)).toBe(false);
+    await store.replaceSettings(userId, { playerName: 'A B' }, { confirmName: true });
+    expect(await store.getNameConfirmed(userId)).toBe(true);
+    await store.replaceSettings(userId, { playerName: 'A B', enableSounds: true }, { confirmName: false });
+    expect(await store.getNameConfirmed(userId)).toBe(true);
+  });
+
   it('replaces the whole settings document', async () => {
     const { userId } = await store.findOrCreateUser('google', 'acct-replace');
     await store.replaceSettings(userId, { playerName: 'A B', enableSounds: false });

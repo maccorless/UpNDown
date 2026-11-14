@@ -291,6 +291,72 @@ describe('auth routes', () => {
       expect((await me(jar)).playerName).toBe(first.playerName);
     });
 
+    const putName = (jar: Jar, body: unknown, headers: Record<string, string> = json) =>
+      fetch(`${url}/api/me/name`, { method: 'PUT', headers: { ...headers, cookie: cookieHeader(jar) }, body: JSON.stringify(body) });
+    const meFull = async (jar: Jar) => (await (await get('/api/me', jar)).json()) as { playerName: string; nameConfirmed: boolean; settings: Record<string, unknown> };
+
+    // The server hands out a random name at once, but the player has not chosen it: that is what the first-sign-in prompt asks.
+    it('reports a freshly assigned name as not yet chosen', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const body = await meFull(jar);
+      expect(body.playerName).toBeTruthy();
+      expect(body.nameConfirmed).toBe(false);
+    });
+
+    it('stores a typed or accepted name, cleaned, and marks it chosen', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const res = await putName(jar, { playerName: '  Ab\u202Ee\u0007  ' });
+      expect(res.status).toBe(200);
+      expect(await res.json()).toEqual({ playerName: 'Abe', nameConfirmed: true });
+      const after = await meFull(jar);
+      expect(after).toMatchObject({ playerName: 'Abe', nameConfirmed: true });
+      expect(after.settings.playerName).toBe('Abe');
+    });
+
+    // Accepting the random one is the same call with the suggested name.
+    it('marks the suggested name chosen when the player accepts it unchanged', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const { playerName } = await meFull(jar);
+      expect((await putName(jar, { playerName })).status).toBe(200);
+      expect(await meFull(jar)).toMatchObject({ playerName, nameConfirmed: true });
+    });
+
+    it('refuses an empty or all-control name and leaves the account unconfirmed', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const before = await meFull(jar);
+      for (const bad of [{ playerName: '   ' }, { playerName: '\u202E' }, {}, { playerName: 5 }]) {
+        expect((await putName(jar, bad)).status).toBe(400);
+      }
+      expect(await meFull(jar)).toMatchObject({ playerName: before.playerName, nameConfirmed: false });
+    });
+
+    it('needs a session, the canonical Origin and a JSON body, and is limited per user', async () => {
+      await boot();
+      expect((await putName(new Map(), { playerName: 'Pat' })).status).toBe(401);
+      const { jar } = await signIn();
+      expect((await putName(jar, { playerName: 'Pat' }, { 'content-type': 'application/json', origin: 'http://localhost:5173' })).status).toBe(403);
+      expect((await putName(jar, { playerName: 'Pat' }, { 'content-type': 'text/plain', origin: BASE })).status).toBe(403);
+      const codes: number[] = [];
+      for (let i = 0; i < 12; i += 1) codes.push((await putName(jar, { playerName: `Pat${i}` })).status);
+      expect(codes.slice(0, 10).every((c) => c === 200)).toBe(true);
+      expect(codes.slice(10)).toEqual([429, 429]);
+    });
+
+    // The sync re-sends the stored name on every save. That must not count as the player choosing it.
+    it('does not confirm the name when a settings save repeats it, but does when a save changes it', async () => {
+      await boot();
+      const { jar } = await signIn();
+      const { playerName } = await meFull(jar);
+      expect((await put(jar, { playerName, enableSounds: false })).status).toBe(200);
+      expect((await meFull(jar)).nameConfirmed).toBe(false);
+      expect((await put(jar, { playerName: 'Someone Else' })).status).toBe(200);
+      expect(await meFull(jar)).toMatchObject({ playerName: 'Someone Else', nameConfirmed: true });
+    });
+
     it('names an older account that has settings but no name, without losing the settings', async () => {
       await boot();
       const { jar } = await signIn();

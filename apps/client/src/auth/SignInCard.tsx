@@ -1,8 +1,8 @@
 import type { AuthState } from './useAuth.js';
 
 const messages = {
-  cancelled: 'Sign-in cancelled. You can try again, or play as a guest below.',
-  failed: 'Sign-in did not work. Try again, or play as a guest below.'
+  cancelled: 'Sign-in cancelled. You can try again, or just play as a guest.',
+  failed: 'Sign-in did not work. Try again, or just play as a guest.'
 } as const;
 
 // Official four-colour Google "G"; the button follows Google's sign-in branding rules.
@@ -35,7 +35,7 @@ export function SignInCard({ auth }: { auth: AuthState }): JSX.Element | null {
           <GoogleG />
           <span>Continue with Google</span>
         </button>
-        <p className="signin-hint">No account needed: play as a guest below.</p>
+        <p className="signin-hint">Optional. Keeps your name and settings on every device.</p>
       </div>
     </div>
   );

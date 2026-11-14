@@ -10,6 +10,8 @@ const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   loginMessage: null,
   signIn: vi.fn(),
   signOut: vi.fn(async () => undefined),
+  nameConfirmed: true,
+  confirmName: async (name: string) => name,
   dismissLoginMessage: vi.fn(),
   ...overrides
 });
@@ -21,17 +23,17 @@ describe('SignInCard', () => {
     expect(container.innerHTML).toBe('');
   });
 
-  it('offers Google sign-in and a quiet guest line, with no separate guest button', () => {
+  it('offers Google sign-in and says why, with no separate guest button', () => {
     render(<SignInCard auth={makeAuth()} />);
     expect(screen.getByRole('button', { name: 'Continue with Google' })).toBeTruthy();
-    expect(screen.getByText('No account needed: play as a guest below.')).toBeTruthy();
+    expect(screen.getByText('Optional. Keeps your name and settings on every device.')).toBeTruthy();
     expect(screen.getAllByRole('button')).toHaveLength(1);
     expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it.each([
-    ['cancelled', 'Sign-in cancelled. You can try again, or play as a guest below.'],
-    ['failed', 'Sign-in did not work. Try again, or play as a guest below.']
+    ['cancelled', 'Sign-in cancelled. You can try again, or just play as a guest.'],
+    ['failed', 'Sign-in did not work. Try again, or just play as a guest.']
   ] as const)('announces the %s message with role=alert', (loginMessage, text) => {
     render(<SignInCard auth={makeAuth({ loginMessage })} />);
     expect(screen.getByRole('alert').textContent).toBe(text);
