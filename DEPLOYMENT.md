@@ -12,6 +12,13 @@ The platform is chosen with env vars on the service, not in code.
 | `ALLOWED_ORIGINS` | yes | Exact public URL(s) of the app, comma-separated, e.g. `https://upndown.up.railway.app`. The server refuses to start in production without it. |
 | `TRUSTED_PROXY_HOPS` | no | Overrides the `DEPLOY_TARGET` default. Number of reverse proxies in front of the server, used to find the real client IP in `X-Forwarded-For` for per-IP limits. Too high lets clients spoof their IP; too low makes users share one limit. Check the `clientIp` field of the `socket.connected` log after deploying. |
 | `PORT` | no | Set by the platform. The image defaults to `8080`. |
+| `DATABASE_URL` | no | Postgres connection string (Railway: `${{Postgres.DATABASE_URL}}`, the private-network URL). With the four variables below it turns on optional Google login. The server applies its schema migrations at startup. Leave unset on Skiff: guest play only. |
+| `PUBLIC_BASE_URL` | with login | The one address login works on, an origin with no path or trailing slash, e.g. `https://upndown.cloud`. `http` is accepted only for localhost. |
+| `AUTH_STATE_SECRET` | with login | 32+ random characters, e.g. `openssl rand -base64 32`. |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | with login | From the Google Cloud OAuth client. Treat the secret like a password. |
+| `LEGACY_HOST` | no | Host that will redirect to `PUBLIC_BASE_URL` once login ships. Defaults to Railway's `RAILWAY_PUBLIC_DOMAIN`. |
+
+Login is on only when all five of `DATABASE_URL`, `PUBLIC_BASE_URL`, `AUTH_STATE_SECRET`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set and the database answers. Otherwise the server logs `auth.disabled` with the reason (variable names only) and everyone plays as a guest. `GET /api/auth/config` reports the state.
 
 The image already sets `NODE_ENV=production` and `CLIENT_DIST_DIR`. Health check path: `/health`.
 

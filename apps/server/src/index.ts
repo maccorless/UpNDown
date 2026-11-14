@@ -15,6 +15,7 @@ import {
   setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
+import { authRouter, createAuthRuntime } from './auth/runtime.js';
 import { GameManager } from './game-manager.js';
 import { toPlayerView } from './player-view.js';
 
@@ -179,6 +180,9 @@ export function createRealtimeServer(port?: number) {
   app.get('/health', (_req, res) => {
     res.json({ ok: true, service: 'upndown-server', uptimeSec: Math.floor(process.uptime()) });
   });
+
+  const auth = createAuthRuntime(process.env, log);
+  app.use(authRouter(auth));
 
   // Single-container deploys (Skiff) serve the built client from the socket server's origin.
   const { clientDistDir } = config;
@@ -631,6 +635,7 @@ export function createRealtimeServer(port?: number) {
 
   const stop = async (): Promise<void> => {
     clearInterval(cleanupTimer);
+    await auth.stop();
     await new Promise<void>((resolve, reject) => {
       io.close(() => {
         httpServer.close((err) => (err ? reject(err) : resolve()));
@@ -638,12 +643,14 @@ export function createRealtimeServer(port?: number) {
     });
   };
 
-  return { app, io, httpServer, config, start: () => httpServer.listen(config.port), stop };
+  return { app, io, httpServer, config, auth, start: () => httpServer.listen(config.port), stop };
 }
 
 if (process.env.NODE_ENV !== 'test') {
   const server = createRealtimeServer();
   server.start();
+  // Not awaited: the game accepts players while the database connects.
+  void server.auth.start();
   log('info', 'server.started', { port: server.config.port, nodeEnv: server.config.nodeEnv, allowedOrigins: server.config.allowedOrigins });
 
   let shuttingDown = false;
