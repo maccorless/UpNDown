@@ -1,5 +1,5 @@
 import { emptyPlayerStats } from '@upndown/engine';
-import type { GameState } from '@upndown/shared-types';
+import type { GameState, SolitaireResultPayload } from '@upndown/shared-types';
 import type { GameResultRow } from './store.js';
 
 // Co-players are not stored (a privacy decision), only how many there were. A row is one player's view of a game:
@@ -49,3 +49,29 @@ export function buildResultRows(args: {
   }
   return rows;
 }
+
+// A solitaire row is built from what the browser reports. Nothing here is checked against a game the server saw.
+export function buildSolitaireRow(userId: string, payload: SolitaireResultPayload): GameResultRow {
+  return {
+    userId,
+    gameId: payload.gameId,
+    mode: 'solitaire',
+    outcome: payload.outcome,
+    startedAt: new Date(payload.startedAtMs),
+    endedAt: new Date(payload.endedAtMs),
+    durationMs: payload.endedAtMs - payload.startedAtMs,
+    turns: payload.turns,
+    playerCount: 1,
+    cardsTotal: payload.cardsTotal,
+    cardsLeft: payload.cardsLeft,
+    myCardsPlayed: payload.cardsPlayed,
+    myTotalMovement: payload.totalMovement,
+    mySpecialPlays: payload.specialPlays,
+    myNasCheats: payload.nasCheats,
+    handSize: payload.settings.handSize,
+    minCardsPerTurn: payload.settings.minCardsPerTurn,
+    maxCard: payload.settings.maxCardValue,
+    settings: { ...payload.settings }
+  };
+}
+

@@ -12,6 +12,9 @@ import { Landing } from './Landing.js';
 import { NamePrompt } from './auth/NamePrompt.js';
 import { useAccountSync } from './auth/useAccountSync.js';
 import { readNameConfirmed, writeNameConfirmed } from './player-name-confirmed.js';
+import { newRunId } from './solitaire-result.js';
+import { useSolitaireResult } from './useSolitaireResult.js';
+import { useSolitaireSave } from './useSolitaireSave.js';
 import { useAuth } from './auth/useAuth.js';
 import './App.css';
 
@@ -607,6 +610,10 @@ export function App(): JSX.Element {
   const [solitaireSpecialPlayPileId, setSolitaireSpecialPlayPileId] = useState<number | null>(null);
   const solitaireSpecialPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [solitaireUndoStack, setSolitaireUndoStack] = useState<GameState[]>([]);
+  const [solitaireRunId, setSolitaireRunId] = useState(newRunId);
+  const solitaireSave = useSolitaireSave({ active: solitaireActive, state: solitaireState, undoStack: solitaireUndoStack, runId: solitaireRunId });
+  // Solitaire needs no server. Only a signed-in player's finished game is sent, to be saved to their history.
+  const solitaireResult = useSolitaireResult({ active: solitaireActive, state: solitaireState, runId: solitaireRunId, signedIn: auth.status === 'signedIn' });
 
   const [multiplayerState, setMultiplayerState] = useState<GameState | null>(null);
   const [multiplayerSelectedCardId, setMultiplayerSelectedCardId] = useState<string | null>(null);
@@ -1167,17 +1174,27 @@ export function App(): JSX.Element {
     }
   };
 
-  const handleSolitaireNewGame = (): void => {
-    const nextState = newSolitaireGame(solitaireConfig);
+  const beginSolitaire = (state: GameState, undo: GameState[], runId: string): void => {
     setSolitaireActive(true);
-    setSolitaireState(nextState);
+    setSolitaireRunId(runId);
+    setSolitaireState(state);
     setDismissedStatsModalKey(null);
     setSolitaireSelectedCardId(null);
-    setSolitaireUndoStack([]);
+    setSolitaireUndoStack(undo);
     setError(null);
   };
 
+  const handleSolitaireNewGame = (): void => beginSolitaire(newSolitaireGame(solitaireConfig), [], newRunId());
+
+  // Picks up the game saved on this device. The clock stopped while it was away.
+  const handleSolitaireResume = (): void => {
+    const saved = solitaireSave.load();
+    if (saved) beginSolitaire(saved.state, saved.undo, saved.runId ?? newRunId());
+    else handleSolitaireNewGame();
+  };
+
   const handleSolitaireEndGame = (): void => {
+    solitaireSave.discard();
     setSolitaireActive(false);
     setSolitaireSelectedCardId(null);
     setSolitaireUndoStack([]);
@@ -1874,6 +1891,13 @@ export function App(): JSX.Element {
             setShowJoinById(false);
             setError(null);
           }}
+          solitaireSave={solitaireSave.summary}
+          onResumeSolitaire={() => {
+            setMode('solitaire');
+            handleSolitaireResume();
+            setMultiplayerFlow('choose');
+            setShowJoinById(false);
+          }}
           onMultiplayer={() => {
             setMode('multiplayer');
             setMultiplayerFlow('choose');
@@ -2410,6 +2434,8 @@ export function App(): JSX.Element {
           statistics={activeStatsSummary}
           isHost={!!isHost}
           onClose={() => setDismissedStatsModalKey(activeStatsModalKey)}
+          saveStatus={mode === 'solitaire' ? solitaireResult.status : 'idle'}
+          onRetrySave={solitaireResult.retry}
           onPlayAgain={() => {
             if (mode === 'solitaire') {
               handleSolitaireNewGame();

@@ -22,7 +22,7 @@ async function load() {
   return (await import('./Landing.js')).Landing;
 }
 
-const handlers = () => ({ onSolitaire: vi.fn(), onMultiplayer: vi.fn(), onChangeName: vi.fn() });
+const handlers = () => ({ onSolitaire: vi.fn(), onMultiplayer: vi.fn(), onChangeName: vi.fn(), solitaireSave: null, onResumeSolitaire: vi.fn() });
 
 describe('Landing', () => {
   beforeEach(() => vi.resetModules());
@@ -80,3 +80,51 @@ describe('Landing', () => {
     expect(second.container.querySelector('.landing-hero')?.classList.contains('landing-enter')).toBe(false);
   });
 });
+
+describe('Landing with a solitaire game saved on this device', () => {
+  beforeEach(() => vi.resetModules());
+  const saved = { cardsLeft: 41, savedAtMs: Date.now() - 2 * 3_600_000 };
+
+  it('offers to continue it, says how far along it is and where it is kept, and does not start a new game', async () => {
+    const Landing = await load();
+    const h = { ...handlers(), solitaireSave: saved };
+    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
+    const card = screen.getByTestId('mode-solitaire');
+    expect(card.textContent).toContain('Continue solitaire');
+    expect(card.textContent).toContain('41 cards left. Saved 2 hours ago.');
+    expect(screen.getByText(/Saved on this device only/)).toBeTruthy();
+    await userEvent.click(card);
+    expect(h.onResumeSolitaire).toHaveBeenCalledTimes(1);
+    expect(h.onSolitaire).not.toHaveBeenCalled();
+  });
+
+  // Starting over throws the saved game away for good, so one stray click must not do it.
+  it('starts a new game only after a second, deliberate step, and keeps the save if the player backs out', async () => {
+    const Landing = await load();
+    const h = { ...handlers(), solitaireSave: saved };
+    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Start a new solitaire game' }));
+    expect(h.onSolitaire).not.toHaveBeenCalled();
+    expect(screen.getByText(/will be discarded/).textContent).toContain('41 cards left');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Keep my saved game' }));
+    expect(h.onSolitaire).not.toHaveBeenCalled();
+    expect(screen.queryByText(/will be discarded/)).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Start a new solitaire game' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Discard and start new' }));
+    expect(h.onSolitaire).toHaveBeenCalledTimes(1);
+    expect(h.onResumeSolitaire).not.toHaveBeenCalled();
+  });
+
+  it('looks exactly as before when nothing is saved', async () => {
+    const Landing = await load();
+    const h = handlers();
+    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
+    expect(screen.getByTestId('mode-solitaire').textContent).toContain('Play on your own. No sign-in, no waiting.');
+    expect(screen.queryByText(/Saved on this device only/)).toBeNull();
+    await userEvent.click(screen.getByTestId('mode-solitaire'));
+    expect(h.onSolitaire).toHaveBeenCalledTimes(1);
+  });
+});
+

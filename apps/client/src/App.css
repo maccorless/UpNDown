@@ -2724,3 +2724,17 @@ button.mode-card:not(:disabled):active {
     border-color: transparent;
   }
 }
+
+/* Saved solitaire game: a quiet line under the cards, with the way to start over. */
+.resume-note {
+  margin: -8px 0 0;
+  color: var(--muted-strong);
+  text-align: center;
+}
+
+/* Result of saving a signed-in player's finished solitaire game to their history. */
+.stats-save {
+  margin: 10px 0 0;
+  text-align: center;
+  color: inherit;
+}

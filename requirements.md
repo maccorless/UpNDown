@@ -38,6 +38,9 @@ A cooperative multiplayer card game where players work together to play all thei
 - Continuous play — no turn structure
 - `autoRefillHand` always `true`
 - No minimum card requirement
+- **No connection needed**: solitaire is played, saved and resumed entirely in the browser. The server is involved only to sign in, and, when a signed-in player finishes a game, to save its result
+- **Save and resume (this device only)**: once a card has been played, the game is saved in this browser after every move, with its undo history. Coming back later, the landing offers "Continue solitaire" (cards left, how long ago it was saved) and puts you back exactly where you were; "Start a new solitaire game" asks before discarding it. The save is removed when the game is won or lost, or you press End Game. It never goes to the server and does not follow an account to another device. Time away is not counted as time played
+- **Result for signed-in players**: a finished solitaire game (won or lost, never one ended early) is saved to the player's private history, once, even if sent again. The end screen says "Saved to your history.", or offers Try again if it could not be sent. A guest's solitaire never touches the server
 - **Status**: ✅ **Implemented**
 
 #### Card Placement Rules

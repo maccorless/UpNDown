@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import { accountNameSchema, randomPresidentName, storedSettingsSchema } from '@upndown/shared-types';
+import { accountNameSchema, randomPresidentName, solitaireResultPayloadSchema, storedSettingsSchema } from '@upndown/shared-types';
 import { z } from 'zod';
+import { buildSolitaireRow } from '../profile/result-rows.js';
 import type { ProfileStore } from '../profile/store.js';
 import { createIpRateLimiter } from './http-rate-limit.js';
 import type { AuthSettings } from './config.js';
@@ -258,6 +259,50 @@ export function createAuthRouter(options: AuthRouterOptions): {
       return;
     }
     res.json({ playerName: body.data.playerName, nameConfirmed: true });
+  }));
+
+  // The end of a solitaire game, from a signed-in browser. Solitaire itself needs no server: this is the only time it asks
+  // for one, and only to save the result. The game id makes a retry harmless.
+  router.post('/api/me/solitaire-results', withServices('api.solitaire', 60, 60_000, async (req, res, current) => {
+    if (!req.is('application/json') || req.headers.origin !== current.settings.publicBaseUrl) {
+      res.status(403).json({});
+      return;
+    }
+    const session = await resolveSession(req.headers.cookie, current, true);
+    if (!session) {
+      res.status(401).json({});
+      return;
+    }
+    if (!limiter.allowUser(session.userId, 'api.solitaire', 30, 60_000)) {
+      res.status(429).json({});
+      return;
+    }
+    // A result is a few hundred bytes. The parser upstream allows far more, so this is where an oversized body stops.
+    if (JSON.stringify(req.body ?? null).length > 4096) {
+      res.status(413).json({});
+      return;
+    }
+    const body = solitaireResultPayloadSchema.safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: 'invalid result' });
+      return;
+    }
+    // The browser's own clock says when it ended. A game finished offline may be sent later, so the past is allowed
+    // (within reason), but a result from the future is not.
+    const now = Date.now();
+    if (body.data.endedAtMs > now + 5 * 60_000 || body.data.endedAtMs < now - 400 * 24 * 3_600_000) {
+      res.status(400).json({ error: 'invalid result' });
+      return;
+    }
+    const [outcome] = await current.store.recordResults([buildSolitaireRow(session.userId, body.data)]);
+    log('info', 'game.results_recorded', { runId: body.data.gameId, rows: 1, mode: 'solitaire', inserted: outcome?.outcome === 'inserted' ? 1 : 0, duplicate: outcome?.outcome === 'duplicate' ? 1 : 0, userMissing: outcome?.outcome === 'user_missing' ? 1 : 0, failed: outcome?.outcome === 'failed' ? 1 : 0 });
+    if (outcome?.outcome === 'inserted' || outcome?.outcome === 'duplicate') {
+      res.json({ outcome: outcome.outcome });
+    } else if (outcome?.outcome === 'user_missing') {
+      res.status(401).json({});
+    } else {
+      res.status(500).json({});
+    }
   }));
 
   router.post('/api/auth/logout', withServices('api.logout', 20, 60_000, async (req, res, current) => {

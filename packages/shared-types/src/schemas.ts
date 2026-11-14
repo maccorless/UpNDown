@@ -144,3 +144,76 @@ export const storedSettingsSchema = z.object({
 });
 
 export type StoredSettings = z.infer<typeof storedSettingsSchema>;
+
+const cardSchema = z.object({ id: z.string().min(1).max(40), value: z.number().int().min(-1000).max(1000) });
+
+// The whole of a game, for anything that has to read one back from storage: a saved solitaire game today, and games
+// in progress if they are ever kept in a database. Bounds are generous; they exist so a damaged or hand-edited value
+// is refused rather than trusted. Shape only: rules (is this a legal position) stay in the engine.
+export const gameStateSchema = z.object({
+  gameId: z.string().max(16),
+  hostId: z.string().max(100),
+  players: z.array(z.object({
+    id: z.string().max(100),
+    name: z.string().max(64),
+    hand: z.array(cardSchema).max(200),
+    isHost: z.boolean(),
+    color: z.enum(['red', 'orange', 'green', 'cyan', 'purple', 'pink']).optional()
+  })).max(6),
+  foundationPiles: z.array(z.object({
+    id: z.number().int().min(0).max(7),
+    type: z.enum(['ascending', 'descending']),
+    topCard: cardSchema
+  })).max(8),
+  drawPile: z.array(cardSchema).max(300),
+  currentPlayerIndex: z.number().int().min(0).max(5),
+  gamePhase: z.enum(['lobby', 'playing', 'won', 'lost']),
+  cardsPlayedThisTurn: z.number().int().min(0).max(1000),
+  statistics: z.object({
+    turns: z.number().int().min(0),
+    startedAtMs: z.number().nullable(),
+    endedAtMs: z.number().nullable(),
+    players: z.record(z.string().max(100), z.object({
+      cardsPlayed: z.number().int().min(0),
+      totalMovement: z.number().int(),
+      specialPlays: z.number().int().min(0),
+      nasCheatsUsed: z.number().int().min(0)
+    }))
+  }),
+  nasCheat: z.object({
+    enabledPlayerIds: z.array(z.string().max(100)).max(6),
+    usedThisTurnByPlayerId: z.record(z.string().max(100), z.boolean())
+  }),
+  settings: gameSettingsSchema,
+  isSolitaire: z.boolean()
+});
+
+// What a browser reports when a signed-in player finishes a solitaire game. The server cannot watch a solitaire game,
+// but the history is private to its owner, so a false report only misleads them. The rules below keep it sane, not honest.
+export const solitaireResultPayloadSchema = z.object({
+  // One id per game, kept with the saved game, so sending the same result twice is harmless.
+  gameId: z.string().min(1).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  outcome: z.enum(['won', 'lost']),
+  startedAtMs: z.number().int().min(0),
+  endedAtMs: z.number().int().min(0),
+  turns: z.number().int().min(0).max(100_000),
+  cardsTotal: z.number().int().min(1).max(200),
+  cardsLeft: z.number().int().min(0).max(200),
+  cardsPlayed: z.number().int().min(0).max(200),
+  totalMovement: z.number().int().min(-100_000).max(100_000),
+  specialPlays: z.number().int().min(0).max(200),
+  nasCheats: z.number().int().min(0).max(200),
+  settings: gameSettingsSchema
+}).superRefine((r, ctx) => {
+  const fail = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }); };
+  if (r.endedAtMs < r.startedAtMs) fail('endedAtMs before startedAtMs');
+  // Playing time, not wall time: a game left for a week and finished still reports only the time spent playing.
+  if (r.endedAtMs - r.startedAtMs > 30 * 24 * 3_600_000) fail('duration too long');
+  if (r.cardsLeft > r.cardsTotal || r.cardsPlayed > r.cardsTotal || r.cardsPlayed + r.cardsLeft > r.cardsTotal) fail('cards do not add up');
+  if (r.specialPlays > r.cardsPlayed || r.nasCheats > r.cardsPlayed) fail('more special plays than plays');
+  if (r.outcome === 'won' && r.cardsLeft !== 0) fail('a win leaves no cards');
+  if (r.outcome === 'lost' && r.cardsLeft === 0) fail('a loss leaves cards');
+});
+
+export type SolitaireResultPayload = z.infer<typeof solitaireResultPayloadSchema>;
+

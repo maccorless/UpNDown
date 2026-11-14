@@ -6,6 +6,9 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-14 | — | Feat: solitaire saves your game on this device: leave mid-game and the landing offers "Continue solitaire" (cards left, when it was saved) with your exact hand, piles and undo history. Starting over asks first. The save is removed when you win, lose or press End Game, and never leaves your browser |
+| 2026-11-14 | — | Feat: solitaire needs no connection. The only things it ever sends are sign-in and, when a signed-in player finishes a game, its result, saved to their history once ("Saved to your history.", or Try again if it could not be sent). Guests and games ended early send nothing |
+| 2026-11-14 | — | Docs: privacy page now has a "Games in progress" section: what is kept while a game runs (names, hands, piles, settings, turn, rejoin tokens, which account holds a seat), that it is in memory today and may move to the database, when it is deleted, and that there is no move-by-move record |
 | 2026-11-14 | — | Feat: signed-in players' multiplayer games are recorded (win or loss, or an abandoned game for the host who ends a live one) with their own counters, game length and settings. Guests are not recorded. Recording never slows or breaks play, never writes a game twice, and a redeploy waits up to 5 seconds for writes in flight |
 | 2026-11-14 | — | Feat: first sign-in asks for your player name ("Input your player name or accept a random one"): editable field, shuffle for another random name, a preview of how others will see you, Continue. Existing accounts are asked once; "Change name" on the landing reopens it |
 | 2026-11-14 | — | Feat: new landing screen: big Up/Down wordmark in pile colours, tagline, two mode cards showing a pile of numbers, and a sign-in strip that says why to sign in. Entrance plays once per page load, never under reduced motion |

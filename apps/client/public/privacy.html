@@ -45,9 +45,20 @@
       <h2>Playing as a guest</h2>
       <ul>
         <li>You pick a player name. Other players in your game see it.</li>
-        <li>Game state is held in the server's memory while the game runs and is gone when the game ends or the server restarts.</li>
+        <li>Your game is kept while it runs, as described under Games in progress below.</li>
         <li>Your browser stores your settings and a rejoin token on your own device (local storage). We do not receive them as an account.</li>
+        <li>Solitaire works without a connection. If you leave a solitaire game unfinished, a saved copy stays in your own browser so you can pick it up later. As a guest, solitaire never sends anything to us, and the saved game does not follow you to another device or browser.</li>
         <li>Guests have no profile and no history.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Games in progress</h2>
+      <p>While a game is running we keep its state, so it can carry on if someone's connection drops and they come back. That state is: the players' in-game names, the cards in each hand, the draw pile and the foundation piles, the game settings, whose turn it is, and a private rejoin token for each seat. For a signed-in player we also note which account holds the seat, so the result can be saved to that account.</p>
+      <ul>
+        <li>Today this state is held in the game server's memory, so it is lost if the server restarts. We are moving towards saving it in our database so a game can survive a restart. If we do, it is kept there only while the game is in progress.</li>
+        <li>We delete a game's state when the game is over and the host returns to the lobby or everyone leaves, and when nobody has been connected to it for a while.</li>
+        <li>We do not keep a move-by-move record of games. What remains afterwards is only the summary that a signed-in player gets in their own history, described below.</li>
       </ul>
     </section>
 
@@ -58,7 +69,7 @@
       <ul>
         <li>Your Google account identifier, so we can recognize you next time. It is not shown to anyone.</li>
         <li>The player name you confirm for use in games, and your settings (for example sounds and game options).</li>
-        <li>A record of each multiplayer game you finish while signed in, or end early as the host: result, date, duration, number of players, and your own card counts. Solitaire games are not recorded yet. We do not store the names or identities of the other players.</li>
+        <li>A record of each game you finish while signed in, or end early as the host of a multiplayer game: result, date, duration, number of players, and your own card counts. For solitaire, this is the only thing sent to us, and only when you finish a game while signed in; a solitaire game you end early is not recorded. We do not store the names or identities of the other players.</li>
         <li>A login session. Only a hash of the session token is stored on our server, and your browser keeps a cookie that is HttpOnly, Secure and SameSite.</li>
       </ul>
       <p>Your statistics are private to you. Other players only ever see the player name you use in a game.</p>
@@ -70,7 +81,7 @@
 
     <section>
       <h2>Where data is kept</h2>
-      <p>The game runs on Railway. Account data is stored in a PostgreSQL database hosted by Railway. Google processes your sign-in under its own privacy policy.</p>
+      <p>The game runs on Railway. Account data, and in future the state of games in progress, is stored in a PostgreSQL database hosted by Railway. Google processes your sign-in under its own privacy policy.</p>
     </section>
 
     <section>

@@ -198,9 +198,26 @@ Recorded as `abandoned` through `onGameAbandoned`, which has exactly one trigger
 
 Not recorded: a kicked player (not their choice), a game abandoned by everyone and reaped, a game where every player drops and the room is reaped, and a lobby that never started.
 
-### 9.2 Solitaire (client-reported)
+### 9.2 Solitaire (plays with no server; a signed-in player's finished game is saved)
 
-The browser posts the final state summary to `POST /api/me/solitaire-results` with a client-generated game id. The server cannot verify a solitaire game, but because stats are private a false result only misleads its owner. The endpoint validates ranges (for example `cards_left <= cards_total`), requires `game_id` to be a UUID or at most 64 characters, passes `settings` through the existing `gameSettingsSchema` (unknown keys stripped), uses a body limit of a few KB, and rate limits per user. A result is posted once with no offline queue, so a game whose tab closes at the end is not recorded. The server sets `ended_at` to its own receive time, and rejects a client value in the future. Solitaire has no `abandoned` rows: the browser is the only witness, a closed tab can never report a quit, and a rule that records only some quits would be inconsistent.
+Decided by the project owner on 14-Nov-2026. Solitaire runs entirely in the browser and must work with no connection, which also suits a native iOS app later. The server is involved in only two ways: signing in, and, for a signed-in player, saving the result when a game finishes.
+
+**Save point on the device (local only).** A game in progress is saved in the browser's local storage under `upndown.solitaire.save.v1`, so the player can come back and pick up where they left off. It never goes to the server and does not follow an account to another device.
+
+- Written after every change once at least one card has been played (an untouched deal is not kept, and undoing back to the start forgets the save). It holds the current game, the last 30 undo steps, the time saved and the game's id.
+- Removed when the game is won or lost, when the player presses End Game, and when a new game replaces it.
+- The landing shows "Continue solitaire" with the cards left and how long ago it was saved. "Start a new solitaire game" asks before discarding it. A page load never touches the save.
+- Resuming restores the same hand and piles, undo still works, and the time away is not counted as time played.
+- A save is checked before it is trusted (`gameStateSchema`, then: a live, one-player, in-range game with no repeated cards). Anything else is discarded.
+
+**Result at the end (signed in only).** When a game is won or lost and the player is signed in, the browser posts the result once to `POST /api/me/solitaire-results`; nobody else's game ever touches the server. A game ended early with End Game is not a result and is never sent, and solitaire has no `abandoned` rows.
+
+- The id of the game is created when it starts and kept in the save, so a retry, or a game finished after a reload, is the same game: `unique(user_id, game_id)` with `ON CONFLICT DO NOTHING` makes a repeat harmless.
+- The body is `solitaireResultPayloadSchema` (shared): outcome won or lost; cards played plus cards left at most the deck; special plays at most plays; a win leaves no cards and a loss leaves some; end after start; at most 30 days of play. A body over 4 KB is refused (413).
+- The browser's clock says when the game ended. The server accepts up to 5 minutes in the future and up to 400 days in the past (a game finished offline may be sent later) and refuses the rest. Playing time is what is stored, so a game left for a week still reports only the time spent playing.
+- Session, JSON content type and canonical Origin are required; 30 saves a minute per user.
+- The end-of-game screen shows "Saving...", "Saved to your history." or, if it could not be sent, "Could not save this game to your history." with Try again, which resends the same game. A guest sees nothing about it.
+- There is no offline queue. If a signed-in player finishes a game with no connection they get the message and can retry once back online, as long as the page is still open. A queue would need each queued result tied to the account it belongs to, which the browser does not know; it is the natural next step for the native app.
 
 ### 9.3 Statistics shown
 
@@ -241,7 +258,7 @@ State-changing routes require `Content-Type: application/json`, an `Origin` that
 - Statistics and Account open as full-screen views with a visible Back control that returns to the screen the user came from, opened and closed the way the Settings dialog is.
 - Profile statistics page: tiles, streaks, breakdown table, trend, history list. Light and dark themes, phone layout, keyboard and screen reader support as the rest of the app. States: empty (one message with a prompt to play, no tiles, because a new account has no history), loading placeholder, error with a Retry button, and a "Load more" button for history. The trend is a labelled list or an `aria-label` with W, L and A letters in addition to colour. Below phone width the breakdown table collapses to stacked rows.
 - Account page: "Delete my account" with a confirmation dialog. The player name is edited in the Settings dialog with the other saved settings.
-- The end-of-game screen shows nothing extra for a signed-in multiplayer player, because the write is not confirmed to the client. In solitaire it shows "Saved to your history" only after the save succeeds, and a quiet "Could not save this game" if it fails. A guest sees "Sign in to keep future games" when auth is enabled, because signing in later does not save the game just finished.
+- The end-of-game screen shows nothing extra for a signed-in multiplayer player, because the write is not confirmed to the client. In solitaire a signed-in player sees "Saved to your history." or a retry (see 9.2); a guest sees nothing, and the "Sign in to keep future games" nudge was dropped.
 - Sign-in problems appear as an inline message with `role="alert"` above the sign-in card, with distinct copy: "Sign-in cancelled. You can try again, or just play as a guest." and "Sign-in did not work. Try again, or just play as a guest." The callback redirects with `?login=cancelled` (the provider returned access denied) or `?login=failed`; the client shows the message once and removes the parameter from the address.
 - Static pages for the privacy policy, which includes how to delete an account, in `apps/client/public/` like `how-to-play.html`.
 
@@ -285,7 +302,7 @@ New variables: `DATABASE_URL`, `PUBLIC_BASE_URL`, `AUTH_STATE_SECRET`, `GOOGLE_C
 2. Sessions and Google login, profile menu, sign out. New accounts are created with empty settings and play with the landing name field.
 3. Settings sync, including `PUT /api/me/settings`, `playerName` and the "Your name in games" step.
 4. Multiplayer result recording, including the host-ended `abandoned` row.
-5. Solitaire result recording.
+5. Solitaire: save and resume on the device, and saving a signed-in player's finished game (see 9.2).
 6. Statistics page, account page, and `DELETE /api/me` with its confirmation dialog.
 
 Each phase ships behind the auth switch and leaves guest play untouched.

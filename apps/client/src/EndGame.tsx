@@ -58,6 +58,9 @@ interface EndGameStatisticsModalProps {
   onClose: () => void;
   onPlayAgain: () => void;
   onBackToLobby: () => void;
+  // Only for a signed-in player's solitaire game: whether the result reached their history. Idle shows nothing.
+  saveStatus?: 'idle' | 'saving' | 'saved' | 'failed';
+  onRetrySave?: () => void;
 }
 
 export function EndGameStatisticsModal({
@@ -67,7 +70,9 @@ export function EndGameStatisticsModal({
   isHost,
   onClose,
   onPlayAgain,
-  onBackToLobby
+  onBackToLobby,
+  saveStatus = 'idle',
+  onRetrySave
 }: EndGameStatisticsModalProps): JSX.Element {
   const won = gameState.gamePhase === 'won';
   const progress = deckProgress(gameState);
@@ -96,6 +101,13 @@ export function EndGameStatisticsModal({
           {mode === 'multiplayer' ? `${gameState.players.length} players` : 'Solitaire'} • {playsLabel} • {formatDurationLabel(durationMs)}
         </div>
       </header>
+
+      {saveStatus === 'idle' ? null : (
+        <p className="stats-save" role="status">
+          {saveStatus === 'saving' ? 'Saving to your history...' : saveStatus === 'saved' ? 'Saved to your history.' : 'Could not save this game to your history. '}
+          {saveStatus === 'failed' && onRetrySave ? <button type="button" className="link-action" onClick={onRetrySave}>Try again</button> : null}
+        </p>
+      )}
 
       <div className="stats-tiles">
         <div className="stats-tile">
