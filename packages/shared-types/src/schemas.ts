@@ -4,7 +4,7 @@ import { cleanPlayerName } from './player-names.js';
 const CARD_MIN = 2;
 const CARD_MAX = 99;
 const HAND_MIN = 5;
-const HAND_MAX = 9;
+const HAND_MAX = 11;
 const PLAYER_MIN = 1;
 const PLAYER_MAX = 6;
 const TURN_MIN = 1;

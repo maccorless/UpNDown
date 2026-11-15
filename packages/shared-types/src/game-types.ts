@@ -193,3 +193,24 @@ export const defaultSolitaireSettings: GameSettings = {
   allowCardLookup: false,
   showArrows: true
 };
+
+// Cards in the deck for these settings (every value from the lowest to the highest). The four foundation piles are
+// created separately and do not come out of it.
+export function deckSizeOf(settings: Pick<GameSettings, 'minCardValue' | 'maxCardValue'>): number {
+  return settings.maxCardValue - settings.minCardValue + 1;
+}
+
+// How many players can be dealt a full hand from this deck. A table never holds more than this, whatever maxPlayers says,
+// so a deal can never leave a player short.
+export function maxPlayersFor(settings: Pick<GameSettings, 'minCardValue' | 'maxCardValue' | 'handSize' | 'maxPlayers'>): number {
+  return Math.max(0, Math.min(settings.maxPlayers, Math.floor(deckSizeOf(settings) / settings.handSize)));
+}
+
+// Null when a table of at least minPlayers can be dealt, otherwise a message for the person choosing the settings.
+export function deckFitMessage(settings: Pick<GameSettings, 'minCardValue' | 'maxCardValue' | 'handSize' | 'maxPlayers' | 'minPlayers'>): string | null {
+  const fit = Math.floor(deckSizeOf(settings) / settings.handSize);
+  if (fit < settings.minPlayers) {
+    return `This deck has ${deckSizeOf(settings)} cards, which is not enough for ${settings.minPlayers} players with a hand of ${settings.handSize}. Raise the top card or lower the hand size.`;
+  }
+  return null;
+}

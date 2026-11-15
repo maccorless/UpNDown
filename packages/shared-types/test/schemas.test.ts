@@ -6,6 +6,7 @@ import {
   nasCheatPayloadSchema,
   updateSettingsPayloadSchema
 } from '../src/schemas.js';
+import { deckFitMessage, maxPlayersFor } from '../src/game-types.js';
 
 const validSettings = {
   minCardValue: 2,
@@ -103,5 +104,26 @@ describe('nasCheatPayloadSchema', () => {
 
   it('rejects malformed nas cheat payloads', () => {
     expect(nasCheatPayloadSchema.safeParse({ gameId: 'abc', cardId: '' }).success).toBe(false);
+  });
+});
+
+describe('hand size and the deck', () => {
+  it('accepts a hand of 11 and rejects 12', () => {
+    expect(gameSettingsSchema.safeParse({ ...validSettings, handSize: 11 }).success).toBe(true);
+    expect(gameSettingsSchema.safeParse({ ...validSettings, handSize: 12 }).success).toBe(false);
+  });
+
+  // A table must never be dealt short hands: capacity is what the deck can deal, whatever maxPlayers says.
+  it('limits a table to the players the deck can deal a full hand to', () => {
+    const small = { ...validSettings, minCardValue: 2, maxCardValue: 29, handSize: 9, minPlayers: 2, maxPlayers: 6 };
+    expect(maxPlayersFor(small)).toBe(3); // 28 cards, 9 each
+    expect(deckFitMessage(small)).toBeNull();
+    expect(maxPlayersFor({ ...validSettings, minCardValue: 2, maxCardValue: 99, handSize: 11, maxPlayers: 6 })).toBe(6);
+  });
+
+  it('says so when even the minimum table cannot be dealt', () => {
+    const tiny = { ...validSettings, minCardValue: 2, maxCardValue: 19, handSize: 11, minPlayers: 2, maxPlayers: 4 };
+    expect(deckFitMessage(tiny)).toContain('not enough');
+    expect(maxPlayersFor(tiny)).toBe(1);
   });
 });

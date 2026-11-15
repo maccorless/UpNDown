@@ -51,7 +51,7 @@ This special move is crucial for strategic play and recovery from difficult situ
 
 **Configurable parameters** (set by host in game settings):
 - Card range: Default 2–99 (configurable)
-- Hand size: Default 7 cards (configurable, UI range 5–9)
+- Hand size: Default 7 cards (configurable, UI range 5–11). The deck is checked against it: a table never holds more players than the deck can deal a full hand to (cards in deck divided by hand size), settings that cannot deal the minimum table are refused, and the game refuses to start rather than deal uneven hands
 - Min cards per turn: Default 2 (configurable, range 1–3)
 - Draw pile: Contains all remaining cards after initial deal
 
@@ -213,7 +213,7 @@ interface FoundationPile {
 interface GameSettings {
   minCardValue: number;      // Default: 2
   maxCardValue: number;      // Default: 99
-  handSize: number;          // Default: 7  (UI range 5–9)
+  handSize: number;          // Default: 7  (UI range 5–11)
   minPlayers: number;        // Fixed at 2 (multiplayer); not shown in the settings UI
   maxPlayers: number;        // Default: 6  (multiplayer)
   minCardsPerTurn: number;   // Default: 2  (range 1–3)

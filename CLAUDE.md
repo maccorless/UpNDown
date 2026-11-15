@@ -182,7 +182,7 @@ Server-push events (no ack): `game:updated`, `game:kicked`.
 | Setting | Value |
 |---------|-------|
 | Players | 2–6 (multiplayer), 1 (solitaire) |
-| Hand size | 5–9 cards (default 7) |
+| Hand size | 5–11 cards (default 7) |
 | Card values | 2–99 (default range) |
 | Min cards per turn | 2 (default) |
 | State persistence | In-memory only — restart clears all games |

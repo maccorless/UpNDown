@@ -252,6 +252,10 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
     color: player.color ?? (PLAYER_COLORS[index % PLAYER_COLORS.length] as PlayerColor)
   }));
 
+  if (initializedPlayers.length * settings.handSize > deck.length) {
+    throw new EngineError('INSUFFICIENT_DECK_FOR_DEAL', 'The deck cannot deal every player a full hand');
+  }
+
   for (let round = 0; round < settings.handSize; round += 1) {
     for (const player of initializedPlayers) {
       const next = drawOne(deck);

@@ -172,7 +172,7 @@ tests/e2e               Playwright smoke tests
 |------------------|---------|------------------|---------------------------------|
 | minCardValue     | 2       | 2–99             | Must leave ≥18 card deck size   |
 | maxCardValue     | 99      | 2–99             |                                 |
-| handSize         | 7       | 5–9              |                                 |
+| handSize         | 7       | 5–11             | A table is capped at the players the deck can deal a full hand to (cards in deck divided by hand size) |
 | minPlayers       | 2       | fixed at 2       | Not shown in the UI; the host can start once 2 players have joined |
 | maxPlayers       | 6       | 2–6              |                                 |
 | minCardsPerTurn  | 2       | 1–3              | Final stage always 1            |

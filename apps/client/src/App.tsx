@@ -7,7 +7,7 @@ import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgre
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, randomPresidentName, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { deckFitMessage, defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, maxPlayersFor, randomPresidentName, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
@@ -569,7 +569,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             ) : null}
           </div>
         </div>
-        <div className={`cards-fan ${isCompactHand ? 'compact' : ''}`}>
+        <div className={`cards-fan ${isCompactHand ? 'compact' : ''}`} style={{ '--hand-n': Math.max(1, sortedHand.length) } as React.CSSProperties}>
           {sortedHand.map((card) => (
             <button
               key={card.id}
@@ -601,7 +601,7 @@ function validateCreateSettings(settings: GameSettings): string | null {
   if (deckSize < 18) {
     return 'Deck must contain at least 18 cards';
   }
-  return null;
+  return deckFitMessage(settings);
 }
 
 export function App(): JSX.Element {
@@ -2174,7 +2174,7 @@ export function App(): JSX.Element {
               </div>
               {inviteCopied ? <div className="info-message">Invite link copied.</div> : null}
               <div className="pill">
-                Players in Lobby: {multiplayerState.players.length}/{multiplayerState.settings.maxPlayers}
+                Players in Lobby: {multiplayerState.players.length}/{maxPlayersFor(multiplayerState.settings)}
               </div>
               <div className="players-list">
                 {multiplayerState.players.map((player, index) => (

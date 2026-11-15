@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-15 | — | Feat: hands of up to 11 cards (the deck is checked, so a table never gets uneven hands, and a hand of 11 fits a phone screen). Fix: the up and down arrows on the foundation piles sit midway between the card and the pile edge |
 | 2026-11-15 | — | Fix: privacy page now describes the planned database saving of games in progress (what is kept, 24 hour limit, hashed rejoin tokens) and the 30 minute limit that applies today |
 | 2026-11-17 | — | Feat: a signed-in account can no longer take two seats in one game; two different accounts in two tabs still can |
 | 2026-11-17 | — | Feat: several tabs in one browser. A new tab always starts a fresh solitaire or multiplayer game, and saved solitaire games and seats no longer overwrite each other. The home page lists every saved solitaire game and every game in progress that no other tab has open, to continue, discard or rejoin. Starting a solitaire game no longer discards a saved one |

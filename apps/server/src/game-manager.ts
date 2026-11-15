@@ -16,7 +16,7 @@ import type {
   ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
-import { defaultMultiplayerSettings, PLAYER_COLORS } from '@upndown/shared-types';
+import { deckFitMessage, defaultMultiplayerSettings, maxPlayersFor, PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
 import { uniqueInGameName } from './player-names.js';
 import { buildResultRows } from './profile/result-rows.js';
@@ -262,6 +262,10 @@ export class GameManager {
     if (this.seatedGameOf(ownerPlayerId)) {
       throw new Error('You are already in a game. Leave it before starting another.');
     }
+    const unfit = deckFitMessage(payload.settings);
+    if (unfit) {
+      throw new Error(unfit);
+    }
 
     const gameId = this.generateUniqueGameId();
 
@@ -324,7 +328,7 @@ export class GameManager {
         if (activePlayerIds && !state.players.some((player) => activePlayerIds.has(player.id))) return false;
         return state.gamePhase === 'lobby'
           && !state.settings.privateGame
-          && state.players.length < state.settings.maxPlayers;
+          && state.players.length < maxPlayersFor(state.settings);
       })
       .map((room) => {
         const host = room.gameState.players.find((player) => player.id === room.gameState.hostId);
@@ -332,7 +336,7 @@ export class GameManager {
           gameId: room.gameState.gameId,
           hostName: host?.name ?? 'Host',
           playerCount: room.gameState.players.length,
-          maxPlayers: room.gameState.settings.maxPlayers,
+          maxPlayers: maxPlayersFor(room.gameState.settings),
           createdAtMs: room.createdAtMs
         };
       })
@@ -365,7 +369,7 @@ export class GameManager {
       throw new Error('Your account is already in this game (perhaps in another tab).');
     }
 
-    if (gameState.players.length >= gameState.settings.maxPlayers) {
+    if (gameState.players.length >= maxPlayersFor(gameState.settings)) {
       throw new Error(GAME_UNAVAILABLE_MESSAGE);
     }
 
@@ -397,7 +401,7 @@ export class GameManager {
 
   lookupJoinableGame(gameId: string): JoinLookupSummary {
     const room = this.rooms.get(gameId);
-    if (!room || room.gameState.gamePhase !== 'lobby' || room.gameState.players.length >= room.gameState.settings.maxPlayers) {
+    if (!room || room.gameState.gamePhase !== 'lobby' || room.gameState.players.length >= maxPlayersFor(room.gameState.settings)) {
       throw new Error(GAME_UNAVAILABLE_MESSAGE);
     }
     const { gameState } = room;
@@ -405,7 +409,7 @@ export class GameManager {
     return {
       gameId: gameState.gameId,
       playerCount: gameState.players.length,
-      maxPlayers: gameState.settings.maxPlayers,
+      maxPlayers: maxPlayersFor(gameState.settings),
       privateGame: gameState.settings.privateGame
     };
   }
@@ -572,6 +576,15 @@ export class GameManager {
 
     if (gameState.players.length > payload.settings.maxPlayers) {
       throw new Error('Current player count exceeds new max players');
+    }
+
+    const unfit = deckFitMessage(payload.settings);
+    if (unfit) {
+      throw new Error(unfit);
+    }
+
+    if (gameState.players.length > maxPlayersFor(payload.settings)) {
+      throw new Error('This deck cannot deal a full hand to that many players. Raise the top card or lower the hand size.');
     }
 
     if (gameState.players.length < payload.settings.minPlayers) {

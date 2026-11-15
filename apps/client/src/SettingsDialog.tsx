@@ -1,4 +1,4 @@
-import type { GameSettings } from '@upndown/shared-types';
+import { deckFitMessage, maxPlayersFor, type GameSettings } from '@upndown/shared-types';
 import { useState } from 'react';
 import { Modal } from './Modal.js';
 import { APP_VERSION } from './version.js';
@@ -231,9 +231,14 @@ function OpenSettingsDialog({
                     describedBy="settings-hand-hint"
                     current={String(settings.handSize)}
                     onPick={(value) => update({ handSize: Number(value) })}
-                    options={[5, 6, 7, 8, 9].map((n) => ({ value: String(n), label: String(n) }))}
+                    options={[5, 6, 7, 8, 9, 10, 11].map((n) => ({ value: String(n), label: String(n) }))}
                   />
                   <span className="settings-hint" id="settings-hand-hint">A bigger hand is easier.</span>
+                  {isSolitaire ? null : deckFitMessage(settings) ? (
+                    <span className="settings-hint settings-hint-warning" role="alert">{deckFitMessage(settings)}</span>
+                  ) : maxPlayersFor(settings) < settings.maxPlayers ? (
+                    <span className="settings-hint">With this deck and hand, at most {maxPlayersFor(settings)} players can be dealt in.</span>
+                  ) : null}
                 </div>
                 {isSolitaire ? null : (
                   <>

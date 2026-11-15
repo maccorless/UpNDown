@@ -70,8 +70,9 @@ describe('createStartedGameState', () => {
     ).toThrowError(EngineError);
   });
 
-  it('allows partial initial deal when deck cannot satisfy full hands', () => {
-    const state = createStartedGameState({
+  // Changed 15-Nov-2026: a short deal used to give some players fewer cards than others. The deck is checked at the start now.
+  it('refuses a partial initial deal instead of giving players uneven hands', () => {
+    expect(() => createStartedGameState({
       gameId: 'ABC123',
       hostId: 'p1',
       players: [
@@ -81,12 +82,7 @@ describe('createStartedGameState', () => {
       settings,
       isSolitaire: false,
       deck: [card(2), card(3), card(4)]
-    });
-
-    expect(state.players[0]?.hand.length).toBe(2);
-    expect(state.players[1]?.hand.length).toBe(1);
-    expect(state.drawPile.length).toBe(0);
-    expect(state.gamePhase).toBe('playing');
+    })).toThrow(EngineError);
   });
 
   it('rejects solitaire settings that violate solitaire invariants', () => {
@@ -481,5 +477,17 @@ describe('settleAfterRemoval', () => {
     const state = live(false);
     state.players[0]!.hand = state.players[0]!.hand.slice(0, 2);
     expect(settleAfterRemoval(state)).toBe(state);
+  });
+});
+
+describe('dealing from a deck that is too small', () => {
+  // A short deal silently gave some players fewer cards than others; the game must refuse to start instead.
+  it('refuses to start when the deck cannot give every player a full hand', () => {
+    const small: GameSettings = { ...settings, maxCardValue: 19, handSize: 11 };
+    expect(() => createStartedGameState({
+      gameId: 'ABC123', hostId: 'p1',
+      players: [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }],
+      settings: small, isSolitaire: false, deck: buildDeck(small)
+    })).toThrow(EngineError);
   });
 });

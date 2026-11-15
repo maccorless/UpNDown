@@ -145,3 +145,27 @@ describe('GameManager', () => {
     expect(manager.lookupJoinableGame(open.gameId).gameId).toBe(open.gameId);
   });
 });
+
+describe('settings that the deck cannot deal', () => {
+  const small = { ...defaultMultiplayerSettings, maxCardValue: 29, handSize: 9, minPlayers: 2, maxPlayers: 6 };
+  const tiny = { ...defaultMultiplayerSettings, maxCardValue: 19, handSize: 11, minPlayers: 2, maxPlayers: 4 };
+
+  it('refuses to create or change to a table the deck cannot deal at all', () => {
+    const manager = new GameManager();
+    expect(() => manager.createGame('a', { playerName: 'A', settings: tiny, isSolitaire: false })).toThrow('not enough');
+    const room = manager.createGame('a', { playerName: 'A', settings: defaultMultiplayerSettings, isSolitaire: false });
+    expect(() => manager.updateSettings('a', { gameId: room.gameId, settings: tiny })).toThrow('not enough');
+  });
+
+  // 28 cards and hands of 9: three players can be dealt in, so a fourth is turned away instead of getting a short hand.
+  it('stops at the number of players the deck can deal, whatever maximum was asked for', () => {
+    const manager = new GameManager();
+    const room = manager.createGame('a', { playerName: 'A', settings: small, isSolitaire: false });
+    manager.joinGame('b', { gameId: room.gameId, playerName: 'B' });
+    manager.joinGame('c', { gameId: room.gameId, playerName: 'C' });
+    expect(() => manager.joinGame('d', { gameId: room.gameId, playerName: 'D' })).toThrow();
+    expect(manager.listJoinableGames()).toEqual([]);
+    const started = manager.startGame('a', room.gameId);
+    expect(started.players.map((p) => p.hand.length)).toEqual([9, 9, 9]);
+  });
+});

@@ -514,7 +514,8 @@ body {
   background: transparent;
   padding: 0;
   display: flex;
-  justify-content: center;
+  /* Each arrow sits midway between the pile's edge and the card, instead of hugging the card. */
+  justify-content: space-evenly;
   align-items: center;
   gap: 4px;
 }
@@ -1341,7 +1342,22 @@ section[aria-label="welcome"] h2 {
     border-radius: 6px;
   }
 
-  /* Hand cards — wider for easier tapping, less overlap */
+  /* Hand cards — wide for easy tapping, but sized so the whole hand fits the screen even at 11 cards (30% overlap). */
+  .cards-fan {
+    --hand-card-w: clamp(34px, calc((100vw - 32px) / (1 + 0.7 * (var(--hand-n, 7) - 1))), 68px);
+  }
+
+  .cards-fan .card {
+    width: var(--hand-card-w);
+    font-size: clamp(14px, calc(var(--hand-card-w) * 0.38), 24px);
+    margin-left: calc(var(--hand-card-w) * -0.3);
+    border-radius: 8px;
+  }
+
+  .cards-fan .card:first-child {
+    margin-left: 0;
+  }
+
   .card {
     width: clamp(52px, 13vw, 68px);
     font-size: clamp(18px, 5vw, 24px);
@@ -1632,6 +1648,11 @@ dialog.modal-dialog::backdrop {
 .settings-row output {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+
+.settings-hint-warning {
+  color: var(--danger, #b3261e);
+  font-weight: 600;
 }
 
 .settings-hint,
