@@ -7,7 +7,7 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, type GameSettings } from '@upndown/shared-types';
-import { DEFAULT_WEIGHTS, playGame, seededRandom, type GameRecord, type StrategyWeights } from '../src/index.js';
+import { DEFAULT_WEIGHTS, playGame, scoreGame, seededRandom, type StrategyWeights } from '../src/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RUNS = path.join(here, 'runs');
@@ -22,9 +22,7 @@ const SETTINGS: Record<string, Setting> = {
   table4: { label: 'four players, the default deck', settings: { ...defaultMultiplayerSettings, autoRefillHand: false, handSize: 7, minCardsPerTurn: 2 }, players: 4 }
 };
 
-// What a game is worth. A win is the most there is; a loss is worth more the fewer cards were left, so a search is pushed
-// towards getting nearly there, not only towards the rare win.
-export const reward = (record: GameRecord): number => (record.outcome === 'won' ? 100 : 50 * (1 - record.cardsLeft / record.cardsTotal));
+export const reward = scoreGame;
 
 const BOUNDS: Record<keyof StrategyWeights, [number, number]> = {
   gap: [0.2, 4], backwardTen: [0, 40], skipOver: [0, 20], strand: [0, 30], stopGap: [0, 12], planPlayed: [0, 10], planGap: [0, 2]

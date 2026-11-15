@@ -27,6 +27,8 @@ export function shuffleWith(deck: Card[], random: () => number): Card[] {
 export interface GameRecord {
   outcome: 'won' | 'lost' | 'stalled';
   cardsLeft: number;
+  // Cards still in the draw pile at the end (part of cardsLeft). A game that ends with the draw pile not emptied scores less.
+  drawLeft: number;
   cardsTotal: number;
   turns: number;
   steps: number;
@@ -56,17 +58,26 @@ export function playGame(settings: GameSettings, players: number, seed: number, 
       else if (action.type === 'endTurn') state = endTurn(state, id);
       else if (action.type === 'skip') state = skipTurn(state, id);
       else if (action.type === 'trade') state = tradeCard(state, id, action.cardId, random);
-      else return { outcome: 'stalled', cardsLeft: cardsLeft(state), cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
+      else return { outcome: 'stalled', cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
     } catch {
-      return { outcome: 'stalled', cardsLeft: cardsLeft(state), cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
+      return { outcome: 'stalled', cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
     }
   }
   const outcome = state.gamePhase === 'won' ? 'won' : state.gamePhase === 'lost' ? 'lost' : 'stalled';
-  return { outcome, cardsLeft: cardsLeft(state), cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
+  return { outcome, cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
 }
 
 const cardsLeft = (state: GameState): number => state.drawPile.length + state.players.reduce((sum, player) => sum + player.hand.length, 0);
 const cardsTotal = (settings: GameSettings): number => settings.maxCardValue - settings.minCardValue + 1;
+
+// What a game is worth (decided by Ken, 15-Nov-2026). A win is 100. A loss is worth 30 times the share of the deck that was
+// played, so fewer cards left always scores better, and it is halved when the draw pile was not emptied, so running out of
+// moves early costs more than getting through the deck and stalling at the end.
+export function scoreGame(record: GameRecord): number {
+  if (record.outcome === 'won') return 100;
+  const played = (record.cardsTotal - record.cardsLeft) / record.cardsTotal;
+  return 30 * played * (record.drawLeft > 0 ? 0.5 : 1);
+}
 
 export interface Summary {
   games: number;

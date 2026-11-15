@@ -2,7 +2,7 @@ Created: 15-Nov-2026 11:05 CET
 
 # UpNDown: training mode plan (phase G)
 
-Status: draft for Ken's review. Nothing here is built. Revised on 15-Nov-2026 after an independent review (section 15 lists what it found and what changed). It is the design that section 3.G of `2026-11-14-backlog-enhancements-plan.md` said had to come first. Facts about the game were read from the code on 15-Nov-2026 (v1.44). Facts about research were read from the sources in section 12; where only an abstract or a summary was read, that is said.
+Status: draft for Ken's review. Nothing here is built. Revised on 15-Nov-2026 after an independent review and after Ken's decisions (section 11 records every one; section 15 lists what the review found and what changed). It is the design that section 3.G of `2026-11-14-backlog-enhancements-plan.md` said had to come first. Facts about the game were read from the code on 15-Nov-2026 (v1.44). Facts about research were read from the sources in section 12; where only an abstract or a summary was read, that is said.
 
 ## 1. What this is for
 
@@ -33,30 +33,32 @@ So the first honest question is the ceiling. The plan starts by measuring it.
 
 **Where the headroom is.** `npm run sim --workspace @upndown/engine -- calibrate` plays the current strategy on a grid of simpler tables with no cheats (300 games a cell, two cards a turn, 15-Nov-2026). Two things stand out. With a top card of 59 or less the strategy wins nearly every game, so there is nothing to learn from those tables. And a bigger hand helps enormously: on the default 2 to 99 deck, solitaire goes from 1% won with a hand of 7, to 23% with 9, to 74% with 11.
 
-| Table (no cheats) | Won | Average reward | Cards left |
+| Table (no cheats) | Won | Average score | Cards left |
 |---|---|---|---|
-| Solitaire, 2 to 79, hand 7 | 43% | 69 | 3.9 |
-| Solitaire, 2 to 79, hand 9 | 91% | 96 | 0.3 |
-| Solitaire, 2 to 99, hand 9 | 23% | 58 | 7.2 |
-| Solitaire, 2 to 99, hand 11 | 74% | 87 | 0.7 |
-| Two players, 2 to 79, hand 7 | 54% | 76 | 1.4 |
-| Two players, 2 to 99, hand 9 | 45% | 71 | 1.8 |
-| Four players, 2 to 79, hand 7 | 65% | 82 | 0.9 |
-| Four players, 2 to 99, hand 7 (the default) | 21% | 58 | 4.6 |
-| Four players, 2 to 99, hand 9 | 60% | 79 | 1.2 |
+| Solitaire, 2 to 79, hand 7 | 41% | 55 | 3.9 |
+| Solitaire, 2 to 79, hand 9 | 91% | 94 | 0.2 |
+| Solitaire, 2 to 99, hand 9 | 24% | 41 | 6.9 |
+| Solitaire, 2 to 99, hand 11 | 74% | 82 | 0.7 |
+| Two players, 2 to 79, hand 7 | 54% | 67 | 1.5 |
+| Two players, 2 to 99, hand 9 | 47% | 62 | 1.8 |
+| Four players, 2 to 79, hand 7 | 65% | 75 | 0.9 |
+| Four players, 2 to 99, hand 7 (the default) | 18% | 41 | 4.8 |
+| Four players, 2 to 99, hand 9 | 58% | 70 | 1.3 |
 
-The tables worth training on are the ones where the current strategy is neither always beaten nor always winning, about 20% to 90% won. Two more rows from the same grid that the real defaults need: two players on the default deck with a hand of 7 win 6% (reward 47, 12.4 cards left), and default solitaire wins 1% (reward 39, 23 cards left). Stage 1 rows: two players 2 to 79 hand 9 win 92%, four players 2 to 79 hand 9 win 82%.
+(The score here and everywhere below is the one Ken chose on 15-Nov-2026, section 3.3. The first draft's numbers used a different, flatter scoring and were redone.) The tables worth training on are the ones where the current strategy is neither always beaten nor always winning, about 20% to 90% won. Two more rows from the same grid that the real defaults need: two players on the default deck with a hand of 7 win 5% (score 26, 12.2 cards left), and default solitaire wins 1% (score 13, 23.4 cards left). Stage 1 rows: two players 2 to 79 hand 9 win 92%, four players 2 to 79 hand 9 win 82%.
 
 **Measured costs and noise** (600 games each, current strategy, no cheats, 15-Nov-2026):
 
-| Table | Steps a game | Steps a second, one core | Games a second, one core | Reward, mean and standard deviation of one game |
+| Table | Steps a game | Steps a second, one core | Games a second, one core | Score, mean and standard deviation of one game |
 |---|---|---|---|---|
-| Default solitaire | 74 | 69,000 | 920 | 38.4, 7.9 |
-| Two players, default | 123 | 99,000 | 800 | 45.9, 12.5 |
-| Four players, default | 138 | 97,000 | 700 | 56.2, 20.3 |
-| Four players, 2 to 79, hand 9 | 112 | 51,000 | 460 | 90.7, 19.8 |
+| Default solitaire | 74 | 69,000 | 920 | 13.1, 9.8 |
+| Two players, default | 123 | 99,000 | 800 | 24.8, 17.9 |
+| Four players, default | 138 | 97,000 | 700 | 40.6, 27.4 |
+| Four players, 2 to 79, hand 9 | 112 | 51,000 | 460 | 87.2, 27.2 |
 
-These include the cost of the current strategy's own look-ahead and the engine's loss check, which is a search over the hand on every state. On 16 cores that is roughly 10,000 games a second for evaluation, so even a 200,000-game paired comparison takes well under a minute with the heuristic (a learned policy is slower). It also means a game's score is noisy (a standard deviation of 8 to 20 points), which section 8 uses.
+These include the cost of the current strategy's own look-ahead and the engine's loss check, which is a search over the hand on every state. On 16 cores that is roughly 10,000 games a second for evaluation, so even a 300,000-game paired comparison takes well under a minute with the heuristic (a learned policy is slower). A game's score is noisy (a standard deviation of 10 to 35 points), which section 8 uses.
+
+Another fact the new scoring exposes: on default solitaire, 555 of 594 lost games ended with cards still in the draw pile, so the "draw pile not emptied" halving applies to almost every loss there. On default two-player tables it applies to about 40% of losses, and on default four-player tables to almost none.
 
 ## 3. The game, as mathematics
 
@@ -70,25 +72,29 @@ where `t` is the four pile tops, `D` is the draw pile as an ordered list (hidden
 
 Player `i` does not see `s`. It sees the observation `o_i = (H_i, t, |D|, |H_j| for j != i)`, and optionally a public record of which cards have been played (section 4.3). Actions are `play(card, pile)`, `endTurn`, and, if the game allows them, `skip` and `trade(card)`. Illegal actions are removed by masking, not by punishment (section 6.2).
 
+**Reactions are part of the shared state.** A player who is not on turn may set, on each pile, one of none, like, love or really love. Everyone sees everyone's reactions, a player's reactions stay until that player's turn starts and are then cleared, and nobody can set one while on turn (this is how the game works today, in the server's `GameManager`; the engine does not know about them). In the training simulator the reactions sit in the public state next to the pile tops: `r[j][p]` in `{0, 1, 2, 3}` for seat `j` and pile `p`, read by every seat as part of its observation and writable by every seat that is not on turn. That is how robots at a table talk to each other, exactly as people do (decided: section 5.6).
+
 ### 3.2 What makes it tractable, and what does not
 
 - **For solitaire the hidden part is exactly exchangeable.** The deck is shuffled uniformly, nobody else acts, and a trade puts a card back at a uniformly random place. So given what the player has seen, the unseen cards are a uniformly random arrangement of the unseen multiset, and "shuffle the unseen cards and deal" is an exact sampler. Search over sampled worlds is exact there.
 - **For a table of several players it is not.** What the other seats did is evidence about their hands. A seat that stopped after two plays, when the strategy keeps playing while the move is small, probably holds no card near a pile top, so those cards are more likely in the draw pile than uniform sampling says. The right belief is the uniform prior times the likelihood of every observed choice under the policy the others follow. Uniform sampling would deal small-move cards into other hands and then watch those seats play them at once, so the teacher would over-credit coordination. The plan therefore treats the multi-player teacher as **biased unless corrected**, and corrects it the way the search literature does: reweight sampled worlds by how likely the observed actions were under the base policy (a particle filter over worlds). P1 does solitaire first, where the sampler is exact, then adds the reweighting for tables and measures how much it matters. Until then no guarantee from the literature is claimed for tables.
 - **What "unseen" means depends on the tier.** In Tier B the played-card record is public and is part of the observation, so the unseen set is well defined. In Tier A it is not observed, so the cards past an ascending pile top are more likely still unplayed than the ones before it, and the sampler conditions on the pile tops. A teacher is allowed to use only public information plus the observing player's own hand, and to reach hidden cards only through belief sampling. A Tier A student distilled from a Tier B teacher is an explicit privileged-teacher setup, labeled as such, and judged by simulating the student, not the teacher.
 - **Cooperative with a shared reward.** Every seat wants the same thing, so "self-play" here is not training against an opponent. One policy `pi_theta` controls every seat. The standard name is a decentralized partially observable MDP (Dec-POMDP); the practical recipe is centralized training with decentralized execution: a critic may read the full hidden state while training, and the policy that is kept reads only its own observation. A critic that sees more only provides a baseline and cannot leak into the policy; the teacher labels used to extract rules are the thing that must not.
-- **Conventions are limited, not absent.** In Hanabi, self-play agents invent private signalling conventions that fail with strangers (Hu et al., "Other-Play"). Here the policy reads only its own observation and there is no seat feature, but a convention could still hide in an arbitrary choice between interchangeable things: the two ascending piles are interchangeable, and so are the two descending ones. The plan removes that freedom by construction (section 5.3: piles are presented in a canonical order and the network is symmetric under swapping a pair) and tests it: a trained policy is played against an independently trained copy, and its score must not drop.
+- **Reactions are the one real channel, and its meaning is fixed.** In Hanabi, self-play agents invent private signalling conventions that fail with strangers (Hu et al., "Other-Play"). The reaction channel invites exactly that, so its meaning is **grounded**: it is what How to Play already says it is, "I have a great card for this pile", with the level rising with how good the sender's best card for that pile is (section 5.6). The sender's thresholds can be tuned, the direction of the meaning cannot. A second, quieter place a convention could hide is an arbitrary choice between interchangeable things: the two ascending piles are interchangeable, and so are the two descending ones. The plan removes that by construction (section 5.3: piles are presented in a canonical order and the network is symmetric under swapping a pair) and tests it: a trained policy is played against an independently trained copy, and its score must not drop.
 
 ### 3.3 The objective
 
-For the table the strategy is judged on, maximize the expected team return
+For the table the strategy is judged on, maximize the expected team score
 
-`J(pi) = E[ R ]`, with `R = 100 if won, else 50 * (1 - left / N)`
+`J(pi) = E[ R ]`, with `R = 100` if the game is won, and otherwise `R = 30 * played / N * h`, where `played = N - left` is the share of the deck that was played, `N` is the deck size, `left` is the cards still to play, and `h = 0.5` if the draw pile was not emptied at the end and `h = 1` if it was.
 
-where `left` is the cards still to play and `N` is the deck size. This is the reward asked for in the backlog (a win is the maximum, otherwise fewer cards left is better). It splits into a per-play reward, which makes learning much faster without changing what is optimal: `r_t = 50 / N` for every card played, plus `50` on a win. The sum over a game is exactly `R`. Discount is 1 (finite horizon, at most about `N` plays plus turn ends).
+This is the scoring Ken chose on 15-Nov-2026: a win is the best by a wide margin (a loss is never worth more than 30), fewer cards left always scores better, and a loss that ends with the draw pile not emptied (running out of moves early) is penalized by half. On the default deck a loss with 5 cards left and the draw pile emptied scores about 28.5; the same loss with cards still in the draw pile scores about 14.2.
 
-**A game is not just won or lost.** Finishing with fewer cards left is always worth more than finishing with more, so a loss at 2 cards left scores far above a loss at 25. Each card played is worth `50 / N` (about half a point on the default deck) and a win is worth 100 in all. This matters most on the hard tables: when almost every game is lost (default solitaire wins about 1%), the win rate says nothing, and the average cards left and the average reward are what learning and the gates are judged on. Reports always show all three (win rate, reward, cards left). The weights are a choice, and a graded reward can prefer a line that plays many cards but rarely wins over one that wins more often, so win rate is always reported next to the reward and any such disagreement is shown, not hidden. Two other scorings are also reported (pure cards-left with no win bonus, and a win-heavy score with a win at 100 and a loss at most 20). They are robustness views, not independent evidence, since all three are functions of the same two numbers.
+**A game is not just won or lost.** Finishing with fewer cards left is always worth more than finishing with more, so a loss at 2 cards left scores far above a loss at 25, and a game that gets through the draw pile scores above one that does not. When almost every game is lost (default solitaire wins about 1%), the win rate says nothing, and the average score and the average cards left are what learning and the gates are judged on. Reports always show win rate, score and cards left together. The weights are a choice, so two other scorings are also reported (the first draft's flatter one, a win at 100 and a loss up to 50 for the share played, and pure cards left with no win bonus). They are robustness views, not independent evidence, since all are functions of the same few numbers. A graded score can also prefer a line that plays many cards over one that wins more often, so any disagreement between score and win rate is shown, not hidden.
 
-Two checks belong to P0, not to trust. First, the per-play decomposition sums to `R` only if a win always means no cards left: the engine calls a game won when every hand is empty, so a property test over many seeds and all training tables must confirm a win leaves nothing in the draw pile. Second, undo, skip, trade and cheats are off in the training tables (so no play is ever taken back and no action changes the count of cards played in an odd way).
+**Per-play form, for learning.** Each card played earns `30 / N`; a win adds a bonus of `70` at the end; and when a lost game ends with the draw pile not emptied, the terminal reward is minus half of what the game earned from plays. Summed over a game this is exactly `R`. Discount is 1 (finite horizon, at most about `N` plays plus turn ends).
+
+Two checks belong to P0, not to trust. First, the decomposition sums to `R` only if a win always means no cards left: the engine calls a game won when every hand is empty, so a property test over many seeds and all training tables must confirm a win leaves nothing in the draw pile. Second, undo, skip, trade and cheats are off in the training tables (so no play is ever taken back and no action changes the count of cards played in an odd way).
 
 If further shaping is wanted it must be potential-based (Ng, Harada and Russell): adding `gamma * Phi(s') - Phi(s)` to the reward leaves the optimal policy unchanged, but only for a fixed `Phi` with `Phi = 0` at the end of a game. A potential that moves while training (for example the current planner's value estimate) does not have that guarantee, so any potential is frozen before a stage starts and is taken from a finished earlier stage, never learned online. A bonus that is not of this form can change the best policy and is not used.
 
@@ -102,9 +108,9 @@ Every claim in this plan is judged by a fixed evaluation protocol (section 8), a
 
 | Phase | What | Output | Gate to continue |
 |---|---|---|---|
-| P0 | Evaluation protocol (three scorings), exact solver on small decks, belief sampler, the public record of played cards, a vectorized fast simulator, the stage tables of section 4.4 | reference numbers: heuristic, perfect-information oracle, exact optimum on small decks | Reference numbers exist and the simulator matches the TypeScript engine on golden traces |
+| P0 | Evaluation protocol (three scorings), exact solver for small solitaire decks, belief sampler, the public record of played cards, **reactions in the simulator as a pure shared module with the grounded sender rule and a hand-written receiver rule**, a fast simulator, the stage tables of section 4.4 | reference numbers: heuristic, perfect-information oracle, exact optimum on small decks | Reference numbers exist and the simulator matches the TypeScript engine on golden traces |
 | P1 | Search teacher: single-agent search over sampled worlds, on top of the current heuristic as the base policy | How much search adds over the heuristic, per table | Uplift of at least 1 reward point (or half a card fewer left) on stage 2 and stage 3 tables, paired and with an interval that excludes zero (else the ceiling is near and learning is a low-value bet) |
-| P2 | Learned policy by self-play: PPO with action masking, a centralized critic, per-play reward | A network that plays with `o_i` only; its curve against P1 and the heuristic | Matches or beats P1 on held-out games, or beats the heuristic with a clear explanation of what it learned |
+| P2 | Learned policy by self-play: PPO with action masking, a centralized critic, per-play reward, **a learned receiver of reactions and tuned sender thresholds (section 5.6)** | A network that plays with `o_i` only; its curve against P1 and the heuristic | Matches or beats P1 on held-out games, or beats the heuristic with a clear explanation of what it learned |
 | P3 | Expert iteration: use the network to guide the search and the search to improve the network, repeated | A stronger teacher, and a policy distilled from it | Only if P2 stops short of P1; skipped otherwise |
 | P4 | Distillation to human-readable rules | A rule list with measured fidelity and retained strength | Non-inferior to the teacher within 5% of its measured gain over the heuristic (section 8) |
 | P5 | Strategy guide and hint integration | `docs/strategy/strategy-guide.md`, `strategy.ts` reading a rules file, hint text that says why | Section 10 acceptance |
@@ -115,7 +121,7 @@ P0 and P1 need no neural network at all and may already beat the heuristic by a 
 
 Today's `Observation` (in `strategy.ts`) is: the player's hand, the four pile tops, the size of the draw pile, the sizes of the other hands, how many cards were played this turn, how many must be played, whether it is the player's turn, and whether skip and trade are allowed. It has no seat position, and the other hands' sizes are listed in table order, not relative to the player. For training the cheat flags are constant (no cheats), and whether hands refill after each play is an explicit input, because it differs by default (solitaire refills, multiplayer does not) and changes both the decisions and the belief.
 
-- **Tier A, what you see:** that observation, with the other hands' sizes in order from the player's left and no seat feature (a hint cannot supply one and it invites conventions).
+- **Tier A, what you see:** that observation, plus every player's reactions on each pile (public, section 5.6), with the other hands' sizes in order from the player's left and no seat feature (a hint cannot supply one and it invites conventions).
 - **Tier B, plus the played-card record:** which values have been played so far. This is public information (the piles are stacks anyone can look through), and it is what lets a careful human count cards. It is added to `Observation` as an optional public field and filled by the server and by the solitaire client, so a client that reconnects mid-game still has it. Whether the app lets a player look through a pile's history is not established yet; if it does not, the advanced section tells a player to keep count, and the client keeps the record itself.
 
 Both tiers are trained and reported. Tier A becomes the main human guide. Tier B becomes an "advanced: counting cards" section and a stronger hint, if it is worth it.
@@ -167,6 +173,19 @@ Planning improves a policy, and a network generalizes the plans: the search prod
 
 A network is not a guide a person can use. The method is policy extraction (Bastani, Pu and Solar-Lezama, VIPER): train a small decision tree to imitate the teacher, collecting data on the states the tree itself visits (DAgger-style), and weight each state by how much the teacher's value differs between its best and worst action, so the tree spends its capacity where the choice matters. In their experiments trees matched the networks they were distilled from while being far smaller. Ours has an extra requirement they did not: every feature has to be something a person can compute at the table (section 7).
 
+### 5.6 Reactions (like, love, really love)
+
+**What the game does today.** A player who is not on turn can set none, like, love or really love on each of the four piles. All players see them; a player's reactions clear when that player's turn starts. How to Play describes the meaning as a signal that the player has a great card for that pile. They live only in the server (`game-manager.ts`), not in the engine, and robots never set them.
+
+**What the plan does (decided by Ken, 15-Nov-2026).**
+
+- **One shared, public place.** In the simulator the reactions are part of the shared state (section 3.1), read by every robot and writable by every robot that is not on turn, under the same rules as the game. They come from one small pure module (set, clear at the start of a turn, who may set) that the server and the simulator both use, so robots at a live table follow the same rules as in training. Today's server logic moves into that module when robots start to use reactions in the real game.
+- **Grounded meaning.** A sender's level on a pile reports how good its best card for that pile is: it is a rising function of the smallest move (as a fraction of the deck) among its cards that can legally go on the pile. None, like and love are thresholds on that move; really love is a backward 10 or a very small move. A sender may also stay silent. What is learned is only the thresholds (a few numbers per table setting, shared by all senders, tuned by self-play inside this monotone family), so a person can compute and read exactly the same signal.
+- **The receiver learns to use it.** The active player's network sees all the reactions as input and learns how to act on them. A hand-written receiver rule is the comparison and the first candidate for the guide: for example, do not take a pile a teammate loves unless the move is tiny or a backward 10, and prefer the pile nobody cares about.
+- **What is measured.** (1) no reactions; (2) reactions with the hand-written receiver rule; (3) grounded sender with a learned receiver; (4) fully learned signalling where the meaning could be anything, as research only to show the ceiling, never shipped. The value of the channel is the paired difference between (3) and (1) in score, per table, with the usual intervals; it may turn out small, and that is reported as it is.
+- **Two checks that keep it honest.** The sender is truthful and monotone (a test: the level never falls as the sender's best card gets better). And the learned receiver is played against a hand-written human-style sender (the How to Play meaning): it must not do worse than against the learned senders, because it has to understand people.
+- **Reactions help hints too.** They are public, so a hint can read them ("Ann loves the second pile, so a card near it may be waiting"), and a human's reactions are read by robots exactly as a robot's are.
+
 ## 6. How training is built
 
 ### 6.1 Stack (a decision for Ken, section 11)
@@ -207,15 +226,16 @@ The goal is not a policy dump. It is a short guide a person can apply, and that 
 2. **What a rule is.** The current strategy ranks every legal play by a weighted score with a short look-ahead, and a plain first-match list cannot say how to order two candidates when "smallest move" and "fewest skipped" disagree. So a rule is defined on a **candidate play** (a card on a pile), not on a state: the guide is a short, ordered list of tests that a candidate is put through, with a stated tie-break (the smallest move wins ties). It covers the **end-of-turn decision** too ("stop when the minimum is met unless the next move is this small"), and it is the greedy form of the policy, not the stochastic one. Whether a list of that shape can keep the strength is the thing P4 measures and may find it cannot.
 3. **Extraction.** VIPER-style tree on those features, then converted to the candidate-test form above. Depth and rule count are capped (target at most 7 rules, each using at most 3 of the features) so the result fits on a card; if that cannot keep the strength, the cap is raised and the guide says it is longer.
 4. **Measured fidelity, in the TypeScript simulator.** The rules that ship run in TypeScript, so retention is measured there, not in the training simulator. Reported for every extraction: how often the rules pick the teacher's move (weighted by how much the choice matters) and, the number that counts, how much of the teacher's gain over the heuristic the rules keep when they play whole games, stated as the non-inferiority claim of section 8 (within 5% of the gain).
-5. **The document is generated, then edited by a person.** A script writes a skeleton from the rule list with real numbers (each rule's win-rate effect from ablation: play with that rule removed), worked examples taken from replayed games (the actual position, the rule that fired, what the teacher would do), and the measured strength of following the guide exactly. Ken edits the wording. It lands as `docs/strategy/strategy-guide.md` and replaces the short "Quick Strategy" on How to Play.
-6. **Human usability check.** A few people play fixed seeds with and without the guide. With so few people the results cannot show a difference in strength (the noise is far larger than any effect), so this is a usability check, reported and not a pass-or-fail gate: can people follow the rules, how long does a decision take, where do they go wrong. If a powered study is wanted later it needs a pre-set number of players and effect size.
+5. **Reactions are part of the guide.** A short section says how to send them (the grounded meaning, with the thresholds in plain numbers) and how to read and act on a teammate's, from rules extracted the same way, with the measured value of using them.
+6. **The document is generated, then edited by a person.** A script writes a skeleton from the rule list with real numbers (each rule's win-rate effect from ablation: play with that rule removed), worked examples taken from replayed games (the actual position, the rule that fired, what the teacher would do), and the measured strength of following the guide exactly. Ken edits the wording. It lands as `docs/strategy/strategy-guide.md` and replaces the short "Quick Strategy" on How to Play.
+7. **Human usability check.** A few people play fixed seeds with and without the guide. With so few people the results cannot show a difference in strength (the noise is far larger than any effect), so this is a usability check, reported and not a pass-or-fail gate: can people follow the rules, how long does a decision take, where do they go wrong. If a powered study is wanted later it needs a pre-set number of players and effect size.
 
 ## 8. Evaluation protocol (fixed in P0, used by everything)
 
 - **Three seed sets, never mixed.** *Training* seeds are used by learning. *Validation* seeds are used to choose between methods and checkpoints. A *test* set is used once, at the end, for the numbers that are reported and for acceptance; looking at it for any other purpose retires it and a new one is drawn. Reusing one fixed evaluation set for every decision is the same overfitting the earlier search suffered, and this prevents it.
 - **One primary metric, fixed before the results exist.** The mean reward (section 3.3) on the three stage 3 tables, paired against the current strategy on the same shuffles. Everything else (win rate, cards left, the other two scorings, stages 1 and 2) is secondary and reported with a multiple-comparison correction (Holm) where it is used to claim anything.
-- **Paired comparisons, with sizes chosen from the measured noise.** One game's reward has a standard deviation of 8 to 20 points (section 2). For a paired difference with standard deviation `sd`, detecting a difference `d` at 95% confidence and 80% power needs about `n = 7.85 * sd^2 / d^2` games. With `sd` about 15 and `d` = 2 points that is about 450 games; to resolve 0.2 points it is about 44,000. The heuristic plays about 10,000 games a second on 16 cores, so validation sets of 20,000 games and a final test set of 200,000 paired games per table are affordable. Win/loss differences use McNemar's test and reward differences a paired bootstrap.
-- **Retention is a non-inferiority claim, not a ratio.** "The rules keep at least 95% of the gain" is restated as: the lower end of the 95% interval for (rules minus teacher) is no worse than a stated margin, set to 5% of the measured gain over the heuristic. Because that margin can be a fraction of a point, it needs the large test set above.
+- **Paired comparisons, with sizes chosen from the measured noise.** One game's score has a standard deviation of 10 to 35 points (section 2). For a paired difference with standard deviation `sd`, detecting a difference `d` at 95% confidence and 80% power needs about `n = 7.85 * sd^2 / d^2` games. With `sd` about 25 and `d` = 2 points that is about 1,200 games; to resolve 0.2 points it is about 120,000. The heuristic plays about 10,000 games a second on 16 cores, so validation sets of 20,000 games and a final test set of 300,000 paired games per table are affordable (a learned policy is slower, and its test set is sized to its speed). Win/loss differences use McNemar's test and reward differences a paired bootstrap.
+- **Retention is a non-inferiority claim, not a ratio.** "The rules keep at least 95% of the gain" is restated as: the lower end of the 95% interval for (rules minus teacher) is no worse than a stated margin, set to 5% of the measured gain over the heuristic. With a 2 point gain that margin is 0.1 points, which needs the large test set above (about 300,000 games with `sd` 25).
 - **Several training seeds.** A learning method is reported as the mean and spread over at least 5 independent training runs.
 - **Honest negatives.** A method that does not beat the baseline is recorded, as the hill-climbing search was.
 
@@ -224,45 +244,49 @@ The goal is not a policy dump. It is a short guide a person can apply, and that 
 - `strategy.ts` gains a rule policy next to the weighted one. It loads a versioned `rules.json` (the rule list, thresholds, text for each rule) and returns, for each suggestion, the id of the rule that fired. The hint banner can then say why ("Smallest move available") and the guide's rule numbers match.
 - The information boundary stays: the rule policy takes an `Observation` and nothing else. The existing test that blanks every hidden card and requires identical advice is extended to the new policy, and to the played-card record, which is public.
 - The weighted heuristic stays as the fallback and as the baseline the rules are measured against. Robots use the same policy as hints, so a better guide is a better robot.
+- **Reactions:** robots at a live table set reactions with the grounded sender rule and act on everyone's reactions with the extracted receiver rules, through the shared reactions module; the hint banner can mention what teammates have signalled and why a play avoids or favours a pile they care about.
 - Cost: rule evaluation is a few comparisons; no concern for solitaire in the browser.
 
 ## 10. Acceptance
 
 A strategy is promoted into hints and the guide only if all of these hold, measured on the test set of section 8:
 
-1. **Primary:** on the three stage 3 real-default tables, the mean reward beats the current strategy by at least 2 points and leaves at least half a card fewer on average, with a paired interval that excludes zero. Win rate is reported but not judged on the hardest tables, where wins are too rare.
+1. **Primary:** on the three stage 3 real-default tables, the mean score (section 3.3) beats the current strategy by at least 2 points and leaves at least half a card fewer on average, with a paired interval that excludes zero. Win rate is reported but not judged on the hardest tables, where wins are too rare.
 2. **No regressions:** on the stage 1 and 2 tables the strategy is non-inferior to the current one within a 1 point margin (Holm-corrected, so eight comparisons do not make a fair strategy fail by chance).
 3. **As rules:** non-inferior to the teacher within 5% of the measured gain (section 8), and the strength stated in the guide is reproduced by a fresh simulation from the guide's own rules.
 4. **Information boundary:** the hidden-information tests pass for the rule policy and for the teacher used to produce its labels (it may use public information and its own hand, and reach hidden cards only through belief sampling), for both tiers, and a cross-play test with an independently trained copy shows no drop.
 5. **Reproducible:** everything above can be redone from the committed config, lock file, seeds and commit hash.
-6. **Usability check** reported (section 7.6), not a gate.
+6. **Reactions:** the value of the channel (grounded sender with a learned receiver against no reactions) is reported per table with intervals, the sender passes the truthful-and-monotone test, and the receiver does not do worse against the hand-written human-style sender. If the channel adds nothing measurable, that is the result and the guide says so.
+7. **Usability check** reported (section 7.7), not a gate.
 
 If P1 and P2 show the ceiling is close to where the heuristic already is, the right outcome is a short, honest report saying so, plus the strategy guide written from the heuristic's own rules with measured numbers. That is still a deliverable.
 
-## 11. Decisions for Ken
+## 11. Decisions (all made by Ken on 15-Nov-2026)
 
-Each has a recommendation; the plan proceeds on it unless Ken says otherwise.
+Each line is the outcome.
 
-1. **Stack.** A one-day spike in P0 decides between a Python port with a parity suite (B) and TypeScript actors feeding a Python learner (C), with C preferred if it reaches a quarter of B's speed (section 6.1). Recommendation: let the spike decide; A is not recommended.
-2. **What the policy may know.** Train and report both Tier A (what you see) and Tier B (plus played cards)? Recommendation: both, with A as the human guide and B as the advanced section. Tier B needs a public `playedValues` addition to `Observation`, to what the server sends, and to the solitaire client, plus finding out whether players can look through a pile; that work is outside the 28 days and is listed in section 12.
-3. **Which tables.** Train on the simpler no-cheat stage tables of section 4.4 (smaller card range, bigger hand), as a curriculum, and always evaluate on the real game? Recommendation: yes (this is Ken's direction, 15-Nov-2026).
-4. **The objective.** Keep the reward in section 3.3 (win 100; otherwise up to 50 for the share of cards played, so fewer cards left always scores better), judged on reward and cards left as well as win rate, with the two alternative scorings as a check? Recommendation: yes.
-5. **The bar for promotion.** Section 10's numbers (2 reward points and half a card on the real game, rules within 5% of the teacher's gain)? Recommendation: yes; a lower bar risks shipping noise as advice.
-6. **Time box and stop rule.** Recommendation: P0 and P1 first, about 10 working days; stop and report if search adds under 1 reward point on the stage 2 and 3 tables, before building the learner.
-7. **Where artifacts live.** Recommendation: summaries, the final rules file and the guide in the repo; checkpoints and logs outside git on the Mac.
-8. **Human usability check.** Run the section 7.6 check with a few people before the guide is published, as a usability check and not a gate? Recommendation: yes.
-9. **Python and libraries.** Install whatever is needed, at current versions, in an isolated `uv` environment with a pinned lock file under `tools/training/` (decided by Ken, 15-Nov-2026: any library, later versions allowed)? Recommendation: yes; the only rule is that nothing goes into the system Python.
-10. **Network isolation.** Run training under an operating-system sandbox that denies the network (section 6.3), and install packages from a hash-pinned lock file as a separate step? Recommendation: yes.
-11. **Validation and test sets.** Keep a once-only test set and one pre-registered primary metric (section 8)? Recommendation: yes; without them a small gain cannot be told from luck.
+1. **Stack.** A one-day spike in P0 decides between a Python port with a parity suite (B) and TypeScript actors feeding a Python learner (C), with C preferred if it reaches a quarter of B's speed (section 6.1).
+2. **What the policy may know.** Both Tier A (what you see, including reactions) and Tier B (plus the played-card record), reported separately. Tier B needs a public `playedValues` addition to `Observation`, to what the server sends, and to the solitaire client (outside the day count, section 12).
+3. **Which tables.** Staged: simple no-cheat tables first (smaller card range, bigger hands, undo off), then medium, ending on the real defaults, always evaluated on the real defaults (section 4.4).
+4. **The scoring.** Win 100; a loss scores 30 times the share of the deck played, and is halved if the draw pile was not emptied (section 3.3). Judged on score and cards left as well as win rate, with two other scorings shown as a check.
+5. **The bar for promotion.** On the real-default tables, at least 2 score points and half a card fewer left than the current strategy (paired, interval excludes zero), not worse than 1 point on easier tables, and written rules within 5% of the strong player's gain, on a once-only test set (sections 8 and 10).
+6. **Stop rule.** Build the foundations and the search teacher first (about 10 working days), report, and stop if search adds under 1 score point on the medium and real tables.
+7. **Artifacts in git.** Summaries, the final rules file, the guide and the lock file, and also the best checkpoint (a small network, kept under about 5 MB). Logs and other checkpoints stay on the Mac outside git.
+8. **Human usability check.** Yes, as a usability check and not a pass-or-fail gate (section 7.7).
+9. **Python and libraries.** Install whatever is needed, at current versions, in an isolated `uv` environment with a pinned lock file under `tools/training/`.
+10. **Network isolation.** Yes: training and evaluation run under an operating-system sandbox that denies the network, and packages are installed as a separate step from a hash-pinned lock file (section 6.3).
+11. **Validation and test sets.** Yes: a once-only test set and one pre-registered primary metric, mean score on the three real-default tables (section 8).
+12. **Reactions.** The meaning is grounded (section 5.6): robots communicate through one shared public place, the sender's level rises with how good its best card for the pile is, the receiver learns to act on it, and a freely invented code is measured only as research and never shipped.
 
 ## 12. Sizes
 
-About 34 working days if every phase runs, or about 18 if it stops after P1 with a report. The phases are P0 5 (including the one-day stack spike and the installation check), P1 5, P2 8, P3 5 (only if needed), P4 6, P5 3. Not in that number and each a real piece of work: the Tier B plumbing (public played-card record in `Observation`, the server's messages, the solitaire client, the reconnect case), the documentation the project requires with each change, the hint banner showing a rule's reason, recruiting people for the usability check, and any change to How to Play. Compute is not the constraint on this machine; clear results and careful engineering are.
+About 40 working days if every phase runs, or about 20 if it stops after P1 with a report. The phases are P0 7 (including the one-day stack spike, the installation check, and the reactions module and rules), P1 5, P2 11 (including the receiver and the sender thresholds), P3 5 (only if needed), P4 7, P5 4. Not in that number and each a real piece of work: the Tier B plumbing (public played-card record in `Observation`, the server's messages, the solitaire client, the reconnect case), moving the server's reaction logic into the shared module and letting robots use it at live tables, the documentation the project requires with each change, the hint banner showing a rule's reason, recruiting people for the usability check, and any change to How to Play. Compute is not the constraint on this machine; clear results and careful engineering are.
 
 ## 13. Risks
 
 - **The ceiling is close.** The likely finding for the hardest tables (default solitaire at about 1% with a hand of 7) may be that no policy does much better, though the calibration shows hand size alone moves it from 1% to 74%. Mitigation: the exact solver and the oracle bound say so early, and the gate in P1 stops spending.
 - **Simulator drift.** If a Python port is used, two copies of the rules (and of the base strategy and features) can disagree. Mitigation: prefer one source of rules (option C), otherwise the parity suite in CI on every rules change.
+- **The reaction channel adds little, or invites an unreadable code.** It may add almost nothing once the receiver is learned, and a freely learned code would be useless to people. Mitigation: the meaning is grounded and checked (section 5.6), the channel's value is measured against no reactions, and the fully free version is research only.
 - **Biased belief for tables.** Uniform sampling of other seats' hands is wrong once their choices are observed. Mitigation: reweighting by action likelihood, measured against the uniform version, and no guarantee claimed until it is done.
 - **Noise mistaken for gain.** Mitigation: separate validation and test sets, one primary metric, a multiple-comparison correction, and sample sizes chosen from the measured noise.
 - **A supply-chain or network surprise from "any library, any version".** Mitigation: an operating-system network sandbox for runs, and hash-pinned installs.
@@ -308,4 +332,6 @@ An independent review of the first draft was run on 15-Nov-2026 with the most ca
 | 10 | A static import check is weak (global `fetch`, subprocesses, installs) | 6.3 |
 | 11 | The reward decomposition needs win to mean no cards left; the alternative scorings are not independent; graded reward can prefer risky lines | 3.3 |
 | 12 | Paper claims were imprecise: the ISMCTS exploration term, the Hanabi claim, the AlphaZero formula | 5.2, 5.4, 14 |
+
+At Ken's direction on 15-Nov-2026 the plan's tool also changed: `packages/engine/src/simulate.ts` gained `scoreGame` (the scoring above, with tests) and records the cards left in the draw pile, and `tools/sim.ts` uses it, so `train` and `calibrate` report the new score. The one saved training run in `tools/runs/` used the earlier flatter scoring.
 
