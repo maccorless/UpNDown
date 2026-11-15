@@ -11,7 +11,8 @@
     "lint": "eslint src test tools --ext .ts",
     "test": "vitest run",
     "test:unit": "vitest run",
-    "sim": "tsx tools/sim.ts"
+    "sim": "tsx tools/sim.ts",
+    "golden": "tsx tools/golden.ts"
   },
   "dependencies": {
     "@upndown/shared-types": "0.1.0"
