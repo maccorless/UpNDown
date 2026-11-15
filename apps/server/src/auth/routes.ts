@@ -13,6 +13,8 @@ import {
   verifyOAuthState, SESSION_EXTEND_AFTER_MS
 } from './sessions.js';
 
+const SESSION_LOOKUP_TIMEOUT_MS = 1500;
+
 type Log = (level: 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
 export interface AuthServices {
@@ -324,15 +326,25 @@ export function createAuthRouter(options: AuthRouterOptions): {
   }));
 
   // For the socket handshake: reads the session without sliding its expiry and never throws.
+  // The handshake waits on this, so a stuck database must not hold every new connection: after a moment, a guest.
   const sessionFromCookie = async (cookieHeader: string | undefined): Promise<SessionInfo | null> => {
     const current = services();
     if (!current) return null;
+    let timer: NodeJS.Timeout | undefined;
+    const gaveUp = new Promise<null>((resolve) => {
+      timer = setTimeout(() => {
+        log('warn', 'auth.session_lookup_timeout', {});
+        resolve(null);
+      }, SESSION_LOOKUP_TIMEOUT_MS);
+    });
     try {
-      const session = await resolveSession(cookieHeader, current, false);
-      return session ? { userId: session.userId, sessionId: session.sessionId } : null;
+      const lookup = resolveSession(cookieHeader, current, false).then((session) => (session ? { userId: session.userId, sessionId: session.sessionId } : null));
+      return await Promise.race([lookup, gaveUp]);
     } catch (err) {
       log('warn', 'auth.session_lookup_failed', { error: err instanceof Error ? err.message : 'unknown' });
       return null;
+    } finally {
+      clearTimeout(timer);
     }
   };
 

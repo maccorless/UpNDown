@@ -3,6 +3,8 @@ import { solitaireResultPayloadSchema, type GameState, type SolitaireResultPaylo
 // Solitaire runs entirely in the browser and needs no connection. The one thing it ever sends is this: when a signed-in
 // player finishes a game, its result, so it can go into their history.
 const SOLO_PLAYER_ID = 'solo-player';
+// The server stores a game's length in a 32-bit number of milliseconds and accepts at most this much.
+const MAX_PLAY_MS = 24 * 24 * 3_600_000;
 
 // One id per game. It is kept in the saved game, so a game finished after a reload still has the id it started with.
 export function newRunId(): string {
@@ -15,11 +17,14 @@ export function buildSolitairePayload(state: GameState, runId: string): Solitair
   if (state.gamePhase !== 'won' && state.gamePhase !== 'lost') return null;
   const mine = state.statistics.players[SOLO_PLAYER_ID] ?? { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 };
   const now = Date.now();
+  const endedAtMs = state.statistics.endedAtMs ?? now;
+  // A tab left open with a game running for weeks reports the most the server stores, not nothing.
+  const startedAtMs = Math.max(state.statistics.startedAtMs ?? now, endedAtMs - MAX_PLAY_MS);
   const payload = {
     gameId: runId,
     outcome: state.gamePhase,
-    startedAtMs: state.statistics.startedAtMs ?? now,
-    endedAtMs: state.statistics.endedAtMs ?? now,
+    startedAtMs,
+    endedAtMs,
     turns: state.statistics.turns,
     cardsTotal: state.settings.maxCardValue - state.settings.minCardValue + 1,
     cardsLeft: state.drawPile.length + state.players.reduce((sum, player) => sum + player.hand.length, 0),

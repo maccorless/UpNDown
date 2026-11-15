@@ -105,7 +105,8 @@ describe('POST /api/me/solitaire-results', () => {
       ['more cards played and left than the deck holds', { outcome: 'lost', cardsLeft: 60, cardsPlayed: 60 }],
       ['more special plays than plays', { specialPlays: 99, cardsPlayed: 98 }],
       ['an end before the start', { startedAtMs: Date.now(), endedAtMs: Date.now() - 10 * MIN }],
-      ['more than thirty days of play', { startedAtMs: Date.now() - 40 * DAY, endedAtMs: Date.now() - 2 * MIN }],
+      ['more than 24 days of play, which the database column cannot hold', { startedAtMs: Date.now() - 27 * DAY, endedAtMs: Date.now() - 2 * MIN }],
+      ['a deck size that does not match the settings', { cardsTotal: 200, cardsPlayed: 98 }],
       ['a game id with characters it should not have', { gameId: '../../etc/passwd' }],
       ['an empty game id', { gameId: '' }],
       ['a game id that is far too long', { gameId: 'a'.repeat(65) }],
@@ -139,6 +140,16 @@ describe('POST /api/me/solitaire-results', () => {
       const old = Date.now() - 30 * DAY;
       expect((await post(cookie, result({ gameId: 'old', startedAtMs: old - 10 * MIN, endedAtMs: old }))).status).toBe(200);
       expect(store.results).toHaveLength(2);
+    });
+
+    // A tab left open for weeks must be savable, up to the most the database can store, and never an insert error.
+    it('stores a game of 24 days of play, the longest the database column can hold', async () => {
+      const { cookie } = await account('g-ann');
+      const ended = Date.now() - 2 * MIN;
+      const res = await post(cookie, result({ startedAtMs: ended - 24 * DAY, endedAtMs: ended }));
+      expect(res.status).toBe(200);
+      expect(store.results[0]!.durationMs).toBe(24 * DAY);
+      expect(store.results[0]!.durationMs).toBeLessThan(2 ** 31 - 1);
     });
 
     it('refuses a game that ends in the future, or long ago', async () => {

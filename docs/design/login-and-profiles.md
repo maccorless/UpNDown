@@ -213,7 +213,7 @@ Decided by the project owner on 14-Nov-2026. Solitaire runs entirely in the brow
 **Result at the end (signed in only).** When a game is won or lost and the player is signed in, the browser posts the result once to `POST /api/me/solitaire-results`; nobody else's game ever touches the server. A game ended early with End Game is not a result and is never sent, and solitaire has no `abandoned` rows.
 
 - The id of the game is created when it starts and kept in the save, so a retry, or a game finished after a reload, is the same game: `unique(user_id, game_id)` with `ON CONFLICT DO NOTHING` makes a repeat harmless.
-- The body is `solitaireResultPayloadSchema` (shared): outcome won or lost; cards played plus cards left at most the deck; special plays at most plays; a win leaves no cards and a loss leaves some; end after start; at most 30 days of play. A body over 4 KB is refused (413).
+- The body is `solitaireResultPayloadSchema` (shared): outcome won or lost; cards played plus cards left at most the deck; special plays at most plays; a win leaves no cards and a loss leaves some; end after start; at most 24 days of play (the stored length is a 32-bit number of milliseconds, 24.8 days; the browser reports at most 24, so a tab left open for weeks still saves); the deck size must match the settings. A body over 4 KB is refused (413).
 - The browser's clock says when the game ended. The server accepts up to 5 minutes in the future and up to 400 days in the past (a game finished offline may be sent later) and refuses the rest. Playing time is what is stored, so a game left for a week still reports only the time spent playing.
 - Session, JSON content type and canonical Origin are required; 30 saves a minute per user.
 - The end-of-game screen shows "Saving...", "Saved to your history." or, if it could not be sent, "Could not save this game to your history." with Try again, which resends the same game. A guest sees nothing about it.
@@ -340,4 +340,15 @@ Phase 4 (multiplayer results) changed or found the following:
 - **Writes.** `recordResults` writes one row at a time with `on conflict (user_id, game_id) do nothing`. It reports `inserted`, `duplicate`, `user_missing` (the account was deleted after joining) or `failed` per row, so one bad row never costs the others theirs. A failure is logged once with the database error code only, because a database message can carry the values being written. Nothing is retried or queued.
 - **Shutdown.** `AuthRuntime.stop()` waits up to 5 seconds for writes in flight, including games that end while it waits, and then lets go of the database. A database that never answers cannot hold a redeploy.
 - **Privacy page.** It now says a quit (host ends a live game) is recorded, and that solitaire is not recorded yet.
+
+Review follow-ups (15-Nov-2026), changed or found by an independent security and quality review:
+
+- **Lobby list no longer deletes games.** Listing joinable games only reads. It used to delete any room with nobody connected, including a started game whose players had all dropped at once. Only the timed reaper deletes (5 minutes for a lobby, 30 for a game, from the last activity).
+- **Client address.** `apps/server/src/client-ip.ts` is the one function for sockets and web routes. When the forwarded chain is shorter than `TRUSTED_PROXY_HOPS` it uses the connection itself, never the leftmost entry (which a client writes).
+- **Handshake.** The session lookup for a socket gives up after 1.5 seconds and treats the visitor as a guest, so a stuck database cannot hold connections. Solitaire opens no socket at all.
+- **Names.** The name a player takes into a game (create and join) is cleaned of control and bidirectional characters, like an account name.
+- **Responses.** Every response carries `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY` and a referrer policy, and the framework is not advertised. An unknown `/api` or `/auth` path is a JSON 404, not the client page. There is no Content-Security-Policy yet.
+- **Sockets.** Messages are limited to 16 KB. A page from another origin is refused on the websocket upgrade by the `cors` option, which the test suite pins.
+- **Logs.** A card lookup logs that it happened, not the card or its result.
+- **Container.** `.dockerignore` excludes the Google client secret files.
 

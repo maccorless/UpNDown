@@ -53,8 +53,12 @@ export const gameSettingsSchema = z
 
   });
 
+// A name that others will read: cleaned of control and bidirectional characters, then 1 to 32 characters. Used for an
+// account's name and for the name a player takes into a game.
+export const accountNameSchema = z.string().max(200).transform(cleanPlayerName).pipe(z.string().min(1).max(32));
+
 export const createGamePayloadSchema = z.object({
-  playerName: z.string().trim().min(1).max(32),
+  playerName: accountNameSchema,
   settings: gameSettingsSchema,
   isSolitaire: z.boolean()
 }).superRefine((payload, ctx) => {
@@ -80,7 +84,7 @@ export const createGamePayloadSchema = z.object({
 
 export const joinGamePayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
-  playerName: z.string().trim().min(1).max(32)
+  playerName: accountNameSchema
 });
 
 export const playCardPayloadSchema = z.object({
@@ -133,9 +137,6 @@ export const rejoinGamePayloadSchema = z.object({
 export type GameSettingsInput = z.infer<typeof gameSettingsSchema>;
 
 // What an account keeps. Every key is optional so a partial document is valid; unknown keys are dropped.
-// Cleaned of control and bidirectional characters, then 1 to 32 characters. Used for the name on an account.
-export const accountNameSchema = z.string().max(200).transform(cleanPlayerName).pipe(z.string().min(1).max(32));
-
 export const storedSettingsSchema = z.object({
   playerName: accountNameSchema.optional(),
   solitaire: gameSettingsSchema.optional(),
@@ -207,8 +208,10 @@ export const solitaireResultPayloadSchema = z.object({
 }).superRefine((r, ctx) => {
   const fail = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }); };
   if (r.endedAtMs < r.startedAtMs) fail('endedAtMs before startedAtMs');
-  // Playing time, not wall time: a game left for a week and finished still reports only the time spent playing.
-  if (r.endedAtMs - r.startedAtMs > 30 * 24 * 3_600_000) fail('duration too long');
+  // Playing time, not wall time: a game left for a week and finished still reports only the time spent playing. The
+  // column holds a 32-bit number of milliseconds (24.8 days), so the limit sits under that.
+  if (r.endedAtMs - r.startedAtMs > 24 * 24 * 3_600_000) fail('duration too long');
+  if (r.cardsTotal !== r.settings.maxCardValue - r.settings.minCardValue + 1) fail('cardsTotal does not match the settings');
   if (r.cardsLeft > r.cardsTotal || r.cardsPlayed > r.cardsTotal || r.cardsPlayed + r.cardsLeft > r.cardsTotal) fail('cards do not add up');
   if (r.specialPlays > r.cardsPlayed || r.nasCheats > r.cardsPlayed) fail('more special plays than plays');
   if (r.outcome === 'won' && r.cardsLeft !== 0) fail('a win leaves no cards');

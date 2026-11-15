@@ -175,6 +175,13 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   };
 
   const app = express();
+  app.disable('x-powered-by');
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    next();
+  });
   app.use(cors({ origin: corsOriginHandler }));
   app.use(express.json());
 
@@ -186,6 +193,8 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   // Before the static handler and the single-page fallback, which would otherwise answer these paths.
   app.use(auth.legacyRedirect);
   app.use(auth.router);
+  // An unknown API or auth path is an error, not the client page the catch-all below would hand back with a 200.
+  app.use(['/api', '/auth'], (_req, res) => { res.status(404).json({}); });
 
   // Single-container deploys (Skiff) serve the built client from the socket server's origin.
   const { clientDistDir } = config;
@@ -200,7 +209,9 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   const io = new SocketIOServer(httpServer, {
     cors: {
       origin: corsOriginHandler
-    }
+    },
+    // Messages here are a few hundred bytes. The default is 1 MB per message.
+    maxHttpBufferSize: 16 * 1024
   });
 
   // A signed-in browser's cookie rides along on the websocket upgrade. The user id stays on the server:
@@ -622,7 +633,8 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const parsed = cardLookupPayloadSchema.parse(payload);
         const { status, playerName, holderName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue);
         const result = { cardValue: parsed.cardValue, status, playerName, ...(holderName ? { holderName } : {}) };
-        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, cardValue: parsed.cardValue, status, secret: parsed.secret === true });
+        // Not the card or what it turned out to be: that is hidden-hand information, and nothing needs it on disk.
+        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, secret: parsed.secret === true });
         if (parsed.secret) {
           reply(ack, { ok: true, data: { result: { ...result, playerName: '' } } });
           return;

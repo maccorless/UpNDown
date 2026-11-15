@@ -9,3 +9,6 @@
 .DS_Store
 tests/e2e/test-results
 playwright-report
+# Google OAuth client downloads hold a secret. They are git-ignored; a local build or an uploaded folder must not copy them.
+client_secret*.json
+lclient_secret*.json

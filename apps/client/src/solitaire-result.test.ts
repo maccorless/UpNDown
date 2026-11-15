@@ -57,6 +57,23 @@ describe('the result a finished solitaire game reports', () => {
     }
   });
 
+  // A tab left open with a game running for weeks must still be savable: the server stores at most 24 days.
+  it('reports at most 24 days of play, however long the tab was left open', () => {
+    const won = winningGame();
+    const ended = Date.now();
+    const stale = { ...won, statistics: { ...won.statistics, startedAtMs: ended - 40 * 24 * 3_600_000, endedAtMs: ended } };
+    const payload = buildSolitairePayload(stale, 'run-long')!;
+    expect(payload.endedAtMs - payload.startedAtMs).toBe(24 * 24 * 3_600_000);
+    expect(solitaireResultPayloadSchema.safeParse(payload).success).toBe(true);
+  });
+
+  it('leaves an ordinary game\'s times exactly as they were', () => {
+    const won = winningGame();
+    const payload = buildSolitairePayload(won, 'run-short')!;
+    expect(payload.startedAtMs).toBe(won.statistics.startedAtMs);
+    expect(payload.endedAtMs).toBe(won.statistics.endedAtMs);
+  });
+
   it('is nothing while the game is still being played, so ending a game early reports nothing', () => {
     expect(buildSolitairePayload(fresh(), 'run-4')).toBeNull();
     expect(buildSolitairePayload({ ...winningGame(), gamePhase: 'lobby' }, 'run-4')).toBeNull();
