@@ -104,6 +104,11 @@ export const tradePayloadSchema = z.object({
   cardId: z.string().min(1)
 });
 
+export const removeRobotPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  playerId: z.string().min(1).max(100)
+});
+
 export const skipPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/)
 });
@@ -169,6 +174,7 @@ export const gameStateSchema = z.object({
     name: z.string().max(64),
     hand: z.array(cardSchema).max(200),
     isHost: z.boolean(),
+    robot: z.boolean().optional(),
     color: z.enum(['red', 'orange', 'green', 'cyan', 'purple', 'pink']).optional()
   })).max(6),
   foundationPiles: z.array(z.object({

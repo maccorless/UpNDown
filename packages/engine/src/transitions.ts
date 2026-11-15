@@ -17,6 +17,7 @@ interface EnginePlayerInput {
   id: string;
   name: string;
   color?: PlayerColor;
+  robot?: boolean;
 }
 
 interface CreateStartedGameParams {
@@ -247,7 +248,8 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
     name: player.name,
     hand: [],
     isHost: player.id === hostId,
-    color: player.color ?? (PLAYER_COLORS[index % PLAYER_COLORS.length] as PlayerColor)
+    color: player.color ?? (PLAYER_COLORS[index % PLAYER_COLORS.length] as PlayerColor),
+    ...(player.robot ? { robot: true } : {})
   }));
 
   if (initializedPlayers.length * settings.handSize > deck.length) {

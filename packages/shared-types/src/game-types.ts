@@ -21,6 +21,8 @@ export interface Player {
   hand: Card[];
   isHost: boolean;
   color?: PlayerColor;
+  // A seat played by the server, not by a person: no connection, no account, no result recorded.
+  robot?: boolean | undefined;
 }
 
 export interface GameSettings {
@@ -126,6 +128,11 @@ export interface PlayCardPayload {
   gameId: string;
   cardId: string;
   pileId: number;
+}
+
+export interface RemoveRobotPayload {
+  gameId: string;
+  playerId: string;
 }
 
 export interface SkipPayload {

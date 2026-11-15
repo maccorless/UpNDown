@@ -1,5 +1,9 @@
 # Up-N-Down — Game Mechanics and Implementation Guide
 
+## Robots
+
+The host can fill seats with robots in the lobby (`game:addRobot`, `game:removeRobot`). A robot is a seat the server plays: it counts toward `minPlayers` and `maxPlayers` and the deck limit like anyone, there must be at least one person, and it has no connection, account or rejoin token. Robots play through the same rules as people (the same strategy as hints, from what a player can see, never the hidden cards). A robot's turn is planned a moment ahead (about 1 second) and names the exact moment it was planned for, so a step planned for a moment that has passed does nothing. Robots only act while a person is connected; with every person away they wait, and after the kick time (90 seconds) a game with robots and nobody left is over, recorded as abandoned for each signed-in person. They cannot be kicked, are skipped when the host seat is lost (only a person can take over), and no result is recorded for them (the player count still includes them).
+
 ## Cheats
 
 Each cheat is off, once (one use per player per game) or unlimited, set per game (`cheatLimits`). Cheats are used before the game ends, never to rescue a lost game, and none can be undone.
@@ -283,6 +287,8 @@ All Socket.IO events are rate-limited per socket ID using a sliding-window count
 | `game:listJoinable`  | 30    | 10 s    |
 | `game:start`         | 10    | 30 s    |
 | `game:playCard`      | 60    | 10 s    |
+| `game:addRobot`      | 10    | 10 s    |
+| `game:removeRobot`   | 10    | 10 s    |
 | `game:skip`          | 10    | 10 s    |
 | `game:trade`         | 10    | 10 s    |
 | `game:hint`          | 20    | 10 s    |

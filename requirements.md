@@ -163,6 +163,7 @@ tests/e2e               Playwright smoke tests
 - Host creates game and controls when to start
 - Other players join via game ID or shareable invite link (`?game=XXXXXX`)
 - **Games survive a restart**: where a database is connected, games being played (not lobbies or finished games) are saved to the `live_games` table and put back when the server starts, with every seat treated as a dropped connection, so the usual notice, kick and take-over rules apply and each player takes their seat back with the saved token or, signed in, by account (`game:mySeats` lists the games an account holds; with several the player chooses). Saving is a sweep every 2 seconds, never in a move's way; a new seat credential is saved before it is handed over; tokens are stored only as hashes. One process writes at a time (a Postgres advisory lock on its own connection, plus a version on every write). A game untouched for 24 hours is deleted; without saving the limit stays 30 minutes. The page says so when saving is unavailable (`storage` on `/api/auth/config`: `none` for a version with no database, `down` when it is not answering, with a retry every 15 seconds)
+- **Robots**: the host can add robots in the lobby (they count toward the player limits, with no cap of their own, and at least one person must stay). The server plays them with the same strategy as hints, through the same rules, a moment apart, and only while a person is connected; with every person away they wait, and after 90 seconds the game is over (abandoned for each signed-in person). Robots cannot be kicked, never take the host seat or an account's result, and are listed as [Robot]
 - **One seat per account**: a signed-in account cannot join a game it already has a seat in ("Your account is already in this game (perhaps in another tab)"). Two different accounts, for example in two tabs of one browser, are two players, and guests are never matched with each other. A guest seat that comes back signed in as an account already seated in that game is not credited to it
 - **One game per connection**: a connection can be in one game at a time. Starting or joining another game leaves a lobby or a finished game it was still seated in; a game that is being played cannot be left, so it refuses with "You are already in a game that is still being played"
 - **Limits**: at most 500 rooms exist at once ("The server is full right now" beyond that), and the public lobby list shows the 50 newest
@@ -355,6 +356,8 @@ Client  ──Socket.IO event──►  Server
 | `game:skip`           | Skip your turn (cheat; before playing a card) |
 | `game:trade`          | Trade a hand card for the next draw card (cheat) |
 | `game:hint`           | Ask for a hint (cheat; the answer is private and counted) |
+| `game:addRobot`       | Host adds a robot to the lobby |
+| `game:removeRobot`    | Host removes a robot from the lobby |
 | `game:endGame`        | Host ends an active game             |
 | `game:updateSettings` | Host updates lobby settings          |
 | `game:leave`          | Leave the current game               |

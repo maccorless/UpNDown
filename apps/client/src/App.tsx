@@ -31,7 +31,7 @@ const SOLO_PLAYER_ID = 'solo-player';
 
 type Mode = 'solitaire' | 'multiplayer';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
-type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'cheat' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | 'undo' | null;
+type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'cheat' | 'robot' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | 'undo' | null;
 
 type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -479,11 +479,11 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                 >
                   <span>
                     {player.color && <span className="player-color-pip" style={{ background: PLAYER_COLOR_HEX[player.color] }} aria-hidden="true" />}
-                    {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}
+                    {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}{player.robot ? ' [Robot]' : ''}
                   </span>
                   <span className="player-line-right">
                     <span>{player.hand.length} cards</span>
-                    {isHostProp && onKickPlayer && player.id !== playerId && !player.isHost ? (
+                    {isHostProp && onKickPlayer && player.id !== playerId && !player.isHost && !player.robot ? (
                       <button
                         type="button"
                         className="kick-btn"
@@ -1396,6 +1396,29 @@ export function App(): JSX.Element {
     setCardLookupOpen(true);
   };
 
+  // Robots: the host fills seats in the lobby. They count toward the player limits like anyone.
+  const handleAddRobot = async (): Promise<void> => {
+    if (!multiplayerState) return;
+    const ack = await emitWithAck<{ gameState: GameState }>('game:addRobot', { gameId: multiplayerState.gameId }, 'robot');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
+  const handleRemoveRobot = async (robotId: string): Promise<void> => {
+    if (!multiplayerState) return;
+    const ack = await emitWithAck<{ gameState: GameState }>('game:removeRobot', { gameId: multiplayerState.gameId, playerId: robotId }, 'robot');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
   const handleCheatHint = async (): Promise<void> => {
     if (mode === 'solitaire') {
       try {
@@ -2206,13 +2229,13 @@ export function App(): JSX.Element {
                   <div className="player-line" key={player.id}>
                     <span>
                       {player.color && <span className="player-color-pip" style={{ background: PLAYER_COLOR_HEX[player.color] }} aria-hidden="true" />}
-                      {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}
+                      {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}{player.robot ? ' [Robot]' : ''}
                     </span>
                     {isHostInLobby && player.id !== playerId && !player.isHost ? (
                       <button
                         type="button"
                         className="kick-btn"
-                        onClick={() => { void handleKickPlayer(player.id); }}
+                        onClick={() => { void (player.robot ? handleRemoveRobot(player.id) : handleKickPlayer(player.id)); }}
                         disabled={!!pendingAction}
                         title={`Remove ${player.name}`}
                         data-testid={`kick-${player.id}`}
@@ -2237,6 +2260,17 @@ export function App(): JSX.Element {
                 ) : (
                   <div className="info-message">Only host can start the game.</div>
                 )}
+                {isHostInLobby ? (
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => { void handleAddRobot(); }}
+                    disabled={multiplayerInteractionDisabled || multiplayerState.players.length >= maxPlayersFor(multiplayerState.settings)}
+                    data-testid="add-robot"
+                  >
+                    Add Robot
+                  </button>
+                ) : null}
                 <button
                   type="button"
                   className="secondary"

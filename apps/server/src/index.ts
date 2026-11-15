@@ -9,6 +9,7 @@ import {
   createGamePayloadSchema,
   joinGamePayloadSchema,
   kickPlayerPayloadSchema,
+  removeRobotPayloadSchema,
   skipPayloadSchema,
   tradePayloadSchema,
   playCardPayloadSchema,
@@ -73,6 +74,8 @@ const eventRateLimits: Record<
   | 'game:listJoinable'
   | 'game:start'
   | 'game:playCard'
+  | 'game:addRobot'
+  | 'game:removeRobot'
   | 'game:skip'
   | 'game:hint'
   | 'game:trade'
@@ -95,6 +98,8 @@ const eventRateLimits: Record<
   'game:listJoinable':   { limit: 30, windowMs: 10_000 },
   'game:start':          { limit: 10, windowMs: 30_000 },
   'game:playCard':       { limit: 60, windowMs: 10_000 },
+  'game:addRobot':       { limit: 10, windowMs: 10_000 },
+  'game:removeRobot':    { limit: 10, windowMs: 10_000 },
   'game:skip':           { limit: 10, windowMs: 10_000 },
   'game:hint':           { limit: 20, windowMs: 10_000 },
   'game:trade':          { limit: 10, windowMs: 10_000 },
@@ -175,7 +180,7 @@ function normalizeError(err: unknown, fallback: string): string {
 export function createRealtimeServer(
   port?: number,
   authOverrides?: AuthTestOverrides,
-  timing: { noticeMs?: number; kickMs?: number } = {},
+  timing: { noticeMs?: number; kickMs?: number; robotDelayMs?: number } = {},
   live?: { store: GameStore; lock: WriterLock; intervalMs?: number; retryMs?: number }
 ) {
   const config = loadRuntimeConfig(port);
@@ -280,10 +285,53 @@ export function createRealtimeServer(
     for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
       io.to(socketId).emit('game:updated', viewOf(state, socketId));
     }
+    scheduleRobot(gameId);
+  };
+
+  // Robots. When it is a robot's turn and a person is at the table, one step is planned a human-feeling moment ahead. The
+  // step names the exact moment it was planned for (the run, whose turn, how far into it), so one planned for a moment that
+  // has passed does nothing. Each step goes through the manager like a person's move and is broadcast, which plans the next.
+  const robotTimers = new Set<NodeJS.Timeout>();
+  const robotPlanned = new Map<string, string>();
+  const robotDelay = (): number => timing.robotDelayMs ?? 800 + Math.floor(Math.random() * 800);
+  const scheduleRobot = (gameId: string): void => {
+    const due = manager.robotToAct(gameId);
+    if (!due || robotPlanned.get(gameId) === due.turnKey) return;
+    robotPlanned.set(gameId, due.turnKey);
+    const timer = setTimeout(() => {
+      robotTimers.delete(timer);
+      if (robotPlanned.get(gameId) === due.turnKey) robotPlanned.delete(gameId);
+      const done = manager.robotStep(gameId, due.turnKey);
+      const state = manager.peekState(gameId);
+      if (!done || !state) return;
+      if (done.step === 'endTurn') {
+        const next = state.players[state.currentPlayerIndex]?.id;
+        if (next) manager.clearPlayerReactions(gameId, next);
+        io.to(gameId).emit('game:reactionsUpdated', manager.getReactions(gameId));
+      }
+      if (done.step === 'skip' || done.step === 'trade') announceCheatBy(gameId, done.robotId, done.step);
+      log('info', 'game.robot_step', { gameId, step: done.step });
+      broadcastState(gameId, state);
+    }, robotDelay());
+    timer.unref();
+    robotTimers.add(timer);
+  };
+  const announceCheatBy = (gameId: string, playerId: string, kind: CheatUsedEvent['kind']): void => {
+    const player = manager.peekState(gameId)?.players.find((p) => p.id === playerId);
+    if (player) io.to(gameId).emit('game:cheatUsed', { playerId: player.id, playerName: player.name, kind } satisfies CheatUsedEvent);
   };
   // A dropped player appears to the others after the notice time, and may be kicked after the kick time, so the room is
   // sent a fresh view at each of those moments. A timer that fires after the player came back only sends a harmless update.
   const reconnectionTimers = new Set<NodeJS.Timeout>();
+  // A table with robots and no person left is over after the kick time, rather than robots playing on unwatched.
+  const abandonLater = (gameId: string): void => {
+    const timer = setTimeout(() => {
+      reconnectionTimers.delete(timer);
+      if (manager.abandonIfOnlyRobotsRemain(gameId)) log('info', 'game.abandoned_robots_only', { gameId });
+    }, (timing.kickMs ?? 90_000) + 100);
+    timer.unref();
+    reconnectionTimers.add(timer);
+  };
   const rebroadcastLater = (gameId: string, delayMs: number): void => {
     const timer = setTimeout(() => {
       reconnectionTimers.delete(timer);
@@ -304,6 +352,7 @@ export function createRealtimeServer(
         for (const gameId of gameIds) {
           rebroadcastLater(gameId, timing.noticeMs ?? 10_000);
           rebroadcastLater(gameId, timing.kickMs ?? 90_000);
+          abandonLater(gameId);
         }
       }
     });
@@ -580,11 +629,42 @@ export function createRealtimeServer(
       }
     });
 
+    socket.on('game:addRobot', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:addRobot')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = gameIdSchema.parse(payload);
+        const gameState = manager.addRobot(socket.id, parsed.gameId);
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to add a robot');
+        log('warn', 'game.add_robot_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    socket.on('game:removeRobot', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:removeRobot')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = removeRobotPayloadSchema.parse(payload);
+        const gameState = manager.removeRobot(socket.id, parsed);
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to remove the robot');
+        log('warn', 'game.remove_robot_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
     // Tells everyone in the room that a cheat was used. Never says what the cheat found.
-    const announceCheat = (gameId: string, kind: CheatUsedEvent['kind']): void => {
-      const player = manager.peekState(gameId)?.players.find((p) => p.id === socket.id);
-      if (player) io.to(gameId).emit('game:cheatUsed', { playerId: player.id, playerName: player.name, kind } satisfies CheatUsedEvent);
-    };
+    const announceCheat = (gameId: string, kind: CheatUsedEvent['kind']): void => announceCheatBy(gameId, socket.id, kind);
 
     socket.on('game:skip', (payload, ack?: Ack<{ gameState: unknown }>) => {
       if (!passesRateLimit(socket.id, 'game:skip')) {
@@ -816,6 +896,7 @@ export function createRealtimeServer(
       for (const gameId of manager.markDisconnected(socket.id)) {
         rebroadcastLater(gameId, timing.noticeMs ?? 10_000);
         rebroadcastLater(gameId, timing.kickMs ?? 90_000);
+        abandonLater(gameId);
       }
       const updates = manager.removeDisconnectedPlayer(socket.id);
       for (const update of updates) {
@@ -831,6 +912,7 @@ export function createRealtimeServer(
     clearInterval(cleanupTimer);
     await persistence?.stop();
     for (const timer of reconnectionTimers) clearTimeout(timer);
+    for (const timer of robotTimers) clearTimeout(timer);
     await auth.stop();
     await new Promise<void>((resolve, reject) => {
       io.close(() => {

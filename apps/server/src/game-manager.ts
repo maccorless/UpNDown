@@ -9,6 +9,7 @@ import type {
   JoinLookupSummary,
   KickPlayerPayload,
   PlayCardPayload,
+  RemoveRobotPayload,
   Player,
   PlayerColor,
   ReactionState,
@@ -298,7 +299,8 @@ export class GameManager {
       rejoinTokens: new Map(Object.entries(stored.tokenHashes).map(([id, hash]) => [id, { hash }])),
       userIdByPlayerId: new Map(Object.entries(stored.seatUsers)),
       runId: stored.runId,
-      disconnectedAtMs: new Map(stored.state.players.map((player) => [player.id, nowMs]))
+      // Robots never disconnect; every person starts as away.
+      disconnectedAtMs: new Map(stored.state.players.filter((player) => !player.robot).map((player) => [player.id, nowMs]))
     });
     return true;
   }
@@ -511,7 +513,7 @@ export class GameManager {
     const started = createStartedGameState({
       gameId,
       hostId: gameState.hostId,
-      players: gameState.players.map((p) => ({ id: p.id, name: p.name, ...(p.color ? { color: p.color } : {}) })),
+      players: gameState.players.map((p) => ({ id: p.id, name: p.name, ...(p.color ? { color: p.color } : {}), ...(p.robot ? { robot: true } : {}) })),
       settings: gameState.settings,
       isSolitaire: false,
       deck: shuffle(buildDeck(gameState.settings))
@@ -730,13 +732,14 @@ export class GameManager {
     const players = gameState.players.filter((player) => player.id !== playerId);
     room.userIdByPlayerId.delete(playerId);
     room.disconnectedAtMs.delete(playerId);
-    if (players.length === 0) {
+    // A table of only robots has no one to host it or watch it.
+    if (players.every((player) => player.robot)) {
       this.rooms.delete(gameId);
       this.reactions.delete(gameId);
       return null;
     }
 
-    const nextHost = players.find((player) => player.id === gameState.hostId) ?? players[0];
+    const nextHost = players.find((player) => player.id === gameState.hostId) ?? players.find((player) => !player.robot);
     const nextState: GameState = {
       ...gameState,
       hostId: nextHost?.id ?? gameState.hostId,
@@ -802,6 +805,9 @@ export class GameManager {
     const kickedPlayerIndex = gameState.players.findIndex((p) => p.id === payload.targetPlayerId);
     if (kickedPlayerIndex === -1) {
       throw new Error('Player not found in game');
+    }
+    if (gameState.players[kickedPlayerIndex]!.robot) {
+      throw new Error('Robots leave when the game ends; they cannot be kicked');
     }
 
     if (gameState.gamePhase === 'playing' && room.runId) {
@@ -887,9 +893,127 @@ export class GameManager {
     const hostIndex = players.findIndex((player) => player.id === hostId);
     for (let offset = 1; offset < players.length; offset += 1) {
       const candidate = players[(hostIndex + offset) % players.length]!;
-      if (!room.disconnectedAtMs.has(candidate.id)) return candidate.id;
+      // A robot never disconnects but cannot take over as host: only a person can.
+      if (!candidate.robot && !room.disconnectedAtMs.has(candidate.id)) return candidate.id;
     }
     return null;
+  }
+
+  // Robots. The host fills seats with them in the lobby; they count toward the player limits like anyone, and at least one
+  // person must stay. They play through the same methods as people, so every rule check is shared.
+  addRobot(hostId: string, gameId: string): GameState {
+    const room = this.requireRoom(gameId);
+    const { gameState } = room;
+    if (gameState.gamePhase !== 'lobby') {
+      throw new Error('Robots can only be added in the lobby');
+    }
+    if (gameState.hostId !== hostId) {
+      throw new Error('Only host can add robots');
+    }
+    if (gameState.players.length >= maxPlayersFor(gameState.settings)) {
+      throw new Error('The table is full');
+    }
+    const robotNumber = gameState.players.filter((player) => player.robot).length + 1;
+    const id = `bot-${randomUUID().slice(0, 8)}`;
+    const nextState: GameState = {
+      ...gameState,
+      players: [...gameState.players, {
+        id,
+        name: uniqueInGameName(`Robot ${robotNumber}`, gameState.players.map((player) => player.name)),
+        hand: [],
+        isHost: false,
+        robot: true,
+        color: PLAYER_COLORS[gameState.players.length % PLAYER_COLORS.length] as PlayerColor
+      }],
+      statistics: { ...gameState.statistics, players: { ...gameState.statistics.players, [id]: emptyPlayerStats() } },
+      nasCheat: { ...gameState.nasCheat, usedThisTurnByPlayerId: { ...gameState.nasCheat.usedThisTurnByPlayerId, [id]: false } }
+    };
+    room.gameState = nextState;
+    room.updatedAtMs = Date.now();
+    return nextState;
+  }
+
+  removeRobot(hostId: string, payload: RemoveRobotPayload): GameState {
+    const room = this.requireRoom(payload.gameId);
+    const { gameState } = room;
+    if (gameState.gamePhase !== 'lobby') {
+      throw new Error('Robots can only be removed in the lobby');
+    }
+    if (gameState.hostId !== hostId) {
+      throw new Error('Only host can remove robots');
+    }
+    if (!gameState.players.some((player) => player.id === payload.playerId && player.robot)) {
+      throw new Error('That seat is not a robot');
+    }
+    const players = gameState.players.filter((player) => player.id !== payload.playerId);
+    const nextState: GameState = {
+      ...gameState,
+      players,
+      statistics: { ...gameState.statistics, players: Object.fromEntries(players.map((player) => [player.id, gameState.statistics.players[player.id] ?? emptyPlayerStats()])) },
+      nasCheat: { ...gameState.nasCheat, usedThisTurnByPlayerId: Object.fromEntries(players.map((player) => [player.id, gameState.nasCheat.usedThisTurnByPlayerId[player.id] ?? false])) }
+    };
+    room.gameState = nextState;
+    room.updatedAtMs = Date.now();
+    return nextState;
+  }
+
+  // Robots only act while a person is at the table: a connected one. With nobody there they wait.
+  hasConnectedHuman(gameId: string): boolean {
+    const room = this.rooms.get(gameId);
+    if (!room) return false;
+    return room.gameState.players.some((player) => !player.robot && !room.disconnectedAtMs.has(player.id));
+  }
+
+  // The robot whose turn it is, if the game is being played and a person is there to watch.
+  robotToAct(gameId: string): { robotId: string; turnKey: string } | null {
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase !== 'playing') return null;
+    const current = room.gameState.players[room.gameState.currentPlayerIndex];
+    if (!current?.robot || !this.hasConnectedHuman(gameId)) return null;
+    // Names this exact moment: the run, whose turn, how far into it. A step planned for a moment that has passed does nothing.
+    return { robotId: current.id, turnKey: `${room.runId ?? ''}:${room.gameState.statistics.turns}:${room.gameState.cardsPlayedThisTurn}:${current.hand.length}` };
+  }
+
+  // One step for the robot whose turn it is. Returns what was done, or null when it was not (or is no longer) a robot's turn.
+  robotStep(gameId: string, expectedTurnKey: string): { robotId: string; step: 'play' | 'endTurn' | 'skip' | 'trade' } | null {
+    const due = this.robotToAct(gameId);
+    if (!due || due.turnKey !== expectedTurnKey) return null;
+    const state = this.requireRoom(gameId).gameState;
+    const action = chooseAction(observe(state, due.robotId));
+    try {
+      if (action.type === 'play') this.playCard(due.robotId, { gameId, cardId: action.cardId, pileId: action.pileId });
+      else if (action.type === 'endTurn') this.endTurn(due.robotId, gameId);
+      else if (action.type === 'skip') this.skip(due.robotId, { gameId });
+      else if (action.type === 'trade') this.trade(due.robotId, { gameId, cardId: action.cardId });
+      else return null;
+    } catch {
+      return null;
+    }
+    return { robotId: due.robotId, step: action.type };
+  }
+
+  // A table that has robots and no person left: the robots stop, and after the kick time the game is over, recorded as
+  // abandoned for each signed-in person who was in it. Returns true when it ended the game.
+  abandonIfOnlyRobotsRemain(gameId: string, nowMs: number = Date.now()): boolean {
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase !== 'playing') return false;
+    const { players } = room.gameState;
+    if (!players.some((player) => player.robot)) return false;
+    const kickMs = this.hooks.kickMs ?? DEFAULT_KICK_MS;
+    const humans = players.filter((player) => !player.robot);
+    const allAway = humans.every((player) => {
+      const since = room.disconnectedAtMs.get(player.id);
+      return since !== undefined && nowMs - since >= kickMs;
+    });
+    if (!allAway) return false;
+    if (room.runId) {
+      for (const human of humans) {
+        this.emitResults(buildResultRows({ state: room.gameState, runId: room.runId, outcome: 'abandoned', userIdByPlayerId: room.userIdByPlayerId, nowMs, onlyPlayerId: human.id }));
+      }
+    }
+    this.rooms.delete(gameId);
+    this.reactions.delete(gameId);
+    return true;
   }
 
   // A connection dropped. In a lobby or a finished game the seat is simply given up (removeDisconnectedPlayer); in a game
