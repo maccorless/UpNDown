@@ -1,6 +1,7 @@
 import type { Card, GameSettings, GameState } from '@upndown/shared-types';
 import { buildDeck } from './init.js';
 import { chooseAction, DEFAULT_WEIGHTS, observe, type Action, type Observation, type StrategyWeights } from './strategy.js';
+import { playedValues } from './belief.js';
 import { honestBoard, type SenderThresholds } from './reactions.js';
 import { createStartedGameState, endTurn, playCard, skipTurn, tradeCard } from './transitions.js';
 
@@ -45,7 +46,7 @@ export const weightedPolicy = (weights: StrategyWeights = DEFAULT_WEIGHTS): Poli
 // `players` is 1. `random` drives the shuffle and trades, so the same seed gives the same shuffle whatever the policy does.
 // With `senders`, every player not on turn shows their honest reaction on each pile (as a diligent person would), and the
 // player on turn sees them in the observation.
-export function playGameWith(settings: GameSettings, players: number, seed: number, policy: Policy, senders?: SenderThresholds): GameRecord {
+export function playGameWith(settings: GameSettings, players: number, seed: number, policy: Policy, senders?: SenderThresholds, options: { record?: boolean } = {}): GameRecord {
   const random = seededRandom(seed);
   const solitaire = players === 1;
   let state: GameState = createStartedGameState({
@@ -64,7 +65,7 @@ export function playGameWith(settings: GameSettings, players: number, seed: numb
   while (state.gamePhase === 'playing' && steps < limit) {
     steps += 1;
     const id = state.players[state.currentPlayerIndex]!.id;
-    const action = policy(observe(state, id, senders ? honestBoard(state, senders) : undefined), random);
+    const action = policy(observe(state, id, senders ? honestBoard(state, senders) : undefined, options.record ? playedValues(state) : undefined), random);
     try {
       if (action.type === 'play') state = playCard(state, id, action.cardId, action.pileId);
       else if (action.type === 'endTurn') state = endTurn(state, id);

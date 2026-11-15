@@ -5,11 +5,12 @@
 //   npm run sim --workspace @upndown/engine -- report
 //   npm run sim --workspace @upndown/engine -- tables
 //   npm run sim --workspace @upndown/engine -- eval --table s3-4p-99-h7 --set validation --games 3000 [--reactions] [--weights '{...}'] [--against '{...}']
+import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, type GameSettings } from '@upndown/shared-types';
-import { compare, DEFAULT_SENDER, DEFAULT_WEIGHTS, playGame, playSet, receiverPolicy, scoreGame, seededRandom, seedsFor, STAGE_TABLES, summarize, tableById, weightedPolicy, type SeedSet, type StrategyWeights } from '../src/index.js';
+import { compare, DEFAULT_SENDER, DEFAULT_WEIGHTS, playGame, playSet, receiverPolicy, searchPolicy, scoreGame, seededRandom, seedsFor, STAGE_TABLES, summarize, tableById, weightedPolicy, type GameRecord, type SeedSet, type StrategyWeights } from '../src/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RUNS = path.join(here, 'runs');
@@ -201,6 +202,47 @@ function evalCommand(): void {
   }
 }
 
+// Search teacher against the strategy on the same deals (solitaire). Games are split over worker processes, which write their records as JSON.
+//   npm run sim --workspace @upndown/engine -- search --table s2-solo-79-h7 --worlds 20 --games 200 [--record] [--margin 2] [--workers 16] [--set validation]
+function searchOptions(): { table: ReturnType<typeof tableById>; set: SeedSet; seeds: number[]; worlds: number; record: boolean } {
+  const table = tableById(arg('table', 's2-solo-79-h7'));
+  if (table.players !== 1) throw new Error('The search teacher is solitaire only');
+  const set = arg('set', 'validation') as SeedSet;
+  return { table, set, seeds: seedsFor(set, Number(arg('games', '100')), Number(arg('offset', '0'))), worlds: Number(arg('worlds', '20')), record: process.argv.includes('--record') };
+}
+
+function searchChunk(): void {
+  const o = searchOptions();
+  const [index, count] = arg('chunk', '0/1').split('/').map(Number) as [number, number];
+  const mine = o.seeds.filter((_, i) => i % count === index);
+  console.log(JSON.stringify(playSet(o.table, searchPolicy({ settings: o.table.settings, worlds: o.worlds, margin: Number(arg('margin', '2')) }), mine, undefined, { record: o.record })));
+}
+
+async function searchCommand(): Promise<void> {
+  const o = searchOptions();
+  const workers = Number(arg('workers', '16'));
+  const started = Date.now();
+  const passthrough = process.argv.slice(3).filter((a, i, all) => a !== '--workers' && all[i - 1] !== '--workers');
+  const parts = await Promise.all(Array.from({ length: workers }, (_, i) => new Promise<GameRecord[]>((resolve, reject) => {
+    const child = spawn(process.execPath, [...process.execArgv, process.argv[1]!, 'search-chunk', ...passthrough, '--chunk', `${i}/${workers}`], { stdio: ['ignore', 'pipe', 'inherit'] });
+    let out = '';
+    child.stdout.on('data', (d: Buffer) => { out += d.toString(); });
+    child.on('close', (code) => (code === 0 ? resolve(JSON.parse(out) as GameRecord[]) : reject(new Error(`worker ${i} exited with ${code}`))));
+  })));
+  // Put the records back in seed order so they pair with the strategy's.
+  const records: GameRecord[] = new Array<GameRecord>(o.seeds.length);
+  parts.forEach((part, i) => part.forEach((r, j) => { records[i + j * workers] = r; }));
+  const seconds = (Date.now() - started) / 1000;
+  const base = playSet(o.table, weightedPolicy(), o.seeds);
+  const s = summarize(records);
+  const b = summarize(base);
+  const c = compare(records, base);
+  console.log(`${o.table.id}, ${o.worlds} worlds, ${o.record ? 'Tier B (played-card record)' : 'Tier A (screen only)'}, ${o.seeds.length} ${o.set} games, ${seconds.toFixed(0)} s on ${workers} workers`);
+  console.log(`  strategy: won ${pct(b.winRate)}, score ${b.score.mean.toFixed(2)}, cards left ${b.cardsLeft.toFixed(2)}`);
+  console.log(`  search:   won ${pct(s.winRate)}, score ${s.score.mean.toFixed(2)}, cards left ${s.cardsLeft.toFixed(2)}, stalled ${s.stalled}`);
+  console.log(`  paired:   score ${c.score.mean >= 0 ? '+' : ''}${c.score.mean.toFixed(2)} (${c.score.low.toFixed(2)} to ${c.score.high.toFixed(2)}), only search won ${c.onlyAWon}, only strategy won ${c.onlyBWon}, p ${c.pValue.toPrecision(2)}`);
+}
+
 const command = process.argv[2];
 if (command === 'play') play();
 else if (command === 'train') train();
@@ -208,4 +250,6 @@ else if (command === 'report') report();
 else if (command === 'calibrate') calibrate();
 else if (command === 'tables') tables();
 else if (command === 'eval') evalCommand();
-else console.log('Usage: sim <play|train|report|calibrate|tables|eval> [--setting solo|solo-easy|table2|table4] [--games N] [--rounds N] [--seed N]');
+else if (command === 'search') void searchCommand();
+else if (command === 'search-chunk') searchChunk();
+else console.log('Usage: sim <play|train|report|calibrate|tables|eval|search> [--setting solo|solo-easy|table2|table4] [--games N] [--rounds N] [--seed N]');

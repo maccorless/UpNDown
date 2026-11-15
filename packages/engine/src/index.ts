@@ -10,3 +10,4 @@ export * from './evaluation.js';
 export * from './belief.js';
 export * from './reactions.js';
 export * from './solver.js';
+export * from './search.js';

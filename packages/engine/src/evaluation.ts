@@ -36,8 +36,8 @@ export interface EvaluationSummary {
   stalled: number;
 }
 
-export function playSet(table: StageTable, policy: Policy, seeds: readonly number[], senders?: SenderThresholds): GameRecord[] {
-  return seeds.map((seed) => playGameWith(table.settings, table.players, seed, policy, senders));
+export function playSet(table: StageTable, policy: Policy, seeds: readonly number[], senders?: SenderThresholds, options: { record?: boolean } = {}): GameRecord[] {
+  return seeds.map((seed) => playGameWith(table.settings, table.players, seed, policy, senders, options));
 }
 
 export function summarize(records: readonly GameRecord[]): EvaluationSummary {

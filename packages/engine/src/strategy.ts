@@ -19,9 +19,11 @@ export interface Observation {
   canTrade: boolean;
   // Other players' reactions on each pile (public, part of what a player sees). Absent when the table does not use them.
   reactions?: ReactionState | undefined;
+  // Tier B: the values of every card played so far (public). Absent for a player who only knows what the screen shows.
+  played?: number[] | undefined;
 }
 
-export function observe(state: GameState, playerId: string, reactions?: ReactionState): Observation {
+export function observe(state: GameState, playerId: string, reactions?: ReactionState, played?: readonly number[]): Observation {
   const me = state.players.find((player) => player.id === playerId);
   const stats = state.statistics.players[playerId];
   const myTurn = state.isSolitaire || state.players[state.currentPlayerIndex]?.id === playerId;
@@ -40,7 +42,8 @@ export function observe(state: GameState, playerId: string, reactions?: Reaction
     myTurn,
     canSkip: myTurn && !state.isSolitaire && state.cardsPlayedThisTurn === 0 && available('skip', stats?.skipsUsed ?? 0),
     canTrade: myTurn && state.drawPile.length > 0 && available('trade', stats?.tradesUsed ?? 0),
-    ...(reactions ? { reactions: Object.fromEntries(Object.entries(reactions).filter(([id]) => id !== playerId)) } : {})
+    ...(reactions ? { reactions: Object.fromEntries(Object.entries(reactions).filter(([id]) => id !== playerId)) } : {}),
+    ...(played ? { played: [...played] } : {})
   };
 }
 
