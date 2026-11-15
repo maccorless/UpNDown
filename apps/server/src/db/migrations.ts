@@ -76,5 +76,22 @@ alter table game_results
   add column my_lookups int not null default 0,
   add column my_hints int not null default 0;
 `
+  },
+  {
+    // Games being played, saved so they survive a restart. Rejoin tokens are kept only as hashes. A row is deleted when its
+    // game ends or is abandoned, and anything untouched for a day is purged.
+    id: '004_live_games',
+    sql: `
+create table live_games (
+  game_id text primary key,
+  state jsonb not null,
+  seat_users jsonb not null,
+  token_hashes jsonb not null,
+  run_id text,
+  version int not null,
+  updated_at timestamptz not null
+);
+create index live_games_updated_idx on live_games(updated_at);
+`
   }
 ];

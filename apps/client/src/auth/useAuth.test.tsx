@@ -33,6 +33,24 @@ describe('useAuth', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  // The page says when saving is unavailable, and only when the server said so.
+  it('reports what the server says about saving, and "unknown" when it does not say', async () => {
+    stubFetch({ '/api/auth/config': () => json({ enabled: false, providers: [], storage: 'down' }) });
+    const down = renderHook(() => useAuth());
+    await waitFor(() => expect(down.result.current.status).toBe('disabled'));
+    expect(down.result.current.storage).toBe('down');
+
+    stubFetch({ '/api/auth/config': () => json({ enabled: false, providers: [], storage: 'none' }) });
+    const none = renderHook(() => useAuth());
+    await waitFor(() => expect(none.result.current.status).toBe('disabled'));
+    expect(none.result.current.storage).toBe('none');
+
+    stubFetch({ '/api/auth/config': () => json({ enabled: true, providers: ['google'] }), '/api/me': () => json({}, 401) });
+    const older = renderHook(() => useAuth());
+    await waitFor(() => expect(older.result.current.status).toBe('guest'));
+    expect(older.result.current.storage).toBe('unknown');
+  });
+
   it('is signedIn with the player name from /api/me, or null when the account has none', async () => {
     stubFetch({ '/api/auth/config': () => json({ enabled: true, providers: ['google'] }), '/api/me': () => json({ playerName: 'Ken' }) });
     const named = renderHook(() => useAuth());

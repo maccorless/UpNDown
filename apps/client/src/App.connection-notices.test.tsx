@@ -173,11 +173,12 @@ describe('App: dropped connections in a multiplayer game', () => {
     expect(screen.queryByRole('button', { name: /Rejoin game/ })).toBeNull();
   });
 
-  it('puts a signed-in player back in a game they still hold when they open multiplayer with nothing saved', async () => {
-    const asked: string[] = [];
-    mock.state.onEmit = (event, _payload, ack) => {
-      asked.push(event);
-      if (event === 'game:rejoinMine') ack?.({ ok: true, data: { gameState: playing(), playerId: 'socket-1', rejoinToken: 'tok-mine' } });
+  it('puts a signed-in player back in the one game they still hold when they open multiplayer with nothing saved', async () => {
+    const asked: Array<[string, unknown]> = [];
+    mock.state.onEmit = (event, payload, ack) => {
+      asked.push([event, payload]);
+      if (event === 'game:mySeats') ack?.({ ok: true, data: { gameIds: ['ABC123'] } });
+      else if (event === 'game:rejoinMine') ack?.({ ok: true, data: { gameState: playing(), playerId: 'socket-1', rejoinToken: 'tok-mine' } });
       else if (event === 'game:listJoinable') ack?.({ ok: true, data: { games: [] } });
       else ack?.({ ok: false, error: 'unhandled' });
     };
@@ -185,12 +186,30 @@ describe('App: dropped connections in a multiplayer game', () => {
     render(<App />);
     await user.click(screen.getByTestId('mode-multiplayer'));
     expect(await screen.findByTestId('end-game-top')).toBeTruthy();
-    expect(asked).toContain('game:rejoinMine');
+    expect(asked.find(([event]) => event === 'game:rejoinMine')![1]).toEqual({ gameId: 'ABC123' });
+  });
+
+  it('asks which game when the account holds seats in several, and goes back to the one chosen', async () => {
+    const rejoined: unknown[] = [];
+    mock.state.onEmit = (event, payload, ack) => {
+      if (event === 'game:mySeats') ack?.({ ok: true, data: { gameIds: ['ABC123', 'XYZ789'] } });
+      else if (event === 'game:rejoinMine') { rejoined.push(payload); ack?.({ ok: true, data: { gameState: { ...playing(), gameId: 'XYZ789' }, playerId: 'socket-1', rejoinToken: 'tok-mine' } }); }
+      else if (event === 'game:listJoinable') ack?.({ ok: true, data: { games: [] } });
+      else ack?.({ ok: false, error: 'unhandled' });
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    expect(await screen.findByRole('dialog', { name: 'choose a game to rejoin' })).toBeTruthy();
+    expect(rejoined).toEqual([]);
+    await user.click(screen.getByRole('button', { name: 'Rejoin game XYZ789' }));
+    expect(await screen.findByTestId('end-game-top')).toBeTruthy();
+    expect(rejoined).toEqual([{ gameId: 'XYZ789' }]);
   });
 
   it('shows nothing when there is no seat to take back', async () => {
     mock.state.onEmit = (event, _payload, ack) => {
-      if (event === 'game:rejoinMine') ack?.({ ok: false, error: 'Unable to rejoin game', gone: true });
+      if (event === 'game:mySeats') ack?.({ ok: true, data: { gameIds: [] } });
       else if (event === 'game:listJoinable') ack?.({ ok: true, data: { games: [] } });
       else ack?.({ ok: false, error: 'unhandled' });
     };

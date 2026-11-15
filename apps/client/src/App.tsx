@@ -1,5 +1,7 @@
 import { cheatNoticeText, cheatStatuses, keepCheatCounts, useCheatHotkeys } from './cheats.js';
 import { CheatsPanel } from './CheatsPanel.js';
+import { SeatChoice } from './SeatChoice.js';
+import { StorageNotice } from './StorageNotice.js';
 import { isClaimed } from './claims.js';
 import { readSavedSeat } from './saved-seat.js';
 import { useSavedSeat } from './useSavedSeat.js';
@@ -775,6 +777,20 @@ export function App(): JSX.Element {
   const savedSeat = useSavedSeat(multiplayerState, playerId, rejoinTokenRef, mode === null);
   const forgetSeatRef = useRef(savedSeat.forget);
   forgetSeatRef.current = savedSeat.forget;
+  const adoptSeat = (data: { gameState: GameState; playerId: string; rejoinToken: string }): void => {
+    setMultiplayerState(data.gameState);
+    setPlayerId(data.playerId);
+    previousPlayerIdRef.current = data.playerId;
+    rejoinTokenRef.current = data.rejoinToken;
+    activeGameIdRef.current = data.gameState.gameId;
+  };
+  // Takes back a seat held by this account in a game being played (no token: the sign-in is the proof).
+  const rejoinMine = (gameId: string): void => {
+    getSocket().emit('game:rejoinMine', { gameId }, (response: { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string } }) => {
+      if (response?.ok && response.data) adoptSeat(response.data);
+    });
+  };
+  const [seatChoices, setSeatChoices] = useState<string[]>([]);
   const handleRejoinSavedSeat = async (seatKey: string): Promise<void> => {
     const seat = readSavedSeat(seatKey);
     // Another tab may have opened this seat since the list was drawn.
@@ -804,25 +820,22 @@ export function App(): JSX.Element {
       const gameId = activeGameIdRef.current;
 
       type RejoinAck = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; gone?: boolean };
-      const adopt = (data: { gameState: GameState; playerId: string; rejoinToken: string }): void => {
-        setMultiplayerState(data.gameState);
-        setPlayerId(data.playerId);
-        previousPlayerIdRef.current = data.playerId;
-        rejoinTokenRef.current = data.rejoinToken;
-        activeGameIdRef.current = data.gameState.gameId;
-      };
       const rejoinToken = rejoinTokenRef.current;
       if (gameId && oldId && newId && rejoinToken && oldId !== newId) {
         // We had a seat and our socket ID changed (a dropped connection, or a page opened again): take the seat back.
         socket.emit('game:rejoin', { gameId, previousPlayerId: oldId, rejoinToken }, (response: RejoinAck) => {
-          if (response?.ok && response.data) adopt(response.data);
+          if (response?.ok && response.data) adoptSeat(response.data);
           else if (response?.gone) { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); } // seat gone: no stale board
           else setError('Could not rejoin your game yet. Reload the page to try again.');
         });
       } else if (!gameId && newId) {
-        // No seat in memory. A signed-in player may still hold one in a game being played (another device, cleared
-        // storage); the server answers `gone` for everyone else, and nothing is shown.
-        socket.emit('game:rejoinMine', {}, (response: RejoinAck) => { if (response?.ok && response.data) adopt(response.data); });
+        // No seat in memory. A signed-in player may still hold seats in games being played (another device, cleared storage, a
+        // server restart); a guest holds none and is told so with nothing shown. One game goes straight back; several ask.
+        socket.emit('game:mySeats', {}, (seats: { ok: boolean; data?: { gameIds: string[] } }) => {
+          const gameIds = seats?.ok ? seats.data?.gameIds ?? [] : [];
+          if (gameIds.length === 1) rejoinMine(gameIds[0]!);
+          else if (gameIds.length > 1) setSeatChoices(gameIds);
+        });
       }
 
       setPlayerId(newId);
@@ -1891,6 +1904,8 @@ export function App(): JSX.Element {
         {pendingAction ? `Action in progress: ${pendingAction}` : 'Ready'}
       </p>
 
+      <StorageNotice storage={auth.storage} />
+
       {mode === null ? (
         <Landing
           auth={auth}
@@ -2384,6 +2399,14 @@ export function App(): JSX.Element {
             </button>
           </div>
         </Modal>
+      ) : null}
+
+      {seatChoices.length > 1 ? (
+        <SeatChoice
+          gameIds={seatChoices}
+          onClose={() => setSeatChoices([])}
+          onChoose={(gameId) => { setSeatChoices([]); rejoinMine(gameId); }}
+        />
       ) : null}
 
       {cheatsOpen ? (

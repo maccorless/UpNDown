@@ -35,6 +35,8 @@ export interface AuthRouterOptions {
   trustedProxyHops: number;
   log: Log;
   onSessionRevoked: (sessionId: string) => void;
+  // Whether saving works: 'none' (no database by design), 'ok' or 'down'. Told to every visitor so the page can say so.
+  storage?: () => 'none' | 'ok' | 'down';
 }
 
 export function createAuthRouter(options: AuthRouterOptions): {
@@ -49,7 +51,8 @@ export function createAuthRouter(options: AuthRouterOptions): {
   router.get('/api/auth/config', (_req, res) => {
     res.set('Cache-Control', 'no-store');
     const current = services();
-    res.json(current ? { enabled: true, providers: [...current.providers.keys()] } : { enabled: false, providers: [] });
+    const storage = options.storage?.() ?? (current ? 'ok' : 'none');
+    res.json(current ? { enabled: true, providers: [...current.providers.keys()], storage } : { enabled: false, providers: [], storage });
   });
 
   const withServices = (

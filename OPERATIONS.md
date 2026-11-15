@@ -2,8 +2,8 @@
 
 ## Runtime Characteristics (v1)
 
-- Multiplayer game state is in-memory.
-- Server restart clears active games.
+- Multiplayer game state is in memory, and where a database is connected games being played are also saved to it (`live_games`) and restored when the server starts.
+- Without a database (the Skiff version) a server restart clears active games.
 - Orphaned game cleanup:
   - Lobby games with no connected players: removed after 5 minutes.
   - Active games with no connected players: removed after 30 minutes.
@@ -46,7 +46,7 @@
 
 ### Lost active games after restart
 
-Expected in v1 due to in-memory storage. Communicate outage and ask players to create a new lobby.
+Expected only when no database is connected, or when it was down for the whole game. With saving on, a restarted server loads games from the database (log lines `live.loaded`, `live.active`); players rejoin from the home page ("Rejoin game") or, signed in, by opening Multiplayer. The log line `live.write_failed` means the database is not accepting saves; the page tells players. Railway starts the new deployment before it stops the old one, so the new process waits for a Postgres advisory lock (`live.lock_lost` and repeated `live.active` waits are normal during a deploy). Setting `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` (about 15) gives the old process time to save its last moves.
 
 ## Graceful Shutdown
 

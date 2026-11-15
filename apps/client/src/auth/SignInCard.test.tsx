@@ -5,6 +5,7 @@ import type { AuthState } from './useAuth.js';
 
 const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   status: 'guest',
+  storage: 'ok',
   playerName: null,
   settings: null,
   loginMessage: null,

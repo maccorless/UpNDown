@@ -6,6 +6,9 @@ export type LoginMessage = 'cancelled' | 'failed';
 export interface AuthState {
   // 'loading' shows nothing at all, so a signed-in player never sees login buttons flash.
   status: 'loading' | 'disabled' | 'guest' | 'signedIn';
+  // Whether the server can save: 'none' (no database in this version), 'ok', 'down' (not answering right now), or 'unknown'
+  // (not told, for example offline or an older server).
+  storage: 'unknown' | 'none' | 'ok' | 'down';
   playerName: string | null;
   // False until the player has typed a name or accepted the suggested one, which is what the first-sign-in prompt asks.
   nameConfirmed: boolean;
@@ -37,13 +40,17 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
   const [nameConfirmed, setNameConfirmed] = useState(true);
   const [settings, setSettings] = useState<StoredSettings | null>(null);
   const [loginMessage, setLoginMessage] = useState<LoginMessage | null>(null);
+  const [storage, setStorage] = useState<AuthState['storage']>('unknown');
 
   useEffect(() => {
     setLoginMessage(takeLoginMessage());
     const controller = new AbortController();
     const load = async (): Promise<void> => {
       const config = await fetch('/api/auth/config', { ...sameOrigin, signal: controller.signal });
-      if (!config.ok || (await config.json() as { enabled?: boolean }).enabled !== true) return setStatus('disabled');
+      if (!config.ok) return setStatus('disabled');
+      const configBody = await config.json() as { enabled?: boolean; storage?: string };
+      if (configBody.storage === 'none' || configBody.storage === 'ok' || configBody.storage === 'down') setStorage(configBody.storage);
+      if (configBody.enabled !== true) return setStatus('disabled');
       const me = await fetch('/api/me', { ...sameOrigin, signal: controller.signal });
       if (me.status === 401) return setStatus('guest');
       if (!me.ok) return setStatus('disabled');
@@ -101,5 +108,5 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
 
   const dismissLoginMessage = useCallback(() => setLoginMessage(null), []);
 
-  return { status, playerName, nameConfirmed, settings, loginMessage, signIn, signOut, confirmName, dismissLoginMessage };
+  return { status, storage, playerName, nameConfirmed, settings, loginMessage, signIn, signOut, confirmName, dismissLoginMessage };
 }

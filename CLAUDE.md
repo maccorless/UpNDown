@@ -114,7 +114,7 @@ All interfaces shared between client and server belong here:
 - All game state transitions go through `transitions.ts`.
 
 ### Server (`apps/server`)
-- `game-manager.ts` — in-memory room/game state. A server restart wipes all games (v1 by design).
+- `game-manager.ts` — in-memory room/game state. Games being played are also saved to Postgres (`live/`) where a database is connected, and restored on start; with no database a restart wipes all games.
 - `index.ts` — all Socket.IO event handlers live here. Every event must:
   1. Pass through the **rate limiter** (`checkRateLimit`)
   2. Be validated with the appropriate **Zod schema** before touching game state
@@ -185,7 +185,7 @@ Server-push events (no ack): `game:updated`, `game:kicked`.
 | Hand size | 5–11 cards (default 7) |
 | Card values | 2–99 (default range) |
 | Min cards per turn | 2 (default) |
-| State persistence | In-memory only — restart clears all games |
+| State persistence | In memory; games being played are also saved to Postgres where a database is connected (24 hour limit) |
 
 ---
 
@@ -204,7 +204,7 @@ If a test is non-trivially broken and cannot be fixed in the same PR, leave a `/
 ## Known Tech Debt (do not add to without discussion)
 
 1. **`App.tsx` is ~2,900 lines.** Decomposition plan: `APP_DECOMPOSITION_PLAN.md`. Execute one phase at a time with a full test gate between phases.
-2. **No persistence layer.** Server restart loses all active games. A Redis or DB layer is a future consideration.
+2. **Persistence only where a database is connected.** Without one (Skiff) a restart loses all active games.
 3. **No auth/sessions.** Players are identified by a server-assigned `playerId` UUID stored in the socket. Rejoining is possible within the same server process.
 
 ---

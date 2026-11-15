@@ -1,4 +1,4 @@
-import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type {
   CreateGamePayload,
@@ -28,7 +28,9 @@ interface GameRoom {
   createdAtMs: number;
   updatedAtMs: number;
   turnUndoStack: GameState[];
-  rejoinTokens: Map<string, string>;
+  // The token handed to a seat is kept as a hash. The plain text is only held in memory, long enough to give it to the client;
+  // after a restart only the hash exists, and the client's saved token is checked against it.
+  rejoinTokens: Map<string, { plain?: string; hash: string }>;
   // Which signed-in account holds each seat, recorded when the player sits down. Guests have no entry.
   userIdByPlayerId: Map<string, string>;
   // A room code is not a game: a finished room goes back to the lobby and starts again under the same code. Each start
@@ -40,10 +42,27 @@ interface GameRoom {
 
 const isFinished = (state: GameState): boolean => state.gamePhase === 'won' || state.gamePhase === 'lost';
 
-function tokensMatch(expected: string, actual: string): boolean {
-  const a = Buffer.from(expected);
-  const b = Buffer.from(actual);
+const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
+
+function newToken(): { plain: string; hash: string } {
+  const plain = randomUUID();
+  return { plain, hash: hashToken(plain) };
+}
+
+function tokensMatch(expectedHash: string, actualPlain: string): boolean {
+  const a = Buffer.from(expectedHash);
+  const b = Buffer.from(hashToken(actualPlain));
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+// A room as it is saved: everything needed to carry on after a restart, and nothing that is only about connections.
+export interface StoredRoom {
+  gameId: string;
+  state: GameState;
+  seatUsers: Record<string, string>;
+  tokenHashes: Record<string, string>;
+  runId: string | null;
+  updatedAtMs: number;
 }
 
 function swapPlayerId(state: GameState, oldPlayerId: string, newPlayerId: string): void {
@@ -94,6 +113,8 @@ export interface GameManagerHooks {
   // A player gone this long is shown to the others as reconnecting (default 10 s), and after kickMs may be kicked (90 s).
   noticeMs?: number;
   kickMs?: number;
+  // How long a game that nobody is connected to is kept (default 30 minutes; much longer once games are saved).
+  activeTtlMs?: number;
 }
 
 // The public lobby list shows the newest of these.
@@ -104,6 +125,12 @@ const DEFAULT_KICK_MS = 90_000;
 
 export class GameManager {
   constructor(private readonly hooks: GameManagerHooks = {}) {}
+
+  // Set when games are being saved, so a game survives being left for a while (and a restart).
+  private activeTtlMs: number | undefined;
+  setActiveTtlMs(ms: number | undefined): void {
+    this.activeTtlMs = ms;
+  }
 
   private readonly rooms = new Map<string, GameRoom>();
   private readonly reactions = new Map<string, Map<string, Map<number, ReactionType>>>();
@@ -160,7 +187,7 @@ export class GameManager {
   }
 
   getRejoinToken(gameId: string, playerId: string): string {
-    const token = this.requireRoom(gameId).rejoinTokens.get(playerId);
+    const token = this.requireRoom(gameId).rejoinTokens.get(playerId)?.plain;
     if (!token) {
       throw new Error('No rejoin token for player');
     }
@@ -173,7 +200,7 @@ export class GameManager {
     const expectedToken = room.rejoinTokens.get(oldPlayerId);
     const seatExists = gameState.players.some((p) => p.id === oldPlayerId);
     // Same message for a missing seat and a wrong token so callers cannot probe which seats exist.
-    if (!seatExists || !expectedToken || !tokensMatch(expectedToken, rejoinToken)) {
+    if (!seatExists || !expectedToken || !tokensMatch(expectedToken.hash, rejoinToken)) {
       throw new Error('Unable to rejoin game');
     }
     if (gameState.players.some((p) => p.id === newPlayerId)) {
@@ -185,8 +212,21 @@ export class GameManager {
 
   // A signed-in player whose seat in a game being played is held (their browser closed, or this is another device) takes it
   // back by account: the session proves who they are, as the seat's rejoin token does for a guest.
-  rejoinByAccount(userId: string, newPlayerId: string): { gameId: string; previousPlayerId: string; state: GameState } {
+  // The games being played in which this account holds a seat, so a player in several can choose which to go back to.
+  heldGamesByAccount(userId: string): string[] {
+    const games: string[] = [];
     for (const [gameId, room] of this.rooms) {
+      if (room.gameState.gamePhase !== 'playing') continue;
+      for (const [playerId, seatUser] of room.userIdByPlayerId) {
+        if (seatUser === userId && room.gameState.players.some((p) => p.id === playerId)) { games.push(gameId); break; }
+      }
+    }
+    return games;
+  }
+
+  rejoinByAccount(userId: string, newPlayerId: string, onlyGameId?: string): { gameId: string; previousPlayerId: string; state: GameState } {
+    for (const [gameId, room] of this.rooms) {
+      if (onlyGameId !== undefined && gameId !== onlyGameId) continue;
       if (room.gameState.gamePhase !== 'playing') continue;
       for (const [previousPlayerId, seatUser] of room.userIdByPlayerId) {
         if (seatUser !== userId || !room.gameState.players.some((p) => p.id === previousPlayerId)) continue;
@@ -205,7 +245,7 @@ export class GameManager {
     }
 
     room.rejoinTokens.delete(oldPlayerId);
-    room.rejoinTokens.set(newPlayerId, randomUUID());
+    room.rejoinTokens.set(newPlayerId, newToken());
     room.disconnectedAtMs.delete(oldPlayerId);
 
     // The seat keeps the account it was taken with. A rejoining socket with a different account, or none, is still seated
@@ -225,6 +265,41 @@ export class GameManager {
 
     room.updatedAtMs = Date.now();
     return gameState;
+  }
+
+  // The rooms worth saving: games being played. Lobbies and finished games are not kept across a restart.
+  savableGameIds(): string[] {
+    return [...this.rooms].filter(([, room]) => room.gameState.gamePhase === 'playing').map(([id]) => id);
+  }
+
+  exportRoom(gameId: string): StoredRoom | null {
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase !== 'playing') return null;
+    return {
+      gameId,
+      state: structuredClone(room.gameState),
+      seatUsers: Object.fromEntries(room.userIdByPlayerId),
+      tokenHashes: Object.fromEntries([...room.rejoinTokens].map(([id, token]) => [id, token.hash])),
+      runId: room.runId,
+      updatedAtMs: room.updatedAtMs
+    };
+  }
+
+  // Puts a saved game back. Every seat starts as disconnected: nobody is on a socket yet, so the dropped-connection rules
+  // apply and each player takes their seat back with their token (or, signed in, by account).
+  importRoom(stored: StoredRoom, nowMs: number = Date.now()): boolean {
+    if (this.rooms.has(stored.gameId) || stored.state.gamePhase !== 'playing') return false;
+    this.rooms.set(stored.gameId, {
+      gameState: stored.state,
+      createdAtMs: nowMs,
+      updatedAtMs: stored.updatedAtMs,
+      turnUndoStack: [],
+      rejoinTokens: new Map(Object.entries(stored.tokenHashes).map(([id, hash]) => [id, { hash }])),
+      userIdByPlayerId: new Map(Object.entries(stored.seatUsers)),
+      runId: stored.runId,
+      disconnectedAtMs: new Map(stored.state.players.map((player) => [player.id, nowMs]))
+    });
+    return true;
   }
 
   // The stored state of a room, or undefined when it no longer exists.
@@ -312,7 +387,7 @@ export class GameManager {
       createdAtMs: now,
       updatedAtMs: now,
       turnUndoStack: [],
-      rejoinTokens: new Map([[ownerPlayerId, randomUUID()]]),
+      rejoinTokens: new Map([[ownerPlayerId, newToken()]]),
       userIdByPlayerId: new Map(userId ? [[ownerPlayerId, userId]] : []),
       runId: null,
       disconnectedAtMs: new Map()
@@ -395,7 +470,7 @@ export class GameManager {
     };
 
     room.gameState = nextState;
-    room.rejoinTokens.set(playerId, randomUUID());
+    room.rejoinTokens.set(playerId, newToken());
     if (userId) room.userIdByPlayerId.set(playerId, userId);
     room.updatedAtMs = Date.now();
     return nextState;
@@ -932,7 +1007,7 @@ export class GameManager {
   reapOrphanedRooms(activePlayerIds: ReadonlySet<string>, nowMs = Date.now()): string[] {
     const deleted: string[] = [];
     const lobbyTtlMs = 5 * 60 * 1000;
-    const activeTtlMs = 30 * 60 * 1000;
+    const activeTtlMs = this.activeTtlMs ?? this.hooks.activeTtlMs ?? 30 * 60 * 1000;
 
     for (const [gameId, room] of this.rooms) {
       const connectedCount = room.gameState.players.filter((player) => activePlayerIds.has(player.id)).length;

@@ -90,7 +90,7 @@ describe('auth routes', () => {
   it('says auth is on, lists google, and answers as JSON rather than the client page', async () => {
     await boot();
     const res = await get('/api/auth/config');
-    expect(await res.json()).toEqual({ enabled: true, providers: ['google'] });
+    expect(await res.json()).toEqual({ enabled: true, providers: ['google'], storage: 'ok' });
     const unknown = await get('/auth/facebook/start');
     expect(unknown.status).toBe(404);
     expect(unknown.headers.get('content-type')).toContain('application/json');

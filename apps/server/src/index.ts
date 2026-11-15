@@ -21,6 +21,9 @@ import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { resolveClientIp } from './client-ip.js';
 import { GameManager } from './game-manager.js';
 import { toPlayerView } from './player-view.js';
+import { AdvisoryLock, type WriterLock } from './live/advisory-lock.js';
+import { PgGameStore, type GameStore } from './live/game-store.js';
+import { LivePersistence } from './live/persistence.js';
 
 const gameIdSchema = z.object({ gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/) });
 const runtimeEnvSchema = z.object({
@@ -65,6 +68,7 @@ const eventRateLimits: Record<
   | 'game:join'
   | 'game:rejoin'
   | 'game:rejoinMine'
+  | 'game:mySeats'
   | 'game:lookup'
   | 'game:listJoinable'
   | 'game:start'
@@ -84,7 +88,8 @@ const eventRateLimits: Record<
   'game:create':         { limit: 5,  windowMs: 60_000 },
   'game:join':           { limit: 10, windowMs: 10_000 },
   'game:rejoin':         { limit: 5,  windowMs: 30_000 },
-  'game:rejoinMine':     { limit: 5,  windowMs: 30_000 },
+  'game:rejoinMine':     { limit: 10, windowMs: 30_000 },
+  'game:mySeats':        { limit: 10, windowMs: 30_000 },
   'game:lookup':         { limit: 20, windowMs: 10_000 },
   'game:listJoinable':   { limit: 30, windowMs: 10_000 },
   'game:start':          { limit: 10, windowMs: 30_000 },
@@ -164,7 +169,13 @@ function normalizeError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export function createRealtimeServer(port?: number, authOverrides?: AuthTestOverrides, timing: { noticeMs?: number; kickMs?: number } = {}) {
+// `live` is for tests: a store and lock to save games with. In production they are made from the database once it is usable.
+export function createRealtimeServer(
+  port?: number,
+  authOverrides?: AuthTestOverrides,
+  timing: { noticeMs?: number; kickMs?: number } = {},
+  live?: { store: GameStore; lock: WriterLock; intervalMs?: number; retryMs?: number }
+) {
   const config = loadRuntimeConfig(port);
   const isOriginAllowed = (origin: string | undefined): boolean => {
     if (!origin) {
@@ -280,6 +291,32 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     timer.unref();
     reconnectionTimers.add(timer);
   };
+  // Saving games in progress so they survive a restart. Needs the database (or, in tests, a store and a lock).
+  let persistence: LivePersistence | undefined;
+  const startPersistence = (store: GameStore, lock: WriterLock, extra: { intervalMs?: number; retryMs?: number } = {}): void => {
+    if (persistence) return;
+    persistence = new LivePersistence({
+      manager, store, lock, log, ...extra,
+      // After a restart every seat is a dropped connection: tell the table at the usual moments.
+      onLoaded: (gameIds) => {
+        for (const gameId of gameIds) {
+          rebroadcastLater(gameId, timing.noticeMs ?? 10_000);
+          rebroadcastLater(gameId, timing.kickMs ?? 90_000);
+        }
+      }
+    });
+    auth.degradedWhen(() => persistence?.status() === 'down');
+    persistence.start();
+  };
+  if (live) {
+    startPersistence(live.store, live.lock, { ...(live.intervalMs !== undefined ? { intervalMs: live.intervalMs } : {}), ...(live.retryMs !== undefined ? { retryMs: live.retryMs } : {}) });
+  } else {
+    auth.onEnabled(() => {
+      const pool = auth.pool();
+      const url = auth.databaseUrl();
+      if (pool && url) startPersistence(new PgGameStore(pool), new AdvisoryLock(url));
+    });
+  }
   const connectedPlayerIds = new Set<string>();
   const rateBuckets = new Map<string, Map<string, { windowStartMs: number; count: number }>>();
 
@@ -333,15 +370,18 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   }, 60_000);
   cleanupTimer.unref();
 
-  const finishRejoin = (
+  const finishRejoin = async (
     socket: Socket,
     gameId: string,
     previousPlayerId: string,
     gameState: Parameters<typeof toPlayerView>[0],
     ack: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }> | undefined
-  ): void => {
+  ): Promise<void> => {
     io.in(previousPlayerId).socketsLeave(gameId);
     socket.join(gameId);
+    // The seat has a new credential. Have it saved before the client is given it, so a restart right after cannot leave a
+    // player holding a token the database has never seen.
+    await persistence?.flush(gameId);
     broadcastState(gameId, gameState);
     log('info', 'game.rejoined', { socketId: socket.id, previousId: previousPlayerId, gameId });
     reply(ack, {
@@ -356,7 +396,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     log('info', 'socket.connected', { socketId: socket.id });
     socket.emit('server:ready', { message: 'connected', playerId: socket.id });
 
-    socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
+    socket.on('game:rejoin', async (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
       if (!passesRateLimit(socket.id, 'game:rejoin')) {
         const message = 'Too many rejoin attempts. Please wait a moment and try again.';
         log('warn', 'game.rejoin_rate_limited', { socketId: socket.id });
@@ -373,14 +413,24 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       try {
         const { gameId, previousPlayerId, rejoinToken } = parsed;
         const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken, userIdOf(socket));
-        finishRejoin(socket, gameId, previousPlayerId, gameState, ack);
+        await finishRejoin(socket, gameId, previousPlayerId, gameState, ack);
       } catch (err) {
         log('warn', 'game.rejoin_failed', { socketId: socket.id, error: normalizeError(err, 'Unable to rejoin game') });
         reply(ack, { ok: false, error: 'Unable to rejoin game', gone: true });
       }
     });
 
-    socket.on('game:rejoinMine', (_payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
+    // Which games being played this signed-in connection holds a seat in. Nothing for a guest.
+    socket.on('game:mySeats', (_payload, ack?: Ack<{ gameIds: string[] }>) => {
+      if (!passesRateLimit(socket.id, 'game:mySeats')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      const userId = userIdOf(socket);
+      reply(ack, { ok: true, data: { gameIds: userId ? manager.heldGamesByAccount(userId) : [] } });
+    });
+
+    socket.on('game:rejoinMine', async (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
       if (!passesRateLimit(socket.id, 'game:rejoinMine')) {
         reply(ack, { ok: false, error: 'Too many rejoin attempts. Please wait a moment and try again.' });
         return;
@@ -388,8 +438,9 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       const userId = userIdOf(socket);
       try {
         if (!userId) throw new Error('Unable to rejoin game');
-        const found = manager.rejoinByAccount(userId, socket.id);
-        finishRejoin(socket, found.gameId, found.previousPlayerId, found.state, ack);
+        const wanted = gameIdSchema.safeParse(payload);
+        const found = manager.rejoinByAccount(userId, socket.id, wanted.success ? wanted.data.gameId : undefined);
+        await finishRejoin(socket, found.gameId, found.previousPlayerId, found.state, ack);
       } catch {
         // Not signed in, or no held seat: nothing to log, this is asked on every multiplayer visit.
         reply(ack, { ok: false, error: 'Unable to rejoin game', gone: true });
@@ -760,6 +811,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
 
   const stop = async (): Promise<void> => {
     clearInterval(cleanupTimer);
+    await persistence?.stop();
     for (const timer of reconnectionTimers) clearTimeout(timer);
     await auth.stop();
     await new Promise<void>((resolve, reject) => {

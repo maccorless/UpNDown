@@ -36,6 +36,45 @@ describe('auth runtime', () => {
   });
 });
 
+describe('what the page is told about saving', () => {
+  const configured = { PUBLIC_BASE_URL: 'https://upndown.cloud', AUTH_STATE_SECRET: 'x'.repeat(32), GOOGLE_CLIENT_ID: 'id', GOOGLE_CLIENT_SECRET: 'secret' };
+
+  it('says "none" when there is no database by design, and "down" when one is configured but not answering', async () => {
+    const none = createAuthRuntime({}, log as never);
+    await none.start();
+    expect(none.storageStatus()).toBe('none');
+
+    const down = createAuthRuntime({ ...configured, DATABASE_URL: 'postgres://u:p@127.0.0.1:1/none' }, log as never, { retryMs: 60_000 });
+    await down.start();
+    expect(down.storageStatus()).toBe('down');
+    await down.stop();
+  });
+
+  // A boot while the database is down must not leave saving off until the next restart.
+  it('keeps trying to reach the database after a failed start', async () => {
+    logs.length = 0;
+    const auth = createAuthRuntime({ ...configured, DATABASE_URL: 'postgres://u:p@127.0.0.1:1/none' }, log as never, { retryMs: 30 });
+    await auth.start();
+    await new Promise((resolve) => { setTimeout(resolve, 200); });
+    expect(logs.filter((entry) => entry.event === 'auth.disabled' && entry.level === 'error').length).toBeGreaterThan(1);
+    await auth.stop();
+    const after = logs.length;
+    await new Promise((resolve) => { setTimeout(resolve, 100); });
+    expect(logs.length).toBe(after); // and stops trying once stopped
+  });
+
+  it('turns "ok" into "down" while saved games cannot be written, and back when they can', async () => {
+    const auth = createAuthRuntime({}, log as never, { overrides: { settings: {} as never, store: {} as never, provider: { id: 'fake' } as never } });
+    await auth.start();
+    expect(auth.storageStatus()).toBe('ok');
+    let failing = true;
+    auth.degradedWhen(() => failing);
+    expect(auth.storageStatus()).toBe('down');
+    failing = false;
+    expect(auth.storageStatus()).toBe('ok');
+  });
+});
+
 describe('GET /api/auth/config', () => {
   let close: (() => Promise<void>) | null = null;
   let distDir = '';
@@ -58,6 +97,6 @@ describe('GET /api/auth/config', () => {
     const response = await fetch(`http://127.0.0.1:${(httpServer.address() as AddressInfo).port}/api/auth/config`);
     expect(response.headers.get('content-type')).toContain('application/json');
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ enabled: false, providers: [] });
+    expect(await response.json()).toEqual({ enabled: false, providers: [], storage: 'none' });
   });
 });
