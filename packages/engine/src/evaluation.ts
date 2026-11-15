@@ -1,3 +1,4 @@
+import type { SenderThresholds } from './reactions.js';
 import { type StageTable } from './tables.js';
 import { mcnemarPValue, mean, pairedInterval, standardDeviation, wilsonInterval, type Interval } from './stats.js';
 import { playGameWith, scoreGame, type GameRecord, type Policy } from './simulate.js';
@@ -35,8 +36,8 @@ export interface EvaluationSummary {
   stalled: number;
 }
 
-export function playSet(table: StageTable, policy: Policy, seeds: readonly number[]): GameRecord[] {
-  return seeds.map((seed) => playGameWith(table.settings, table.players, seed, policy));
+export function playSet(table: StageTable, policy: Policy, seeds: readonly number[], senders?: SenderThresholds): GameRecord[] {
+  return seeds.map((seed) => playGameWith(table.settings, table.players, seed, policy, senders));
 }
 
 export function summarize(records: readonly GameRecord[]): EvaluationSummary {

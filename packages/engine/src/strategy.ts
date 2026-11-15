@@ -1,4 +1,4 @@
-import { cheatLimitOf, type Card, type FoundationPile, type GameState } from '@upndown/shared-types';
+import { cheatLimitOf, type Card, type FoundationPile, type GameState, type ReactionState } from '@upndown/shared-types';
 import { isValidPlay, requiredCardsForTurn } from './rules.js';
 
 // What a player can see, and nothing else: their own hand, the top of each pile, how many cards are in the draw pile and how
@@ -17,9 +17,11 @@ export interface Observation {
   myTurn: boolean;
   canSkip: boolean;
   canTrade: boolean;
+  // Other players' reactions on each pile (public, part of what a player sees). Absent when the table does not use them.
+  reactions?: ReactionState | undefined;
 }
 
-export function observe(state: GameState, playerId: string): Observation {
+export function observe(state: GameState, playerId: string, reactions?: ReactionState): Observation {
   const me = state.players.find((player) => player.id === playerId);
   const stats = state.statistics.players[playerId];
   const myTurn = state.isSolitaire || state.players[state.currentPlayerIndex]?.id === playerId;
@@ -37,7 +39,8 @@ export function observe(state: GameState, playerId: string): Observation {
     isSolitaire: state.isSolitaire,
     myTurn,
     canSkip: myTurn && !state.isSolitaire && state.cardsPlayedThisTurn === 0 && available('skip', stats?.skipsUsed ?? 0),
-    canTrade: myTurn && state.drawPile.length > 0 && available('trade', stats?.tradesUsed ?? 0)
+    canTrade: myTurn && state.drawPile.length > 0 && available('trade', stats?.tradesUsed ?? 0),
+    ...(reactions ? { reactions: Object.fromEntries(Object.entries(reactions).filter(([id]) => id !== playerId)) } : {})
   };
 }
 
@@ -69,7 +72,7 @@ export interface Suggestion {
   backwardTen: boolean;
 }
 
-const isBackwardTen = (card: Card, pile: FoundationPile): boolean =>
+export const isBackwardTen = (card: Card, pile: FoundationPile): boolean =>
   pile.type === 'ascending' ? card.value === pile.topCard.value - 10 : card.value === pile.topCard.value + 10;
 
 const withPlayed = (piles: FoundationPile[], pileId: number, card: Card): FoundationPile[] =>
@@ -117,7 +120,10 @@ function rollout(hand: Card[], piles: FoundationPile[]): { played: number; moved
 }
 
 // Every legal play, best first.
-export function rankPlays(obs: Observation, weights: StrategyWeights = DEFAULT_WEIGHTS): Suggestion[] {
+// `bias` adds to a play's score (the reaction receiver uses it to steer away from a pile a teammate has asked for).
+export type PlayBias = (pileId: number, gap: number, backwardTen: boolean) => number;
+
+export function rankPlays(obs: Observation, weights: StrategyWeights = DEFAULT_WEIGHTS, bias?: PlayBias): Suggestion[] {
   const needed = Math.max(0, obs.required - obs.cardsPlayedThisTurn);
   const out: Suggestion[] = [];
   for (const card of obs.hand) {
@@ -140,7 +146,7 @@ export function rankPlays(obs: Observation, weights: StrategyWeights = DEFAULT_W
       const reachable = canMeet(others, after, needed - 1);
       const ahead = weights.planPlayed !== 0 || weights.planGap !== 0 ? rollout(others, after) : { played: 0, moved: 0 };
       const score = (backward ? weights.backwardTen : 0) - weights.gap * gap - weights.skipOver * skipped - weights.strand * stranded
-        + weights.planPlayed * ahead.played - weights.planGap * ahead.moved - (reachable ? 0 : 1000);
+        + weights.planPlayed * ahead.played - weights.planGap * ahead.moved - (reachable ? 0 : 1000) + (bias ? bias(pile.id, gap, backward) : 0);
       out.push({ cardId: card.id, pileId: pile.id, score, gap, backwardTen: backward });
     }
   }
@@ -156,9 +162,9 @@ export type Action =
 
 // What to do next: play, end the turn, or (only if the game allows it and it is clearly right) skip or trade.
 // `none` means nothing can be done (it is not this player's turn, or the player is stuck).
-export function chooseAction(obs: Observation, weights: StrategyWeights = DEFAULT_WEIGHTS): Action {
+export function chooseAction(obs: Observation, weights: StrategyWeights = DEFAULT_WEIGHTS, bias?: PlayBias): Action {
   if (!obs.myTurn) return { type: 'none' };
-  const plays = rankPlays(obs, weights);
+  const plays = rankPlays(obs, weights, bias);
   const needed = Math.max(0, obs.required - obs.cardsPlayedThisTurn);
   const best = plays[0];
 

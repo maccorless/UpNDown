@@ -8,3 +8,4 @@ export * from './stats.js';
 export * from './tables.js';
 export * from './evaluation.js';
 export * from './belief.js';
+export * from './reactions.js';
