@@ -34,7 +34,7 @@
     <nav><a href="/">Back to the game</a> &middot; <a href="/tos.html">Terms of Service</a></nav>
     <section>
       <h1>Privacy Policy</h1>
-      <p>Last updated: 17 November 2026</p>
+      <p>Last updated: 15 November 2026</p>
     </section>
     <section>
       <h2>Summary</h2>
@@ -56,8 +56,9 @@
       <h2>Games in progress</h2>
       <p>While a game is running we keep its state, so it can carry on if someone's connection drops and they come back. That state is: the players' in-game names, the cards in each hand, the draw pile and the foundation piles, the game settings, whose turn it is, and a private rejoin token for each seat. For a signed-in player we also note which account holds the seat, so the result can be saved to that account.</p>
       <ul>
-        <li>Today this state is held in the game server's memory, so it is lost if the server restarts. We are moving towards saving it in our database so a game can survive a restart. If we do, it is kept there only while the game is in progress.</li>
-        <li>We delete a game's state when the game is over and the host returns to the lobby or everyone leaves, and when nobody has been connected to it for a while.</li>
+        <li>Today this state is held in the game server's memory only, so it is lost if the server restarts, and it is deleted no later than 30 minutes after the last player was connected.</li>
+        <li>We are adding the option to save it in our database so a game can survive a server restart. When that is switched on, the state above (including the cards in each hand) is kept in a PostgreSQL database hosted by Railway only while the game is in progress. It is deleted when the game is over and the host returns to the lobby, when everyone leaves, and in any case 24 hours after the last player was connected. A seat's private rejoin token is stored only as a one-way hash.</li>
+        <li>We delete a game's state when the game is over and the host returns to the lobby or everyone leaves, and when nobody has been connected to it for a while (the limit above).</li>
         <li>We do not keep a move-by-move record of games. What remains afterwards is only the summary that a signed-in player gets in their own history, described below.</li>
       </ul>
     </section>
