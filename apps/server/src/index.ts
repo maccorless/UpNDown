@@ -236,6 +236,22 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   const manager = new GameManager({ onResults: (rows) => auth.recordResults(rows) });
   // The account behind a socket, from the session cookie at the handshake. Guests have none.
   const userIdOf = (socket: Socket): string | undefined => (typeof socket.data.userId === 'string' ? socket.data.userId : undefined);
+  // A connection is in one game at a time. A seat in a lobby or a finished game is simply left (the client forgot to);
+  // a game in progress cannot be left, so starting or joining another is refused (leaveGame throws, and says why).
+  const leaveStaleSeat = (socket: Socket, exceptGameId?: string): void => {
+    const stale = manager.seatedGameOf(socket.id);
+    if (!stale || stale === exceptGameId) return;
+    let remaining: ReturnType<typeof manager.leaveGame>;
+    try {
+      remaining = manager.leaveGame(socket.id, stale);
+    } catch {
+      throw new Error('You are already in a game that is still being played.');
+    }
+    manager.clearPlayerReactions(stale, socket.id);
+    socket.leave(stale);
+    if (remaining) broadcastState(stale, remaining);
+  };
+
   const broadcastState = (gameId: string, state: Parameters<typeof toPlayerView>[0]): void => {
     for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
       io.to(socketId).emit('game:updated', toPlayerView(state, socketId));
@@ -334,6 +350,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       }
       try {
         const parsed = createGamePayloadSchema.parse(payload);
+        leaveStaleSeat(socket);
         const gameState = manager.createGame(socket.id, parsed, userIdOf(socket));
         socket.join(gameState.gameId);
         broadcastState(gameState.gameId, gameState);
@@ -358,6 +375,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       }
       try {
         const parsed = joinGamePayloadSchema.parse(payload);
+        leaveStaleSeat(socket, parsed.gameId);
         const gameState = manager.joinGame(socket.id, parsed, userIdOf(socket));
         socket.join(gameState.gameId);
         broadcastState(gameState.gameId, gameState);

@@ -78,7 +78,8 @@ describe('GameManager', () => {
   });
 
   it('issues unique six-character game ids from the full A-Z0-9 alphabet', () => {
-    const manager = new GameManager();
+    // More rooms than the live-room cap, because this is about ids, not the cap.
+    const manager = new GameManager({ maxRooms: 5000 });
     const ids = new Set<string>();
     for (let i = 0; i < 2000; i += 1) {
       const created = manager.createGame(`host-${i}`, {

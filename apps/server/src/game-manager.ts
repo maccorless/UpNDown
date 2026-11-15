@@ -85,7 +85,13 @@ function generateGameId(): string {
 export interface GameManagerHooks {
   // Called with the rows to record, never awaited: a slow or failing database must not slow or break play.
   onResults?: (rows: GameResultRow[]) => void;
+  // Most rooms alive at once. Rooms cost memory and nothing else limits how many a script can open.
+  maxRooms?: number;
 }
+
+// The public lobby list shows the newest of these.
+const LOBBY_LIST_LIMIT = 50;
+const DEFAULT_MAX_ROOMS = 500;
 
 export class GameManager {
   constructor(private readonly hooks: GameManagerHooks = {}) {}
@@ -196,9 +202,23 @@ export class GameManager {
     return room.gameState.statistics.players[playerId]?.specialPlays ?? 0;
   }
 
+  // The room this connection is seated in, if any. A connection is in at most one game at a time.
+  seatedGameOf(playerId: string): string | null {
+    for (const [gameId, room] of this.rooms) {
+      if (room.gameState.players.some((player) => player.id === playerId)) return gameId;
+    }
+    return null;
+  }
+
   createGame(ownerPlayerId: string, payload: CreateGamePayload, userId?: string): GameState {
     if (payload.isSolitaire) {
       throw new Error('Solitaire is client-only in v1');
+    }
+    if (this.rooms.size >= (this.hooks.maxRooms ?? DEFAULT_MAX_ROOMS)) {
+      throw new Error('The server is full right now. Please try again in a few minutes.');
+    }
+    if (this.seatedGameOf(ownerPlayerId)) {
+      throw new Error('You are already in a game. Leave it before starting another.');
     }
 
     const gameId = this.generateUniqueGameId();
@@ -273,7 +293,8 @@ export class GameManager {
           createdAtMs: room.createdAtMs
         };
       })
-      .sort((a, b) => b.createdAtMs - a.createdAtMs);
+      .sort((a, b) => b.createdAtMs - a.createdAtMs)
+      .slice(0, LOBBY_LIST_LIMIT);
   }
 
   joinGame(playerId: string, payload: JoinGamePayload, userId?: string): GameState {
@@ -289,6 +310,11 @@ export class GameManager {
 
     if (gameState.players.some((player) => player.id === playerId)) {
       return gameState;
+    }
+
+    const elsewhere = this.seatedGameOf(playerId);
+    if (elsewhere && elsewhere !== payload.gameId) {
+      throw new Error('You are already in a game. Leave it before joining another.');
     }
 
     if (gameState.players.length >= gameState.settings.maxPlayers) {

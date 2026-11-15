@@ -40,7 +40,7 @@ A cooperative multiplayer card game where players work together to play all thei
 - No minimum card requirement
 - **No connection needed**: solitaire is played, saved and resumed entirely in the browser. The server is involved only to sign in, and, when a signed-in player finishes a game, to save its result
 - **Save and resume (this device only)**: once a card has been played, the game is saved in this browser after every move, with its undo history. Coming back later, the landing offers "Continue solitaire" (cards left, how long ago it was saved) and puts you back exactly where you were; "Start a new solitaire game" asks before discarding it. The save is removed when the game is won or lost, or you press End Game. It never goes to the server and does not follow an account to another device. Time away is not counted as time played
-- **Result for signed-in players**: a finished solitaire game (won or lost, never one ended early) is saved to the player's private history, once, even if sent again. The end screen says "Saved to your history.", or offers Try again if it could not be sent. A guest's solitaire never touches the server
+- **Result for signed-in players**: a finished solitaire game (won or lost, never one ended early) is saved to the player's private history, once, even if sent again, up to 5,000 saved solitaire games per account (after that the save is refused as "history full"). The end screen says "Saved to your history.", or offers Try again if it could not be sent. A guest's solitaire never touches the server
 - **Status**: ✅ **Implemented**
 
 #### Card Placement Rules
@@ -161,6 +161,8 @@ tests/e2e               Playwright smoke tests
 - Collision detection with up to 20 retry attempts
 - Host creates game and controls when to start
 - Other players join via game ID or shareable invite link (`?game=XXXXXX`)
+- **One game per connection**: a connection can be in one game at a time. Starting or joining another game leaves a lobby or a finished game it was still seated in; a game that is being played cannot be left, so it refuses with "You are already in a game that is still being played"
+- **Limits**: at most 500 rooms exist at once ("The server is full right now" beyond that), and the public lobby list shows the 50 newest
 - Deep-link auto-join: joins at once only for a player who has already chosen a name (edited it, used it to host or join, or saved one before generated names existed). A first-time visitor, who only has a generated name, sees the join screen with the game id and name filled in and joins with one tap. Typing a name never joins by itself
 - **Status**: ✅ **Implemented**
 

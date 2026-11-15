@@ -32,6 +32,10 @@ export class MemoryProfileStore implements ProfileStore {
   readonly confirmed = new Set<string>();
   readonly results: GameResultRow[] = [];
 
+  async countResults(userId: string, mode: 'solitaire' | 'multiplayer'): Promise<number> {
+    return this.results.filter((r) => r.userId === userId && r.mode === mode).length;
+  }
+
   async recordResults(rows: GameResultRow[]): Promise<Array<{ userId: string; outcome: RecordOutcome; code?: string }>> {
     return rows.map((row) => {
       if (!this.users.has(row.userId)) return { userId: row.userId, outcome: 'user_missing' as const };

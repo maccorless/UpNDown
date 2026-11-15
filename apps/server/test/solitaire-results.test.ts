@@ -182,6 +182,33 @@ describe('POST /api/me/solitaire-results', () => {
     });
   });
 
+  describe('history size', () => {
+    const fakeRow = (userId: string, n: number) => ({
+      userId, gameId: `old-${n}`, mode: 'solitaire' as const, outcome: 'won' as const, startedAt: new Date(0), endedAt: new Date(1000), durationMs: 1000,
+      turns: 0, playerCount: 1, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 98, myTotalMovement: 1, mySpecialPlays: 0, myNasCheats: 0,
+      handSize: 7, minCardsPerTurn: 1, maxCard: 99, settings: {}
+    });
+
+    // Every row is kept for good and nothing but this stops a script minting game ids. A real player never reaches it.
+    it('stops saving at 5000 solitaire games for one account, and says so, while others can still save', async () => {
+      const ann = await account('g-ann');
+      const bob = await account('g-bob');
+      for (let n = 0; n < 4999; n += 1) store.results.push(fakeRow(ann.userId, n));
+      expect((await post(ann.cookie, result({ gameId: 'the-5000th' }))).status).toBe(200);
+      const res = await post(ann.cookie, result({ gameId: 'the-5001st' }));
+      expect(res.status).toBe(409);
+      expect(await res.json()).toEqual({ error: 'history full' });
+      expect(store.results.some((r) => r.gameId === 'the-5001st')).toBe(false);
+      expect((await post(bob.cookie, result({ gameId: 'bobs' }))).status).toBe(200);
+    });
+
+    it('counts solitaire games only, so multiplayer history never uses up the allowance', async () => {
+      const ann = await account('g-ann');
+      for (let n = 0; n < 5000; n += 1) store.results.push({ ...fakeRow(ann.userId, n), mode: 'multiplayer' });
+      expect((await post(ann.cookie, result({ gameId: 'still-fine' }))).status).toBe(200);
+    });
+  });
+
   describe('limits', () => {
     it('refuses an oversized body outright', async () => {
       const { cookie } = await account('g-ann');

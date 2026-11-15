@@ -54,6 +54,7 @@ export interface ProfileStore {
   deleteExpiredSessions(now: Date): Promise<number>;
   // One row at a time, so one bad row never costs the others theirs. Never throws for a row: the outcome says what happened.
   recordResults(rows: GameResultRow[]): Promise<Array<{ userId: string; outcome: RecordOutcome; code?: string }>>;
+  countResults(userId: string, mode: 'solitaire' | 'multiplayer'): Promise<number>;
 }
 
 const UNIQUE_VIOLATION = '23505';
@@ -171,6 +172,11 @@ export class PgProfileStore implements ProfileStore {
       }
     }
     return results;
+  }
+
+  async countResults(userId: string, mode: 'solitaire' | 'multiplayer'): Promise<number> {
+    const row = (await this.pool.query<{ n: number }>('select count(*)::int as n from game_results where user_id = $1 and mode = $2', [userId, mode])).rows[0];
+    return row?.n ?? 0;
   }
 
   async deleteExpiredSessions(now: Date): Promise<number> {

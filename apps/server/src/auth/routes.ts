@@ -14,6 +14,7 @@ import {
 } from './sessions.js';
 
 const SESSION_LOOKUP_TIMEOUT_MS = 1500;
+const MAX_SOLITAIRE_RESULTS = 5000;
 
 type Log = (level: 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
@@ -294,6 +295,12 @@ export function createAuthRouter(options: AuthRouterOptions): {
     const now = Date.now();
     if (body.data.endedAtMs > now + 5 * 60_000 || body.data.endedAtMs < now - 400 * 24 * 3_600_000) {
       res.status(400).json({ error: 'invalid result' });
+      return;
+    }
+    // Nothing stops a script making a new game id every few seconds, and each row is stored for good. A real player never
+    // gets near this; past it, saving stops rather than the table growing.
+    if ((await current.store.countResults(session.userId, 'solitaire')) >= MAX_SOLITAIRE_RESULTS) {
+      res.status(409).json({ error: 'history full' });
       return;
     }
     const [outcome] = await current.store.recordResults([buildSolitaireRow(session.userId, body.data)]);

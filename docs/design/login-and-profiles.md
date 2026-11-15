@@ -215,7 +215,7 @@ Decided by the project owner on 14-Nov-2026. Solitaire runs entirely in the brow
 - The id of the game is created when it starts and kept in the save, so a retry, or a game finished after a reload, is the same game: `unique(user_id, game_id)` with `ON CONFLICT DO NOTHING` makes a repeat harmless.
 - The body is `solitaireResultPayloadSchema` (shared): outcome won or lost; cards played plus cards left at most the deck; special plays at most plays; a win leaves no cards and a loss leaves some; end after start; at most 24 days of play (the stored length is a 32-bit number of milliseconds, 24.8 days; the browser reports at most 24, so a tab left open for weeks still saves); the deck size must match the settings. A body over 4 KB is refused (413).
 - The browser's clock says when the game ended. The server accepts up to 5 minutes in the future and up to 400 days in the past (a game finished offline may be sent later) and refuses the rest. Playing time is what is stored, so a game left for a week still reports only the time spent playing.
-- Session, JSON content type and canonical Origin are required; 30 saves a minute per user.
+- Session, JSON content type and canonical Origin are required; 30 saves a minute per user, and at most 5,000 solitaire results per account (a further save answers 409 "history full"), because every row is kept for good and nothing else bounds a script that mints game ids.
 - The end-of-game screen shows "Saving...", "Saved to your history." or, if it could not be sent, "Could not save this game to your history." with Try again, which resends the same game. A guest sees nothing about it.
 - There is no offline queue. If a signed-in player finishes a game with no connection they get the message and can retry once back online, as long as the page is still open. A queue would need each queued result tied to the account it belongs to, which the browser does not know; it is the natural next step for the native app.
 
@@ -351,4 +351,5 @@ Review follow-ups (15-Nov-2026), changed or found by an independent security and
 - **Sockets.** Messages are limited to 16 KB. A page from another origin is refused on the websocket upgrade by the `cors` option, which the test suite pins.
 - **Logs.** A card lookup logs that it happened, not the card or its result.
 - **Container.** `.dockerignore` excludes the Google client secret files.
+- **One game per connection.** `GameManager.seatedGameOf` finds a connection's room. Creating or joining while seated in a lobby or a finished game leaves that seat first (the old room's remaining players are updated); while seated in a game in progress it is refused. At most 500 rooms exist at once, and the lobby list returns the 50 newest. A per-address room cap was deliberately not added: with the current proxy count every visitor shares a few Cloudflare addresses, so it would cap the whole site.
 
