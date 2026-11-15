@@ -251,20 +251,14 @@ export class GameManager {
     return state;
   }
 
+  // Only reads. Deleting a room is the reaper's job, on a timer, because a room with nobody connected right now is not
+  // necessarily dead: a started game whose players all dropped at once can still be rejoined within its time limit.
   listJoinableGames(activePlayerIds?: ReadonlySet<string>): JoinableGameSummary[] {
-    if (activePlayerIds) {
-      for (const [gameId, room] of this.rooms) {
-        const connectedCount = room.gameState.players.filter((player) => activePlayerIds.has(player.id)).length;
-        if (connectedCount === 0) {
-          this.rooms.delete(gameId);
-          this.reactions.delete(gameId);
-        }
-      }
-    }
-
     return [...this.rooms.values()]
       .filter((room) => {
         const state = room.gameState;
+        // Nobody there to host it, so it is not worth advertising. The reaper removes it later.
+        if (activePlayerIds && !state.players.some((player) => activePlayerIds.has(player.id))) return false;
         return state.gamePhase === 'lobby'
           && !state.settings.privateGame
           && state.players.length < state.settings.maxPlayers;
@@ -532,6 +526,7 @@ export class GameManager {
     room.userIdByPlayerId.delete(playerId);
     if (players.length === 0) {
       this.rooms.delete(gameId);
+      this.reactions.delete(gameId);
       return null;
     }
 

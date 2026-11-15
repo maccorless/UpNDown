@@ -92,7 +92,7 @@ describe('GameManager', () => {
     expect(ids.size).toBe(2000);
   });
 
-  it('drops joinable lobby rooms that have zero active connections', () => {
+  it('does not advertise a lobby that nobody is connected to, and does not delete it either', () => {
     const manager = new GameManager();
     const hostId = 'host-1';
     const created = manager.createGame(hostId, {
@@ -101,15 +101,11 @@ describe('GameManager', () => {
       isSolitaire: false
     });
 
-    const activeList = manager.listJoinableGames(new Set([hostId]));
-    expect(activeList.some((game) => game.gameId === created.gameId)).toBe(true);
+    expect(manager.listJoinableGames(new Set([hostId])).some((game) => game.gameId === created.gameId)).toBe(true);
+    expect(manager.listJoinableGames(new Set()).some((game) => game.gameId === created.gameId)).toBe(false);
 
-    const noActiveList = manager.listJoinableGames(new Set());
-    expect(noActiveList.some((game) => game.gameId === created.gameId)).toBe(false);
-
-    expect(() =>
-      manager.joinGame('guest-1', { gameId: created.gameId, playerName: 'Guest' })
-    ).toThrowError('not available');
+    // Listing only reads. The room is still there for its host to come back to; the reaper removes it on a timer.
+    expect(manager.listJoinableGames(new Set([hostId])).some((game) => game.gameId === created.gameId)).toBe(true);
   });
 
   it('answers a missing, started and full game identically, so a guesser cannot tell which ids exist', () => {
