@@ -1,0 +1,38 @@
+{
+  "date": "2026-11-15T09:25:39.235Z",
+  "setting": "table4",
+  "label": "four players, the default deck",
+  "seed": 7,
+  "rounds": 30,
+  "games": 400,
+  "children": 6,
+  "holdout": 3000,
+  "current": {
+    "weights": {
+      "gap": 1,
+      "backwardTen": 14,
+      "skipOver": 4,
+      "strand": 8,
+      "stopGap": 3,
+      "planPlayed": 3,
+      "planGap": 0.3
+    },
+    "reward": 58.64370748299366,
+    "winRate": 0.21733333333333332,
+    "cardsLeft": 4.357
+  },
+  "trained": {
+    "weights": {
+      "gap": 0.6,
+      "backwardTen": 10.42,
+      "skipOver": 6.71,
+      "strand": 9.23,
+      "stopGap": 3,
+      "planPlayed": 0,
+      "planGap": 0.18
+    },
+    "reward": 58.54047619047672,
+    "winRate": 0.21533333333333332,
+    "cardsLeft": 4.363333333333333
+  }
+}

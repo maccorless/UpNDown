@@ -35,6 +35,19 @@ test('@smoke accessibility baseline has no serious violations', async ({ page })
   expect(seriousOrWorse).toEqual([]);
 });
 
+test('@smoke how to play page: every picture is described and loads, and the page has no serious accessibility problems', async ({ page }) => {
+  await page.goto('/how-to-play.html');
+  const images = page.locator('img');
+  expect(await images.count()).toBeGreaterThan(0);
+  for (const image of await images.all()) {
+    await image.scrollIntoViewIfNeeded();
+    await expect(image).toHaveAttribute('alt', /\S{3,}/);
+  }
+  await expect.poll(() => page.evaluate(() => [...document.images].every((image) => image.complete && image.naturalWidth > 0))).toBe(true);
+  const analysis = await new AxeBuilder({ page }).analyze();
+  expect(analysis.violations.filter((violation) => ['serious', 'critical'].includes(violation.impact ?? ''))).toEqual([]);
+});
+
 test('multiplayer create/join/start/play/end-turn flow', async ({ browser, page }) => {
   await page.goto('/');
   await page.getByTestId('mode-multiplayer').click();

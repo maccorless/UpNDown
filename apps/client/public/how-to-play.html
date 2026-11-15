@@ -78,6 +78,24 @@
       color: var(--muted);
     }
 
+    figure {
+      margin: 12px 0 0;
+    }
+
+    figure img {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+    }
+
+    figcaption {
+      margin-top: 6px;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
     code {
       background: #0d1b2a;
       border: 1px solid var(--line);
@@ -107,6 +125,10 @@
         <dd>Optional. Sign in with Google to keep your name, settings and results. Play as a guest and nothing is kept.</dd>
       </dl>
       <p>The full rules follow.</p>
+      <figure>
+        <img src="/how-to-play/landing.png" alt="The UpNDown home page with two large choices, Solitaire and Multiplayer, and a Google sign-in below them." width="1280" height="900" loading="lazy">
+        <figcaption>The home page. Choose Solitaire to play alone, or Multiplayer to host or join a table.</figcaption>
+      </figure>
     </section>
 
     <section>
@@ -120,6 +142,10 @@
         <li>Two ascending piles start at <code>1</code>. You normally play higher cards.</li>
         <li>Two descending piles start at <code>100</code>. You normally play lower cards.</li>
       </ul>
+      <figure>
+        <img src="/how-to-play/solitaire-card-chosen.png" alt="A solitaire game with one card in the hand selected and the foundation piles it can be played on highlighted." width="1280" height="900" loading="lazy">
+        <figcaption>Choose a card in your hand and the piles you can play it on light up. Tap a pile to play it.</figcaption>
+      </figure>
     </section>
 
     <section>
@@ -138,6 +164,10 @@
         <li>Play by selecting a card and then selecting a valid pile.</li>
         <li>Use <code>End Turn</code> only after meeting the minimum.</li>
       </ol>
+      <figure>
+        <img src="/how-to-play/multiplayer-turn.png" alt="A multiplayer game on the host turn, showing the four foundation piles, the other players, and the hand." width="1280" height="900" loading="lazy">
+        <figcaption>A multiplayer game. The player list shows whose turn it is and how many cards each player holds.</figcaption>
+      </figure>
     </section>
 
     <section>
@@ -151,20 +181,51 @@
     </section>
 
     <section>
-      <h2>Cheat: Card Lookup</h2>
+      <h2>Cheats</h2>
+      <p>Cheats are off unless the game turns them on in Settings, under <strong>Cheat codes</strong>. Each one is set to <strong>Off</strong>, <strong>Once</strong> (one use per player per game) or <strong>Unlimited</strong>. Open the cheats panel by double tapping the <strong>UpNDown</strong> title, or with the <strong>Cheats</strong> button.</p>
       <ul>
-        <li>If the host enables <strong>Cheat: Card Lookup</strong> in settings, any player can look up a card during the game.</li>
-        <li>Press <code>Ctrl+Shift+C</code> to open the lookup dialog, type a card number, then press <code>Enter</code>.</li>
-        <li>The result appears briefly on <strong>all players&rsquo;</strong> screens, showing whether the card is:
-          <ul>
-            <li>📦 <strong>In Draw Pile</strong> &mdash; the card is still in the draw pile.</li>
-            <li>🤚 <strong>In Hand (Player Name)</strong> &mdash; a player is currently holding it, and their name is shown in parentheses.</li>
-            <li>✓ <strong>Played</strong> &mdash; the card has already been placed on a foundation pile.</li>
-          </ul>
-        </li>
-        <li>The message also shows which player performed the lookup.</li>
-        <li>Works in Solitaire too &mdash; the result appears only on your screen.</li>
-        <li>This setting is off by default &mdash; the host must enable it before the game starts.</li>
+        <li><strong>Card seeker</strong> (<code>Ctrl/Cmd+P</code>): type a card number to see where it is: in the draw pile, in a player&rsquo;s hand, or already played. <strong>Only you</strong> see the answer. The other players are told that you used it, nothing more.</li>
+        <li><strong>Hint</strong>: suggests the best play from what you can see (your hand, the piles, how many cards are left). It lights up the card and the pile and says it in words. Only you see it, and it also works in solitaire with no connection.</li>
+        <li><strong>Skip turn</strong> (<code>Ctrl/Cmd+S</code>, after a confirmation): pass your turn without playing the minimum. Only on your turn, before you play a card. It cannot save you once you are stuck, so use it before then. If every player skips in a row and nobody plays a card, the game is lost.</li>
+        <li><strong>Trade a card</strong> (<code>Ctrl/Cmd+Shift+X</code>, with a card selected): swap that card for the next one from the draw pile. The card you give goes back into the pile at a random place.</li>
+        <li>Other players are told when you skip, trade or use the card seeker. Skip and trade cannot be undone.</li>
+        <li>What you used is shown on the end screen and kept in your history if you are signed in.</li>
+      </ul>
+      <figure>
+        <img src="/how-to-play/cheats.png" alt="The cheats panel listing the card seeker, hint, skip turn and trade a card, each with a short explanation." width="1280" height="900" loading="lazy">
+        <figcaption>The cheats panel. A cheat set to once is grayed out, with the words &ldquo;Already used&rdquo;, after you use it.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2>Robots</h2>
+      <ul>
+        <li>In the lobby the host can add <strong>robots</strong> to fill seats. They count toward the number of players.</li>
+        <li>A robot plays by the same rules as you, using the same strategy as the hint, from only what a player can see. It never looks at hidden cards.</li>
+        <li>Robots only play while a person is at the table. If every person is away for 90 seconds, a game with robots ends.</li>
+        <li>Robots cannot be kicked, and no result is saved for them.</li>
+      </ul>
+      <figure>
+        <img src="/how-to-play/lobby.png" alt="The multiplayer lobby listing the host and one robot, with Start Game and Add Robot buttons." width="1280" height="900" loading="lazy">
+        <figcaption>The lobby. The host adds robots with Add Robot, and removes one with the cross beside it.</figcaption>
+      </figure>
+    </section>
+
+    <section>
+      <h2>Joining a game in progress</h2>
+      <ul>
+        <li>The host presses <strong>Invite</strong> during a game to make a single-use link.</li>
+        <li>Whoever opens the link asks to join, and the host is asked to <strong>Let in</strong> or <strong>Decline</strong>.</li>
+        <li>If let in, the new player is dealt a hand from the draw pile at any time. Nobody else&rsquo;s cards and no pile change.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Coming back to a game</h2>
+      <ul>
+        <li>If you close the page by mistake, the home page shows <strong>Rejoin game</strong> for each game still going on this device.</li>
+        <li>If you are signed in, opening <strong>Multiplayer</strong> puts you back in your game, from any device. With several games you choose which.</li>
+        <li>Where the site has a database, a game also survives the server restarting. If it shows that saving is unavailable, a game in progress may be lost on a restart.</li>
       </ul>
     </section>
 
@@ -203,17 +264,25 @@
         <li>You still follow legal move rules and backward-10 plays.</li>
         <li>There is no teammate turn order to coordinate, so play is faster.</li>
       </ul>
+      <figure>
+        <img src="/how-to-play/solitaire-board.png" alt="A solitaire game: four foundation piles above and seven cards in the hand below." width="1280" height="900" loading="lazy">
+        <figcaption>Solitaire. Your game is saved on this device as you play, and you can start more than one.</figcaption>
+      </figure>
     </section>
 
     <section>
       <h2>Difficulty and Settings</h2>
       <p>You can tune game difficulty in Settings before a game starts.</p>
       <ul>
-        <li><code>Hand Size</code>: larger hands are usually easier because you have more choices.</li>
+        <li><code>Hand Size</code>: 5 to 11 cards. Larger hands are usually easier because you have more choices. The deck must be big enough to deal every player a full hand.</li>
         <li><code>Min Cards Per Turn</code>: higher minimums are harder to win with.</li>
         <li><code>Card Range</code>: a smaller card range is usually easier to win.</li>
         <li><code>Auto Refill Hand</code>: turning this on generally makes the game easier.</li>
       </ul>
+      <figure>
+        <img src="/how-to-play/settings.png" alt="The settings dialog with difficulty presets, card range, hand size and cheat codes." width="1280" height="900" loading="lazy">
+        <figcaption>Settings. Pick a difficulty or tune each setting. Hands can be 5 to 11 cards.</figcaption>
+      </figure>
     </section>
 
     <section>

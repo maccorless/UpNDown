@@ -7,10 +7,11 @@
   "types": "dist/engine/src/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src test --ext .ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.tools.json --noEmit",
+    "lint": "eslint src test tools --ext .ts",
     "test": "vitest run",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "sim": "tsx tools/sim.ts"
   },
   "dependencies": {
     "@upndown/shared-types": "0.1.0"

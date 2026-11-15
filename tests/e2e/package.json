@@ -6,7 +6,8 @@
   "scripts": {
     "install:browsers": "playwright install --with-deps chromium",
     "test": "playwright test",
-    "test:e2e:smoke": "playwright test --grep @smoke"
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "screenshots": "playwright test -c screenshots.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",

@@ -2867,13 +2867,17 @@ button.mode-card:not(:disabled):active {
   border: 1px solid rgba(183, 197, 216, 0.35);
 }
 
-/* Saving unavailable, and which game to go back to */
+/* Saving unavailable, and which game to go back to. It sits in the header, on a row of its own, so it never takes the board's row. */
+.app-header {
+  flex-wrap: wrap;
+}
+
 .storage-notice {
-  margin: 0 auto 12px;
-  max-width: 52rem;
-  padding: 8px 12px;
+  flex: 1 1 100%;
+  margin: 0;
+  padding: 6px 10px;
   border-radius: 10px;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
   background: rgba(255, 196, 61, 0.14);
   border: 1px solid rgba(255, 196, 61, 0.5);
   color: inherit;

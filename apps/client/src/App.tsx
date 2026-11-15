@@ -2026,6 +2026,7 @@ export function App(): JSX.Element {
             </>
           ) : null}
         </div>
+        <StorageNotice storage={auth.storage} />
       </section>
 
       <NamePrompt
@@ -2039,8 +2040,6 @@ export function App(): JSX.Element {
       <p className="sr-only" role="status" aria-live="polite">
         {pendingAction ? `Action in progress: ${pendingAction}` : 'Ready'}
       </p>
-
-      <StorageNotice storage={auth.storage} />
 
       {mode === null ? (
         <Landing

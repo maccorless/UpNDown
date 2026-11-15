@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-16 | — | Feat: How to Play has a quick start and pictures of the real screens (made again with one command), and describes cheats, robots, joining a game in progress and getting back to a game. Fix: the "saving unavailable" notice no longer stretches over the game board. Tooling: a local tool plays whole games to measure and tune the hint and robot strategy |
 | 2026-11-16 | — | Feat: joining a game in progress by invitation. The host's Invite button makes a single-use link; the person who opens it asks to join, the host says yes or no, and on a yes they are dealt a hand from the bottom of the draw pile at any time, with every other hand and pile unchanged |
 | 2026-11-16 | — | Feat: robots. The host can add robots to a multiplayer lobby (they count toward the player limits) and the server plays them with the same strategy as hints, only while a person is at the table. A game with robots and nobody left ends after 90 seconds |
 | 2026-11-16 | — | Feat: hints. Turn on the Hint cheat in Settings (off, once or unlimited) and it suggests the best play from what you can see, lighting up the card and the pile and saying it in words. Counted in the statistics, private to you, and works in solitaire with no connection |
