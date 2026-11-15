@@ -10,6 +10,8 @@ import {
   joinGamePayloadSchema,
   kickPlayerPayloadSchema,
   removeRobotPayloadSchema,
+  requestJoinPayloadSchema,
+  resolveJoinPayloadSchema,
   skipPayloadSchema,
   tradePayloadSchema,
   playCardPayloadSchema,
@@ -17,7 +19,7 @@ import {
   setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
-import type { CheatUsedEvent } from '@upndown/shared-types';
+import type { CheatUsedEvent, JoinRequestEvent, JoinResolvedEvent } from '@upndown/shared-types';
 import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { resolveClientIp } from './client-ip.js';
 import { GameManager } from './game-manager.js';
@@ -41,6 +43,8 @@ const proxyHopsByTarget = { skiff: 2, railway: 1 } as const;
 
 // `gone` on a refused rejoin means the seat no longer exists (or the token is wrong): do not try again. Without it the
 // refusal may be temporary (a rate limit), so the client may.
+const JOIN_REQUEST_TTL_MS = 2 * 60 * 1000;
+
 type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string; gone?: true }) => void;
 type LogLevel = 'info' | 'warn' | 'error';
 
@@ -74,6 +78,9 @@ const eventRateLimits: Record<
   | 'game:listJoinable'
   | 'game:start'
   | 'game:playCard'
+  | 'game:createInvite'
+  | 'game:requestJoin'
+  | 'game:resolveJoin'
   | 'game:addRobot'
   | 'game:removeRobot'
   | 'game:skip'
@@ -98,6 +105,9 @@ const eventRateLimits: Record<
   'game:listJoinable':   { limit: 30, windowMs: 10_000 },
   'game:start':          { limit: 10, windowMs: 30_000 },
   'game:playCard':       { limit: 60, windowMs: 10_000 },
+  'game:createInvite':   { limit: 10, windowMs: 30_000 },
+  'game:requestJoin':    { limit: 5,  windowMs: 30_000 },
+  'game:resolveJoin':    { limit: 20, windowMs: 10_000 },
   'game:addRobot':       { limit: 10, windowMs: 10_000 },
   'game:removeRobot':    { limit: 10, windowMs: 10_000 },
   'game:skip':           { limit: 10, windowMs: 10_000 },
@@ -116,7 +126,8 @@ const eventRateLimits: Record<
 // Per client IP, on top of the per-socket limits: reconnecting resets a socket's bucket, so these stop id guessing.
 const ipRateLimits: Partial<Record<keyof typeof eventRateLimits, RateLimitRule>> = {
   'game:lookup': { limit: 60, windowMs: 10_000 },
-  'game:join':   { limit: 30, windowMs: 10_000 }
+  'game:join':   { limit: 30, windowMs: 10_000 },
+  'game:requestJoin': { limit: 20, windowMs: 30_000 }
 };
 
 function parseAllowedOrigins(raw: string | undefined): string[] {
@@ -180,7 +191,7 @@ function normalizeError(err: unknown, fallback: string): string {
 export function createRealtimeServer(
   port?: number,
   authOverrides?: AuthTestOverrides,
-  timing: { noticeMs?: number; kickMs?: number; robotDelayMs?: number } = {},
+  timing: { noticeMs?: number; kickMs?: number; robotDelayMs?: number; joinRequestTtlMs?: number } = {},
   live?: { store: GameStore; lock: WriterLock; intervalMs?: number; retryMs?: number }
 ) {
   const config = loadRuntimeConfig(port);
@@ -629,6 +640,94 @@ export function createRealtimeServer(
       }
     });
 
+    // Joining a game that is already being played: the host makes a single-use invitation, a person asks to join with it, and the
+    // host lets them in or not. Nothing is taken from the game until the host says yes.
+    socket.on('game:createInvite', (payload, ack?: Ack<{ token: string; expiresAtMs: number }>) => {
+      if (!passesRateLimit(socket.id, 'game:createInvite')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = gameIdSchema.parse(payload);
+        reply(ack, { ok: true, data: manager.createInvite(socket.id, parsed.gameId) });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to make an invitation');
+        log('warn', 'game.invite_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    socket.on('game:requestJoin', (payload, ack?: Ack<{ requestId: string }>) => {
+      if (!passesRateLimit(socket.id, 'game:requestJoin') || !passesIpRateLimit(socket, 'game:requestJoin')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = requestJoinPayloadSchema.parse(payload);
+        const request = manager.requestJoin(socket.id, parsed, userIdOf(socket));
+        const hostId = manager.peekState(parsed.gameId)?.hostId;
+        if (hostId) io.to(hostId).emit('game:joinRequest', { requestId: request.requestId, playerName: request.playerName } satisfies JoinRequestEvent);
+        // A host who does not answer must not leave the person waiting for ever.
+        const timer = setTimeout(() => {
+          reconnectionTimers.delete(timer);
+          const lapsed = manager.dropJoinRequest(parsed.gameId, request.requestId);
+          if (!lapsed) return;
+          io.to(request.socketId).emit('game:joinResolved', { approved: false, reason: 'The host did not answer in time.' } satisfies JoinResolvedEvent);
+          const currentHost = manager.peekState(parsed.gameId)?.hostId;
+          if (currentHost) io.to(currentHost).emit('game:joinRequestCancelled', { requestId: request.requestId });
+        }, timing.joinRequestTtlMs ?? JOIN_REQUEST_TTL_MS);
+        timer.unref();
+        reconnectionTimers.add(timer);
+        log('info', 'game.join_requested', { socketId: socket.id, gameId: parsed.gameId });
+        reply(ack, { ok: true, data: { requestId: request.requestId } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to ask to join');
+        log('warn', 'game.request_join_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    socket.on('game:resolveJoin', async (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:resolveJoin')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      let parsed: ReturnType<typeof resolveJoinPayloadSchema.parse> | undefined;
+      let waiting: { socketId: string } | undefined;
+      try {
+        parsed = resolveJoinPayloadSchema.parse(payload);
+        const gameIdOfRequest = parsed.gameId;
+        waiting = manager.pendingJoinRequests(gameIdOfRequest).find((r) => r.requestId === parsed!.requestId);
+        const result = manager.resolveJoin(socket.id, parsed);
+        if (!result.state || !result.playerId) {
+          io.to(result.request.socketId).emit('game:joinResolved', { approved: false, reason: 'The host said no.' } satisfies JoinResolvedEvent);
+          reply(ack, { ok: true, data: { gameState: viewOf(manager.peekState(parsed.gameId)!, socket.id) } });
+          return;
+        }
+        io.in(result.playerId).socketsJoin(parsed.gameId);
+        // The new seat has a credential: have it saved before the person is given it.
+        await persistence?.flush(parsed.gameId);
+        io.to(result.playerId).emit('game:joinResolved', {
+          approved: true,
+          gameState: viewOf(result.state, result.playerId),
+          playerId: result.playerId,
+          rejoinToken: manager.getRejoinToken(parsed.gameId, result.playerId)
+        } satisfies JoinResolvedEvent);
+        broadcastState(parsed.gameId, result.state);
+        log('info', 'game.player_admitted', { gameId: parsed.gameId, socketId: result.playerId });
+        reply(ack, { ok: true, data: { gameState: viewOf(result.state, socket.id) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to answer the request');
+        log('warn', 'game.resolve_join_failed', { socketId: socket.id, error: message });
+        // When the request is gone as a result, the person waiting is told why instead of waiting for ever.
+        if (parsed && waiting) {
+          const stillWaiting = manager.pendingJoinRequests(parsed.gameId).some((r) => r.requestId === parsed!.requestId);
+          if (!stillWaiting) io.to(waiting.socketId).emit('game:joinResolved', { approved: false, reason: message } satisfies JoinResolvedEvent);
+        }
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
     socket.on('game:addRobot', (payload, ack?: Ack<{ gameState: unknown }>) => {
       if (!passesRateLimit(socket.id, 'game:addRobot')) {
         reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
@@ -893,6 +992,11 @@ export function createRealtimeServer(
     socket.on('disconnect', () => {
       connectedPlayerIds.delete(socket.id);
       rateBuckets.delete(socket.id);
+      // A person who was waiting to be let in and went away is no longer asking.
+      for (const { gameId, request } of manager.dropJoinRequestsOf(socket.id)) {
+        const host = manager.peekState(gameId)?.hostId;
+        if (host) io.to(host).emit('game:joinRequestCancelled', { requestId: request.requestId });
+      }
       for (const gameId of manager.markDisconnected(socket.id)) {
         rebroadcastLater(gameId, timing.noticeMs ?? 10_000);
         rebroadcastLater(gameId, timing.kickMs ?? 90_000);

@@ -484,6 +484,34 @@ export function recordCheatUse(state: GameState, playerId: string, kind: CheatKi
   return withCheatCounted(state, playerId, kind);
 }
 
+// Deals a new player into a game being played. They are given a hand from the BOTTOM of the draw pile: refills come off the
+// top, so the cards the active player would draw next are not disturbed, and the pile is shuffled so nobody can tell. Every
+// other hand and every foundation pile stays exactly as it was. The caller refuses an admission whose result is no longer
+// being played, because an admission must never be what ends a game.
+export function admitPlayer(state: GameState, input: { id: string; name: string; color?: PlayerColor }): GameState {
+  if (state.gamePhase !== 'playing' || state.isSolitaire) {
+    throw new EngineError('GAME_NOT_PLAYING', 'Players can only be dealt into a game being played');
+  }
+  if (state.drawPile.length === 0) {
+    throw new EngineError('INSUFFICIENT_DECK_FOR_DEAL', 'There are no cards left to deal a new player');
+  }
+  const drawPile = [...state.drawPile];
+  const count = Math.min(state.settings.handSize, drawPile.length);
+  const hand = drawPile.splice(drawPile.length - count, count);
+  const next: GameState = {
+    ...state,
+    players: [
+      ...state.players.map(clonePlayer),
+      { id: input.id, name: input.name, hand, isHost: false, color: input.color ?? (PLAYER_COLORS[state.players.length % PLAYER_COLORS.length] as PlayerColor) }
+    ],
+    foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
+    drawPile,
+    statistics: { ...state.statistics, players: { ...state.statistics.players } },
+    nasCheat: { ...state.nasCheat, usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId, [input.id]: false } }
+  };
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(next)));
+}
+
 // Pass the turn without meeting the minimum, as a cheat. It is not a rescue: it is only possible while the game is still
 // being played and before a card has been played this turn. A full round of skips with no card played by anyone ends the
 // game as a loss, so an unlimited skip cannot stall a table for ever.

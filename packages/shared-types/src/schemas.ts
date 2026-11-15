@@ -104,6 +104,18 @@ export const tradePayloadSchema = z.object({
   cardId: z.string().min(1)
 });
 
+export const requestJoinPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  inviteToken: z.string().min(16).max(100).regex(/^[A-Za-z0-9_-]+$/),
+  playerName: accountNameSchema
+});
+
+export const resolveJoinPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  requestId: z.string().min(1).max(64),
+  approve: z.boolean()
+});
+
 export const removeRobotPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
   playerId: z.string().min(1).max(100)

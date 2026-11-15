@@ -130,6 +130,17 @@ export interface PlayCardPayload {
   pileId: number;
 }
 
+// Pushed to the host when someone asks to join a game in progress with an invitation.
+export interface JoinRequestEvent {
+  requestId: string;
+  playerName: string;
+}
+
+// Pushed to the person who asked, when the host answers (or the request lapses).
+export type JoinResolvedEvent =
+  | { approved: true; gameState: GameState; playerId: string; rejoinToken: string }
+  | { approved: false; reason: string };
+
 export interface RemoveRobotPayload {
   gameId: string;
   playerId: string;

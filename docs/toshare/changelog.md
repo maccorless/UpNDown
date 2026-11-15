@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-16 | — | Feat: joining a game in progress by invitation. The host's Invite button makes a single-use link; the person who opens it asks to join, the host says yes or no, and on a yes they are dealt a hand from the bottom of the draw pile at any time, with every other hand and pile unchanged |
 | 2026-11-16 | — | Feat: robots. The host can add robots to a multiplayer lobby (they count toward the player limits) and the server plays them with the same strategy as hints, only while a person is at the table. A game with robots and nobody left ends after 90 seconds |
 | 2026-11-16 | — | Feat: hints. Turn on the Hint cheat in Settings (off, once or unlimited) and it suggests the best play from what you can see, lighting up the card and the pile and saying it in words. Counted in the statistics, private to you, and works in solitaire with no connection |
 | 2026-11-16 | — | Feat: games in progress survive a server restart or deploy (saved to the database where one is connected). Players take their seat back from the home page, or by opening Multiplayer when signed in, and an account with several games is asked which. The page says when saving is unavailable, and the server keeps trying to reach a database that was down at start |

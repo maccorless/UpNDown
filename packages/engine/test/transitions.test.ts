@@ -3,7 +3,7 @@ import type { Card, GameSettings } from '@upndown/shared-types';
 import { buildDeck } from '../src/init.js';
 import { EngineError } from '../src/errors.js';
 import { isValidPlay } from '../src/rules.js';
-import { createStartedGameState, endTurn, playCard, recordCheatUse, settleAfterRemoval, skipTurn, tradeCard } from '../src/transitions.js';
+import { admitPlayer, createStartedGameState, endTurn, playCard, recordCheatUse, settleAfterRemoval, skipTurn, tradeCard } from '../src/transitions.js';
 
 const settings: GameSettings = {
   minCardValue: 2,
@@ -556,3 +556,34 @@ describe('dealing from a deck that is too small', () => {
     })).toThrow(EngineError);
   });
 });
+
+describe('admitPlayer', () => {
+  const live = () => table({});
+
+  it('deals from the bottom of the draw pile and changes no other hand and no pile', () => {
+    const state = live();
+    const out = admitPlayer(state, { id: 'p9', name: 'Newcomer' });
+    const n = state.settings.handSize;
+    expect(out.players.at(-1)!.hand.map((c) => c.id)).toEqual(state.drawPile.slice(-n).map((c) => c.id));
+    expect(out.drawPile.map((c) => c.id)).toEqual(state.drawPile.slice(0, -n).map((c) => c.id));
+    expect(out.players.slice(0, 3).map((p) => p.hand)).toEqual(state.players.map((p) => p.hand));
+    expect(out.foundationPiles).toEqual(state.foundationPiles);
+    expect(out.currentPlayerIndex).toBe(state.currentPlayerIndex);
+    expect(out.statistics.players.p9).toBeDefined();
+  });
+
+  it('deals what is left when the pile is short, and refuses when it is empty or the game is not being played', () => {
+    const state = live();
+    expect(admitPlayer({ ...state, drawPile: state.drawPile.slice(0, 2) }, { id: 'p9', name: 'N' }).players.at(-1)!.hand).toHaveLength(2);
+    expect(() => admitPlayer({ ...state, drawPile: [] }, { id: 'p9', name: 'N' })).toThrow(EngineError);
+    expect(() => admitPlayer({ ...state, gamePhase: 'won' }, { id: 'p9', name: 'N' })).toThrow(EngineError);
+    expect(() => admitPlayer({ ...state, isSolitaire: true }, { id: 'p9', name: 'N' })).toThrow(EngineError);
+  });
+
+  it('keeps every card in the game exactly once', () => {
+    const state = live();
+    const ids = (s: typeof state) => [...s.drawPile, ...s.players.flatMap((p) => p.hand)].map((c) => c.id).sort();
+    expect(ids(admitPlayer(state, { id: 'p9', name: 'N' }))).toEqual(ids(state));
+  });
+});
+

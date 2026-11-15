@@ -1,6 +1,6 @@
-import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Action } from '@upndown/engine';
-import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
@@ -9,6 +9,7 @@ import type {
   JoinLookupSummary,
   KickPlayerPayload,
   PlayCardPayload,
+  PlayerStatistics,
   RemoveRobotPayload,
   Player,
   PlayerColor,
@@ -40,7 +41,27 @@ interface GameRoom {
   runId: string | null;
   // When each seat in a game being played lost its connection. A seat is connected when it has no entry.
   disconnectedAtMs: Map<string, number>;
+  // Invitations to join a game in progress, by hash of the token, with when each expires. Single use. Not saved: after a
+  // restart the host simply makes a new one.
+  invites: Map<string, number>;
+  // Requests waiting for the host's answer.
+  pendingJoins: Map<string, PendingJoin>;
+  // Cheats a signed-in account used before it was removed from the game, so being let back in does not refresh a "once".
+  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'hintsUsed'>>;
 }
+
+export interface PendingJoin {
+  requestId: string;
+  socketId: string;
+  playerName: string;
+  userId?: string;
+  inviteHash: string;
+  createdAtMs: number;
+}
+
+const INVITE_TTL_MS = 30 * 60 * 1000;
+const MAX_PENDING_JOINS = 5;
+const MAX_INVITES = 10;
 
 const isFinished = (state: GameState): boolean => state.gamePhase === 'won' || state.gamePhase === 'lost';
 
@@ -300,7 +321,10 @@ export class GameManager {
       userIdByPlayerId: new Map(Object.entries(stored.seatUsers)),
       runId: stored.runId,
       // Robots never disconnect; every person starts as away.
-      disconnectedAtMs: new Map(stored.state.players.filter((player) => !player.robot).map((player) => [player.id, nowMs]))
+      disconnectedAtMs: new Map(stored.state.players.filter((player) => !player.robot).map((player) => [player.id, nowMs])),
+      invites: new Map(),
+      pendingJoins: new Map(),
+      departedCheats: new Map()
     });
     return true;
   }
@@ -393,7 +417,10 @@ export class GameManager {
       rejoinTokens: new Map([[ownerPlayerId, newToken()]]),
       userIdByPlayerId: new Map(userId ? [[ownerPlayerId, userId]] : []),
       runId: null,
-      disconnectedAtMs: new Map()
+      disconnectedAtMs: new Map(),
+      invites: new Map(),
+      pendingJoins: new Map(),
+      departedCheats: new Map()
     });
     return state;
   }
@@ -823,6 +850,11 @@ export class GameManager {
 
     const kickedPlayer = gameState.players[kickedPlayerIndex]!;
     const players = gameState.players.filter((p) => p.id !== payload.targetPlayerId);
+    const kickedUser = room.userIdByPlayerId.get(payload.targetPlayerId);
+    const kickedStats = gameState.statistics.players[payload.targetPlayerId];
+    if (kickedUser && kickedStats) {
+      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, hintsUsed: kickedStats.hintsUsed });
+    }
     room.userIdByPlayerId.delete(payload.targetPlayerId);
     room.disconnectedAtMs.delete(payload.targetPlayerId);
 
@@ -897,6 +929,139 @@ export class GameManager {
       if (!candidate.robot && !room.disconnectedAtMs.has(candidate.id)) return candidate.id;
     }
     return null;
+  }
+
+  // Joining a game already being played, by invitation. The host makes an invitation, a person asks to join with it, and the
+  // host lets them in or not. The invitation is single use and expires; a request names no seat and takes nothing until the
+  // host says yes, and the answer re-checks everything, since the game moved on while the host decided.
+  createInvite(hostId: string, gameId: string, nowMs: number = Date.now()): { token: string; expiresAtMs: number } {
+    const room = this.requireRoom(gameId);
+    if (room.gameState.gamePhase !== 'playing') {
+      throw new Error('Invitations are for a game that is being played');
+    }
+    if (room.gameState.hostId !== hostId) {
+      throw new Error('Only host can invite players');
+    }
+    for (const [hash, expires] of room.invites) if (expires <= nowMs) room.invites.delete(hash);
+    if (room.invites.size >= MAX_INVITES) {
+      throw new Error('Too many invitations are waiting. Use or wait for one to expire.');
+    }
+    const token = randomBytes(24).toString('base64url');
+    const expiresAtMs = nowMs + INVITE_TTL_MS;
+    room.invites.set(hashToken(token), expiresAtMs);
+    return { token, expiresAtMs };
+  }
+
+  // A person asks to join with an invitation. Everything wrong with it (no such game, a bad or used or expired invitation) is
+  // answered the same way, so nobody can use this to find which games exist.
+  requestJoin(socketId: string, payload: { gameId: string; inviteToken: string; playerName: string }, userId?: string, nowMs: number = Date.now()): PendingJoin {
+    const room = this.rooms.get(payload.gameId);
+    const inviteHash = hashToken(payload.inviteToken);
+    const expires = room?.invites.get(inviteHash);
+    if (!room || room.gameState.gamePhase !== 'playing' || expires === undefined || expires <= nowMs) {
+      throw new Error(GAME_UNAVAILABLE_MESSAGE);
+    }
+    if (this.seatedGameOf(socketId)) {
+      throw new Error('You are already in a game. Leave it before joining another.');
+    }
+    if (userId && this.accountHoldsSeat(room, userId)) {
+      throw new Error('Your account is already in this game (perhaps in another tab).');
+    }
+    if (room.gameState.players.length >= maxPlayersFor(room.gameState.settings)) {
+      throw new Error(GAME_UNAVAILABLE_MESSAGE);
+    }
+    if (room.pendingJoins.size >= MAX_PENDING_JOINS || [...room.pendingJoins.values()].some((p) => p.inviteHash === inviteHash)) {
+      throw new Error('Someone else is already asking to join with that invitation.');
+    }
+    const request: PendingJoin = { requestId: randomUUID(), socketId, playerName: payload.playerName, inviteHash, createdAtMs: nowMs, ...(userId ? { userId } : {}) };
+    room.pendingJoins.set(request.requestId, request);
+    return request;
+  }
+
+  // Drops a request: the person gave up, left, or the host did not answer in time. Returns it if there was one.
+  dropJoinRequest(gameId: string, requestId: string): PendingJoin | null {
+    const room = this.rooms.get(gameId);
+    const request = room?.pendingJoins.get(requestId);
+    if (!room || !request) return null;
+    room.pendingJoins.delete(requestId);
+    return request;
+  }
+
+  // Requests a connection made that are still waiting, for when that connection goes away.
+  dropJoinRequestsOf(socketId: string): Array<{ gameId: string; request: PendingJoin }> {
+    const dropped: Array<{ gameId: string; request: PendingJoin }> = [];
+    for (const [gameId, room] of this.rooms) {
+      for (const [requestId, request] of room.pendingJoins) {
+        if (request.socketId === socketId) {
+          room.pendingJoins.delete(requestId);
+          dropped.push({ gameId, request });
+        }
+      }
+    }
+    return dropped;
+  }
+
+  pendingJoinRequests(gameId: string): PendingJoin[] {
+    return [...(this.rooms.get(gameId)?.pendingJoins.values() ?? [])];
+  }
+
+  // The host's answer. Declining leaves the game untouched. Letting in re-checks everything that may have changed while the
+  // host decided (the game, who the host is, the table, the account, the invitation, the cards), deals the new player in from
+  // the bottom of the draw pile, and refuses if that would end the game. A refusal leaves the game as it was and the
+  // invitation still usable.
+  resolveJoin(hostId: string, payload: { gameId: string; requestId: string; approve: boolean }, nowMs: number = Date.now()): { request: PendingJoin; state?: GameState; playerId?: string } {
+    const room = this.requireRoom(payload.gameId);
+    const request = room.pendingJoins.get(payload.requestId);
+    if (!request) {
+      throw new Error('That request is no longer waiting');
+    }
+    if (room.gameState.hostId !== hostId) {
+      throw new Error('Only host can let players in');
+    }
+    if (!payload.approve) {
+      room.pendingJoins.delete(payload.requestId);
+      return { request };
+    }
+    const { gameState } = room;
+    const expires = room.invites.get(request.inviteHash);
+    if (gameState.gamePhase !== 'playing') {
+      room.pendingJoins.delete(payload.requestId);
+      throw new Error('The game is no longer being played');
+    }
+    if (expires === undefined || expires <= nowMs) {
+      room.pendingJoins.delete(payload.requestId);
+      throw new Error('That invitation has expired');
+    }
+    if (gameState.players.length >= maxPlayersFor(gameState.settings)) {
+      throw new Error('The table is full');
+    }
+    if (request.userId && this.accountHoldsSeat(room, request.userId)) {
+      room.pendingJoins.delete(payload.requestId);
+      throw new Error('That account is already in this game');
+    }
+    if (this.seatedGameOf(request.socketId)) {
+      room.pendingJoins.delete(payload.requestId);
+      throw new Error('That person is already in a game');
+    }
+    const name = uniqueInGameName(request.playerName, gameState.players.map((player) => player.name));
+    const admitted = admitPlayer(gameState, { id: request.socketId, name });
+    if (admitted.gamePhase !== 'playing') {
+      throw new Error('Dealing another player in would end this game, so it cannot be done now. Try again after the next play.');
+    }
+    // Inherit what this account already used, so being let back in does not refresh a single-use cheat.
+    const earlier = request.userId ? room.departedCheats.get(request.userId) : undefined;
+    const seated: GameState = earlier
+      ? { ...admitted, statistics: { ...admitted.statistics, players: { ...admitted.statistics.players, [request.socketId]: { ...(admitted.statistics.players[request.socketId] ?? emptyPlayerStats()), ...earlier } } } }
+      : admitted;
+    room.gameState = seated;
+    room.rejoinTokens.set(request.socketId, newToken());
+    if (request.userId) room.userIdByPlayerId.set(request.socketId, request.userId);
+    room.invites.delete(request.inviteHash);
+    room.pendingJoins.delete(payload.requestId);
+    // An admission is for good: undo must not be able to take the new player away again.
+    room.turnUndoStack = [];
+    room.updatedAtMs = nowMs;
+    return { request, state: seated, playerId: request.socketId };
   }
 
   // Robots. The host fills seats with them in the lobby; they count toward the player limits like anyone, and at least one

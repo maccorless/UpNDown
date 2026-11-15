@@ -1,5 +1,9 @@
 # Up-N-Down — Game Mechanics and Implementation Guide
 
+## Joining a game in progress
+
+By invitation only, and the host decides. The host makes a single-use invitation (`game:createInvite`; a link with the game code and a random token, good for 30 minutes, at most 10 waiting). Whoever opens it asks to join (`game:requestJoin`, with their name); every bad, used or expired invitation, and any game that does not exist or is not being played, is answered the same way. Only one request can wait on an invitation, and it lapses after 2 minutes. The host is asked (`game:joinRequest`) and answers (`game:resolveJoin`). Asking takes nothing from the game. On a yes the server re-checks everything (the game, the host, the table size and deck limit, the account, the invitation, the cards), deals the newcomer a full hand (or what is left) from the BOTTOM of the draw pile so what the active player draws next is undisturbed, adds them last in the seating order, issues a rejoin token, records their account, and uses the invitation up. Every other hand, every pile, whose turn it is and how far into it stay as they were. An admission that would end the game is refused. It is allowed at any time while the game is being played, clears the undo history, keeps what an account used before it was removed (a single-use cheat stays spent), and one account still holds only one seat in a game.
+
 ## Robots
 
 The host can fill seats with robots in the lobby (`game:addRobot`, `game:removeRobot`). A robot is a seat the server plays: it counts toward `minPlayers` and `maxPlayers` and the deck limit like anyone, there must be at least one person, and it has no connection, account or rejoin token. Robots play through the same rules as people (the same strategy as hints, from what a player can see, never the hidden cards). A robot's turn is planned a moment ahead (about 1 second) and names the exact moment it was planned for, so a step planned for a moment that has passed does nothing. Robots only act while a person is connected; with every person away they wait, and after the kick time (90 seconds) a game with robots and nobody left is over, recorded as abandoned for each signed-in person. They cannot be kicked, are skipped when the host seat is lost (only a person can take over), and no result is recorded for them (the player count still includes them).
@@ -287,6 +291,9 @@ All Socket.IO events are rate-limited per socket ID using a sliding-window count
 | `game:listJoinable`  | 30    | 10 s    |
 | `game:start`         | 10    | 30 s    |
 | `game:playCard`      | 60    | 10 s    |
+| `game:createInvite`  | 10    | 30 s    |
+| `game:requestJoin`   | 5     | 30 s    |
+| `game:resolveJoin`   | 20    | 10 s    |
 | `game:addRobot`      | 10    | 10 s    |
 | `game:removeRobot`   | 10    | 10 s    |
 | `game:skip`          | 10    | 10 s    |

@@ -1,5 +1,6 @@
 import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, useCheatHotkeys, type HintView } from './cheats.js';
 import { CheatsPanel } from './CheatsPanel.js';
+import { InviteModal, JoinRequestModal } from './LateJoin.js';
 import { SeatChoice } from './SeatChoice.js';
 import { StorageNotice } from './StorageNotice.js';
 import { isClaimed } from './claims.js';
@@ -12,7 +13,7 @@ import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgre
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
-import { deckFitMessage, defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, maxPlayersFor, randomPresidentName, type Card, type CardLookupResult, type CheatUsedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { deckFitMessage, defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, maxPlayersFor, randomPresidentName, type Card, type CardLookupResult, type CheatUsedEvent, type JoinResolvedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
@@ -59,6 +60,7 @@ const SOCKET_REQUEST_ERROR = 'Unable to reach server. Please retry.';
 const JOINABLE_POLL_BASE_MS = import.meta.env.MODE === 'test' ? 120 : 5000;
 const JOINABLE_POLL_MAX_MS = import.meta.env.MODE === 'test' ? 600 : 30000;
 const GAME_QUERY_PARAM = 'game';
+const INVITE_QUERY_PARAM = 'invite';
 
 interface PersistedSettings {
   solitaire: GameSettings;
@@ -79,10 +81,18 @@ function readGameIdFromLocation(): string | null {
   return normalizeGameId(params.get(GAME_QUERY_PARAM));
 }
 
-function buildInviteLink(gameId: string): string {
+function buildInviteLink(gameId: string, inviteToken?: string): string {
   const url = new URL(window.location.href);
+  url.search = '';
   url.searchParams.set(GAME_QUERY_PARAM, gameId);
+  if (inviteToken) url.searchParams.set(INVITE_QUERY_PARAM, inviteToken);
   return url.toString();
+}
+
+// The single-use invitation in the address, if there is one and it looks like one.
+function readInviteFromLocation(): string | null {
+  const value = new URLSearchParams(window.location.search).get(INVITE_QUERY_PARAM);
+  return value && /^[A-Za-z0-9_-]{16,100}$/.test(value) ? value : null;
 }
 
 function syncGameIdInUrl(gameId: string | null): void {
@@ -202,6 +212,8 @@ interface GameBoardProps {
   onEndTurn?: () => void;
   // Opens the cheats panel. Present only when the game has a cheat turned on, so the panel is reachable from the keyboard.
   onOpenCheats?: () => void;
+  // Host only: make a single-use invitation for someone to join the game being played.
+  onInvite?: () => void;
   // A card and a pile to light up for a hint.
   hintCardId?: string | undefined;
   hintPileId?: number | undefined;
@@ -239,6 +251,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     onPlayPile,
     onEndTurn,
     onOpenCheats,
+    onInvite,
     hintCardId,
     hintPileId,
     playerId,
@@ -565,6 +578,11 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                 Undo
               </button>
             ) : null}
+            {onInvite ? (
+              <button type="button" className="secondary" onClick={onInvite} disabled={inputsDisabled} data-testid="invite-late">
+                Invite
+              </button>
+            ) : null}
             {onOpenCheats ? (
               <button type="button" className="secondary" onClick={onOpenCheats} disabled={inputsDisabled} data-testid="open-cheats">
                 Cheats
@@ -678,6 +696,11 @@ export function App(): JSX.Element {
   const playerIdRef = useRef<string | null>(null);
   playerIdRef.current = playerId;
   const pendingDeepLinkGameIdRef = useRef<string | null>(readGameIdFromLocation());
+  // An invitation to a game already being played: asking to join with it needs the host to say yes.
+  const inviteTokenRef = useRef<string | null>(readInviteFromLocation());
+  const [joinWaiting, setJoinWaiting] = useState(false);
+  const [joinRequests, setJoinRequests] = useState<Array<{ requestId: string; playerName: string }>>([]);
+  const [lateInvite, setLateInvite] = useState<{ link: string; expiresAtMs: number } | null>(null);
   const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
   // Touching the name hands control to the player: no auto-join while they type (the first letter would otherwise join as "S").
   const confirmName = (): void => { nameConfirmedRef.current = true; writeNameConfirmed(); pendingAutoJoinGameIdRef.current = null; };
@@ -913,6 +936,24 @@ export function App(): JSX.Element {
     socket.on('game:specialPlay', onSpecialPlay);
     socket.on('game:kicked', onKicked);
     socket.on('game:cheatUsed', onCheatUsed);
+    const onJoinRequest = (event: { requestId: string; playerName: string }): void => setJoinRequests((all) => (all.some((r) => r.requestId === event.requestId) ? all : [...all, event]));
+    const onJoinRequestCancelled = (event: { requestId: string }): void => setJoinRequests((all) => all.filter((r) => r.requestId !== event.requestId));
+    const onJoinResolved = (event: JoinResolvedEvent): void => {
+      setJoinWaiting(false);
+      if (!event.approved) {
+        setError(event.reason);
+        return;
+      }
+      // Let in. The invitation is used up, so it comes out of the address.
+      inviteTokenRef.current = null;
+      const url = new URL(window.location.href);
+      url.searchParams.delete(INVITE_QUERY_PARAM);
+      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+      adoptSeat({ gameState: event.gameState, playerId: event.playerId, rejoinToken: event.rejoinToken });
+    };
+    socket.on('game:joinRequest', onJoinRequest);
+    socket.on('game:joinRequestCancelled', onJoinRequestCancelled);
+    socket.on('game:joinResolved', onJoinResolved);
 
     if (!socket.connected) {
       socket.connect();
@@ -927,6 +968,9 @@ export function App(): JSX.Element {
       socket.off('game:specialPlay', onSpecialPlay);
       socket.off('game:kicked', onKicked);
       socket.off('game:cheatUsed', onCheatUsed);
+      socket.off('game:joinRequest', onJoinRequest);
+      socket.off('game:joinRequestCancelled', onJoinRequestCancelled);
+      socket.off('game:joinResolved', onJoinResolved);
       socket.disconnect();
       setConnectionState('disconnected');
       setGameReactions({});
@@ -1300,6 +1344,16 @@ export function App(): JSX.Element {
     }
 
     setError(null);
+    if (inviteTokenRef.current) {
+      // A game already being played: ask to join with the invitation, then wait for the host's answer.
+      const asked = await emitWithAck<{ requestId: string }>('game:requestJoin', { gameId, inviteToken: inviteTokenRef.current, playerName: trimmedName }, 'join');
+      if (!asked.ok) {
+        setError(asked.error);
+        return;
+      }
+      setJoinWaiting(true);
+      return;
+    }
     const ack = await emitWithAck<{ gameState: GameState; playerId: string; rejoinToken: string }>(
       'game:join',
       { gameId, playerName: trimmedName },
@@ -1411,6 +1465,31 @@ export function App(): JSX.Element {
   const handleRemoveRobot = async (robotId: string): Promise<void> => {
     if (!multiplayerState) return;
     const ack = await emitWithAck<{ gameState: GameState }>('game:removeRobot', { gameId: multiplayerState.gameId, playerId: robotId }, 'robot');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
+  // The host's side of joining a game in progress: make an invitation, and answer the requests that come in.
+  const handleCreateInvite = async (): Promise<void> => {
+    if (!multiplayerState) return;
+    const ack = await emitWithAck<{ token: string; expiresAtMs: number }>('game:createInvite', { gameId: multiplayerState.gameId }, 'cheat');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setLateInvite({ link: buildInviteLink(multiplayerState.gameId, ack.data.token), expiresAtMs: ack.data.expiresAtMs });
+  };
+
+  const handleAnswerJoin = async (approve: boolean): Promise<void> => {
+    const request = joinRequests[0];
+    if (!request || !multiplayerState) return;
+    const ack = await emitWithAck<{ gameState: GameState }>('game:resolveJoin', { gameId: multiplayerState.gameId, requestId: request.requestId, approve }, 'cheat');
+    setJoinRequests((all) => all.filter((r) => r.requestId !== request.requestId));
     if (!ack.ok) {
       setError(ack.error);
       return;
@@ -2308,6 +2387,7 @@ export function App(): JSX.Element {
                 onTakeOverHost={(hostId: string) => { void handleKickPlayer(hostId); }}
                 isHost={!!isHost}
                 {...(cheatStatusList.length > 0 ? { onOpenCheats: () => setCheatsOpen('panel') } : {})}
+                {...(isHost && multiplayerState?.gamePhase === 'playing' ? { onInvite: () => { void handleCreateInvite(); } } : {})}
                 hintCardId={hint?.cardId}
                 hintPileId={hint?.pileId}
               />
@@ -2472,6 +2552,14 @@ export function App(): JSX.Element {
           </div>
         </Modal>
       ) : null}
+
+      {joinWaiting ? <p className="join-waiting" aria-live="polite" data-testid="join-waiting">Asking the host to let you in. This page will open the game when they say yes.</p> : null}
+
+      {joinRequests[0] && multiplayerState && multiplayerState.hostId === playerId ? (
+        <JoinRequestModal playerName={joinRequests[0].playerName} busy={pendingAction !== null} onAnswer={(approve) => { void handleAnswerJoin(approve); }} />
+      ) : null}
+
+      {lateInvite ? <InviteModal link={lateInvite.link} expiresAtMs={lateInvite.expiresAtMs} onClose={() => setLateInvite(null)} /> : null}
 
       {seatChoices.length > 1 ? (
         <SeatChoice
