@@ -3,11 +3,13 @@
 //   npm run sim --workspace @upndown/engine -- play  --setting table4 --games 500
 //   npm run sim --workspace @upndown/engine -- train --setting table4 --rounds 30 --games 150 --seed 1
 //   npm run sim --workspace @upndown/engine -- report
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+//   npm run sim --workspace @upndown/engine -- tables
+//   npm run sim --workspace @upndown/engine -- eval --table s3-4p-99-h7 --set validation --games 3000 [--weights '{...}'] [--against '{...}']
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, type GameSettings } from '@upndown/shared-types';
-import { DEFAULT_WEIGHTS, playGame, scoreGame, seededRandom, type StrategyWeights } from '../src/index.js';
+import { compare, DEFAULT_WEIGHTS, playGame, playSet, scoreGame, seededRandom, seedsFor, STAGE_TABLES, summarize, tableById, weightedPolicy, type SeedSet, type StrategyWeights } from '../src/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const RUNS = path.join(here, 'runs');
@@ -168,9 +170,40 @@ function report(): void {
   }
 }
 
+function tables(): void {
+  for (const t of STAGE_TABLES) console.log(`stage ${t.stage}  ${t.id.padEnd(16)} ${t.label}`);
+}
+
+// Scores a strategy (and, with --against, compares it with another on the same deals). Use of the test set is logged: it is for once, at the end.
+function evalCommand(): void {
+  const table = tableById(arg('table', 's3-4p-99-h7'));
+  const set = arg('set', 'validation') as SeedSet;
+  if (!['train', 'validation', 'test'].includes(set)) throw new Error(`Unknown seed set ${set}`);
+  const games = Number(arg('games', '1000'));
+  const offset = Number(arg('offset', '0'));
+  const weights = { ...DEFAULT_WEIGHTS, ...(JSON.parse(arg('weights', '{}')) as Partial<StrategyWeights>) };
+  const seeds = seedsFor(set, games, offset);
+  const a = playSet(table, weightedPolicy(weights), seeds);
+  const s = summarize(a);
+  console.log(`${table.id} on ${set} games ${offset}..${offset + games - 1}: won ${pct(s.winRate)} (${pct(s.winInterval[0])} to ${pct(s.winInterval[1])}), score ${s.score.mean.toFixed(2)} (${s.score.low.toFixed(2)} to ${s.score.high.toFixed(2)}), sd ${s.scoreSd.toFixed(1)}, cards left ${s.cardsLeft.toFixed(2)}, stalled ${s.stalled}`);
+  const against = arg('against', '');
+  if (against) {
+    const b = playSet(table, weightedPolicy({ ...DEFAULT_WEIGHTS, ...(JSON.parse(against) as Partial<StrategyWeights>) }), seeds);
+    const c = compare(a, b);
+    console.log(`  against: score ${c.score.mean >= 0 ? '+' : ''}${c.score.mean.toFixed(2)} (${c.score.low.toFixed(2)} to ${c.score.high.toFixed(2)}), cards left ${c.cardsLeft.mean.toFixed(2)}, only this won ${c.onlyAWon}, only other won ${c.onlyBWon}, p ${c.pValue.toPrecision(2)}`);
+  }
+  if (set === 'test') {
+    mkdirSync(RUNS, { recursive: true });
+    appendFileSync(path.join(RUNS, 'test-set-usage.log'), `${new Date().toISOString()}  ${table.id}  games ${offset}..${offset + games - 1}  weights ${JSON.stringify(weights)}\n`);
+    console.log('  logged to runs/test-set-usage.log (the test set is for once, at the end)');
+  }
+}
+
 const command = process.argv[2];
 if (command === 'play') play();
 else if (command === 'train') train();
 else if (command === 'report') report();
 else if (command === 'calibrate') calibrate();
-else console.log('Usage: sim <play|train|report|calibrate> [--setting solo|solo-easy|table2|table4] [--games N] [--rounds N] [--seed N]');
+else if (command === 'tables') tables();
+else if (command === 'eval') evalCommand();
+else console.log('Usage: sim <play|train|report|calibrate|tables|eval> [--setting solo|solo-easy|table2|table4] [--games N] [--rounds N] [--seed N]');

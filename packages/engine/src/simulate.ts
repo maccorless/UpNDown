@@ -1,6 +1,6 @@
 import type { Card, GameSettings, GameState } from '@upndown/shared-types';
 import { buildDeck } from './init.js';
-import { chooseAction, DEFAULT_WEIGHTS, observe, type StrategyWeights } from './strategy.js';
+import { chooseAction, DEFAULT_WEIGHTS, observe, type Action, type Observation, type StrategyWeights } from './strategy.js';
 import { createStartedGameState, endTurn, playCard, skipTurn, tradeCard } from './transitions.js';
 
 // A small seeded random source, so a game can be played again exactly from its seed.
@@ -34,9 +34,15 @@ export interface GameRecord {
   steps: number;
 }
 
-// Plays a whole game with the strategy in every seat, entirely in process: no sockets, no clock, no pacing. Solitaire when
-// `players` is 1. `random` drives the shuffle and trades, so the same seed gives the same game.
-export function playGame(settings: GameSettings, players: number, seed: number, weights: StrategyWeights = DEFAULT_WEIGHTS): GameRecord {
+// Anything that chooses what to do from what a player can see. The weighted strategy is one; a search teacher, a network and
+// a rule list are others. `random` is the game's own random source, so a policy that needs chance stays reproducible.
+export type Policy = (obs: Observation, random: () => number) => Action;
+
+export const weightedPolicy = (weights: StrategyWeights = DEFAULT_WEIGHTS): Policy => (obs) => chooseAction(obs, weights);
+
+// Plays a whole game with the same policy in every seat, entirely in process: no sockets, no clock, no pacing. Solitaire when
+// `players` is 1. `random` drives the shuffle and trades, so the same seed gives the same shuffle whatever the policy does.
+export function playGameWith(settings: GameSettings, players: number, seed: number, policy: Policy): GameRecord {
   const random = seededRandom(seed);
   const solitaire = players === 1;
   let state: GameState = createStartedGameState({
@@ -49,22 +55,28 @@ export function playGame(settings: GameSettings, players: number, seed: number, 
   });
   let steps = 0;
   const limit = 5000;
+  const finish = (outcome: GameRecord['outcome']): GameRecord => ({
+    outcome, cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps
+  });
   while (state.gamePhase === 'playing' && steps < limit) {
     steps += 1;
     const id = state.players[state.currentPlayerIndex]!.id;
-    const action = chooseAction(observe(state, id), weights);
+    const action = policy(observe(state, id), random);
     try {
       if (action.type === 'play') state = playCard(state, id, action.cardId, action.pileId);
       else if (action.type === 'endTurn') state = endTurn(state, id);
       else if (action.type === 'skip') state = skipTurn(state, id);
       else if (action.type === 'trade') state = tradeCard(state, id, action.cardId, random);
-      else return { outcome: 'stalled', cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
+      else return finish('stalled');
     } catch {
-      return { outcome: 'stalled', cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
+      return finish('stalled');
     }
   }
-  const outcome = state.gamePhase === 'won' ? 'won' : state.gamePhase === 'lost' ? 'lost' : 'stalled';
-  return { outcome, cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps };
+  return finish(state.gamePhase === 'won' ? 'won' : state.gamePhase === 'lost' ? 'lost' : 'stalled');
+}
+
+export function playGame(settings: GameSettings, players: number, seed: number, weights: StrategyWeights = DEFAULT_WEIGHTS): GameRecord {
+  return playGameWith(settings, players, seed, weightedPolicy(weights));
 }
 
 const cardsLeft = (state: GameState): number => state.drawPile.length + state.players.reduce((sum, player) => sum + player.hand.length, 0);
