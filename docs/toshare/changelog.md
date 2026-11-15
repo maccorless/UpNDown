@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-15 | — | Feat: cheats. A cheats panel (double tap the logo, or the Cheats button), card seeker, skip and trade, each off, once per game or unlimited, set in Settings under Cheat codes. Other players are told when a cheat is used, and a card lookup is now private to the asker. Cheat use shows on the end screen and is stored with results. Replaces the Nas swap |
 | 2026-11-15 | — | Feat: groundwork for cheats: per-game cheat limits (off, once, unlimited), per-player counters for skips, trades, lookups and hints, and four new columns on stored results. Feat: the How to Play page opens with a one-minute quick start |
 | 2026-11-15 | — | Feat: hands of up to 11 cards (the deck is checked, so a table never gets uneven hands, and a hand of 11 fits a phone screen). Fix: the up and down arrows on the foundation piles sit midway between the card and the pile edge |
 | 2026-11-15 | — | Fix: privacy page now describes the planned database saving of games in progress (what is kept, 24 hour limit, hashed rejoin tokens) and the 30 minute limit that applies today |

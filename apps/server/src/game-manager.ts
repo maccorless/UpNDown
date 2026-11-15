@@ -1,5 +1,5 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
-import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, settleAfterRemoval, shuffle, useNasCheat } from '@upndown/engine';
+import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
@@ -7,16 +7,17 @@ import type {
   JoinGamePayload,
   JoinLookupSummary,
   KickPlayerPayload,
-  NasCheatPayload,
   PlayCardPayload,
   Player,
   PlayerColor,
   ReactionState,
   ReconnectionView,
+  SkipPayload,
+  TradePayload,
   ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
-import { deckFitMessage, defaultMultiplayerSettings, maxPlayersFor, PLAYER_COLORS } from '@upndown/shared-types';
+import { deckFitMessage, defaultMultiplayerSettings, maxPlayersFor, PLAYER_COLORS, withCheatLimits } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
 import { uniqueInGameName } from './player-names.js';
 import { buildResultRows } from './profile/result-rows.js';
@@ -266,6 +267,7 @@ export class GameManager {
     if (unfit) {
       throw new Error(unfit);
     }
+    const settings = withCheatLimits(payload.settings);
 
     const gameId = this.generateUniqueGameId();
 
@@ -281,7 +283,7 @@ export class GameManager {
       gameId,
       hostId: ownerPlayerId,
       players: [host],
-      foundationPiles: createFoundationPiles(payload.settings),
+      foundationPiles: createFoundationPiles(settings),
       drawPile: [],
       currentPlayerIndex: 0,
       gamePhase: 'lobby',
@@ -300,7 +302,7 @@ export class GameManager {
           [ownerPlayerId]: false
         }
       },
-      settings: payload.settings,
+      settings,
       isSolitaire: false
     };
 
@@ -481,16 +483,41 @@ export class GameManager {
       throw new Error('Nothing to undo');
     }
     const previous = room.turnUndoStack.pop()!;
-    room.gameState = previous;
+    // Cheats that were counted since the snapshot (a card lookup, a hint) are not undone with the play.
+    const current = room.gameState.statistics.players;
+    const restored: GameState = {
+      ...previous,
+      statistics: {
+        ...previous.statistics,
+        players: Object.fromEntries(Object.entries(previous.statistics.players).map(([id, stats]) => {
+          const now = current[id];
+          return [id, now ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed } : stats];
+        }))
+      }
+    };
+    room.gameState = restored;
     room.updatedAtMs = Date.now();
-    return previous;
+    return restored;
   }
 
-  nasCheat(playerId: string, payload: NasCheatPayload): GameState {
+  // Skip and trade change the game for good: each clears the undo history, so undo can never take one back or refund it.
+  skip(playerId: string, payload: SkipPayload): GameState {
     const room = this.requireRoom(payload.gameId);
     const previous = room.gameState;
-    const nextState = useNasCheat(previous, playerId, payload.cardId);
+    const nextState = skipTurn(previous, playerId);
     room.gameState = nextState;
+    room.turnUndoStack = [];
+    room.updatedAtMs = Date.now();
+    this.recordIfFinished(room, previous, nextState);
+    return nextState;
+  }
+
+  trade(playerId: string, payload: TradePayload): GameState {
+    const room = this.requireRoom(payload.gameId);
+    const previous = room.gameState;
+    const nextState = tradeCard(previous, playerId, payload.cardId);
+    room.gameState = nextState;
+    room.turnUndoStack = [];
     room.updatedAtMs = Date.now();
     this.recordIfFinished(room, previous, nextState);
     return nextState;
@@ -593,7 +620,7 @@ export class GameManager {
 
     const nextState: GameState = {
       ...gameState,
-      settings: payload.settings
+      settings: withCheatLimits(payload.settings)
     };
 
     room.gameState = nextState;
@@ -865,6 +892,8 @@ export class GameManager {
     throw new Error('Unable to generate unique game id');
   }
 
+  // Answers only the asker. Counts the use (and refuses it under "once" a second time); the others are told a lookup
+  // happened, never what it found.
   lookupCardStatus(gameId: string, playerId: string, cardValue: number): { status: 'in-draw' | 'in-hand' | 'played'; playerName: string; holderName?: string } {
     const room = this.requireRoom(gameId);
     const { gameState } = room;
@@ -872,13 +901,13 @@ export class GameManager {
     if (gameState.gamePhase !== 'playing') {
       throw new Error('Card lookup is only available during an active game');
     }
-    if (!gameState.settings.allowCardLookup) {
-      throw new Error('Card lookup cheat is not enabled for this game');
-    }
     const player = gameState.players.find((p) => p.id === playerId);
     if (!player) {
       throw new Error('You are not in this game');
     }
+    // Throws when the card seeker is off for this game, or its single use is spent.
+    room.gameState = recordCheatUse(gameState, playerId, 'lookup');
+    room.updatedAtMs = Date.now();
 
     if (gameState.drawPile.some((c) => c.value === cardValue)) {
       return { status: 'in-draw', playerName: player.name };

@@ -1,5 +1,15 @@
 # Up-N-Down — Game Mechanics and Implementation Guide
 
+## Cheats
+
+Each cheat is off, once (one use per player per game) or unlimited, set per game (`cheatLimits`). Cheats are used before the game ends, never to rescue a lost game, and none can be undone.
+
+- **Card seeker (`lookup`)**: ask where a card is. Only the asker is told; everyone else is sent `game:cheatUsed` (who and which cheat, nothing about the card). Hotkey Ctrl/Cmd-P.
+- **Skip (`skip`)**: on your turn, before playing a card, pass without the minimum. Not offered in solitaire. No refill. A full round of skips with no card played by anyone ends the game as a loss. Ctrl/Cmd-S, with a confirmation.
+- **Trade (`trade`)**: swap a hand card for the next draw card; the card you give goes back into the draw pile at a random position. Active player only. Ctrl/Cmd-Shift-X.
+- Skip and trade clear the undo history. A lookup or hint is not refunded by undo.
+- The panel opens by double tapping the logo or from the Cheats button; the keys are accelerators only.
+
 ## Game Overview
 Up-N-Down is a cooperative card game where players work together to play all cards from their hands onto four foundation piles. The game features unique ascending and descending rules with a special "backward-10" move that adds strategic depth.
 
@@ -220,7 +230,8 @@ interface GameSettings {
   autoRefillHand: boolean;   // Default: false (multiplayer), true (solitaire)
   allowUndo: boolean;        // Default: false
   privateGame: boolean;      // Default: false
-  allowCardLookup: boolean;  // Default: false (cheat feature)
+  allowCardLookup: boolean;  // Default: false. Old switch for the card seeker; read as `unlimited` when cheatLimits is absent
+  cheatLimits?: Record<'lookup' | 'skip' | 'trade' | 'hint', 'off' | 'once' | 'unlimited'>;  // Default: all off
   showArrows: boolean;       // Default: true (pile direction arrows)
 }
 ```
@@ -271,7 +282,8 @@ All Socket.IO events are rate-limited per socket ID using a sliding-window count
 | `game:listJoinable`  | 30    | 10 s    |
 | `game:start`         | 10    | 30 s    |
 | `game:playCard`      | 60    | 10 s    |
-| `game:nasCheat`      | 30    | 10 s    |
+| `game:skip`          | 10    | 10 s    |
+| `game:trade`         | 10    | 10 s    |
 | `game:endTurn`       | 30    | 10 s    |
 | `game:undoPlay`      | 30    | 10 s    |
 | `game:endGame`       | 10    | 30 s    |
@@ -289,7 +301,7 @@ Limits are per socket. `game:lookup` and `game:join` are also limited per client
 - **Cards Played**: Total count
 - **Total Movement**: Net progress of the piles: each play adds how far it moved the pile in its own direction, so a backward 10 subtracts 10. The team total equals the sum of how far each pile ended from its start.
 - **Special Plays**: Count of backward-10 moves
-- **Nas Cheats Used**: Card-swap cheat uses
+- **Cheats Used**: skips, trades, card lookups and hints, counted per player and shown on the end screen (the old Nas swap count is read as trades)
 
 **Aggregate** (in `GameStatistics`):
 - `turns`: Total turns completed

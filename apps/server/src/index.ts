@@ -9,12 +9,14 @@ import {
   createGamePayloadSchema,
   joinGamePayloadSchema,
   kickPlayerPayloadSchema,
-  nasCheatPayloadSchema,
+  skipPayloadSchema,
+  tradePayloadSchema,
   playCardPayloadSchema,
   rejoinGamePayloadSchema,
   setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
+import type { CheatUsedEvent } from '@upndown/shared-types';
 import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { resolveClientIp } from './client-ip.js';
 import { GameManager } from './game-manager.js';
@@ -67,7 +69,8 @@ const eventRateLimits: Record<
   | 'game:listJoinable'
   | 'game:start'
   | 'game:playCard'
-  | 'game:nasCheat'
+  | 'game:skip'
+  | 'game:trade'
   | 'game:endTurn'
   | 'game:undoPlay'
   | 'game:endGame'
@@ -86,7 +89,8 @@ const eventRateLimits: Record<
   'game:listJoinable':   { limit: 30, windowMs: 10_000 },
   'game:start':          { limit: 10, windowMs: 30_000 },
   'game:playCard':       { limit: 60, windowMs: 10_000 },
-  'game:nasCheat':       { limit: 30, windowMs: 10_000 },
+  'game:skip':           { limit: 10, windowMs: 10_000 },
+  'game:trade':          { limit: 10, windowMs: 10_000 },
   'game:endTurn':        { limit: 30, windowMs: 10_000 },
   'game:undoPlay':       { limit: 30, windowMs: 10_000 },
   'game:endGame':        { limit: 10, windowMs: 30_000 },
@@ -523,21 +527,44 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
       }
     });
 
-    socket.on('game:nasCheat', (payload, ack?: Ack<{ gameState: unknown }>) => {
-      if (!passesRateLimit(socket.id, 'game:nasCheat')) {
-        const message = 'Too many cheat attempts. Please wait a moment and try again.';
-        log('warn', 'game.nas_cheat_rate_limited', { socketId: socket.id });
-        reply(ack, { ok: false, error: message });
+    // Tells everyone in the room that a cheat was used. Never says what the cheat found.
+    const announceCheat = (gameId: string, kind: CheatUsedEvent['kind']): void => {
+      const player = manager.peekState(gameId)?.players.find((p) => p.id === socket.id);
+      if (player) io.to(gameId).emit('game:cheatUsed', { playerId: player.id, playerName: player.name, kind } satisfies CheatUsedEvent);
+    };
+
+    socket.on('game:skip', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:skip')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
         return;
       }
       try {
-        const parsed = nasCheatPayloadSchema.parse(payload);
-        const gameState = manager.nasCheat(socket.id, parsed);
+        const parsed = skipPayloadSchema.parse(payload);
+        const gameState = manager.skip(socket.id, parsed);
+        announceCheat(gameState.gameId, 'skip');
         broadcastState(gameState.gameId, gameState);
         reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
-        const message = normalizeError(err, 'Unable to use Nas cheat');
-        log('warn', 'game.nas_cheat_failed', { socketId: socket.id, error: message });
+        const message = normalizeError(err, 'Unable to skip');
+        log('warn', 'game.skip_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    socket.on('game:trade', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:trade')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = tradePayloadSchema.parse(payload);
+        const gameState = manager.trade(socket.id, parsed);
+        announceCheat(gameState.gameId, 'trade');
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to trade');
+        log('warn', 'game.trade_failed', { socketId: socket.id, error: message });
         reply(ack, { ok: false, error: message });
       }
     });
@@ -704,12 +731,9 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const result = { cardValue: parsed.cardValue, status, playerName, ...(holderName ? { holderName } : {}) };
         // Not the card or what it turned out to be: that is hidden-hand information, and nothing needs it on disk.
         log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, secret: parsed.secret === true });
-        if (parsed.secret) {
-          reply(ack, { ok: true, data: { result: { ...result, playerName: '' } } });
-          return;
-        }
-        io.to(parsed.gameId).emit('game:cardLookupResult', result);
-        reply(ack, { ok: true, data: {} });
+        // Only the asker sees what was found. The others are told that a lookup happened.
+        announceCheat(parsed.gameId, 'lookup');
+        reply(ack, { ok: true, data: { result } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to look up card');
         log('warn', 'game.card_lookup_failed', { socketId: socket.id, error: message });

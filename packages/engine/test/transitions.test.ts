@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { Card, GameSettings } from '@upndown/shared-types';
 import { buildDeck } from '../src/init.js';
 import { EngineError } from '../src/errors.js';
-import { createStartedGameState, endTurn, playCard, settleAfterRemoval, useNasCheat } from '../src/transitions.js';
+import { isValidPlay } from '../src/rules.js';
+import { createStartedGameState, endTurn, playCard, recordCheatUse, settleAfterRemoval, skipTurn, tradeCard } from '../src/transitions.js';
 
 const settings: GameSettings = {
   minCardValue: 2,
@@ -373,69 +374,133 @@ describe('solitaire loss detection', () => {
   });
 });
 
-describe('nas cheat mode', () => {
-  it('allows nas player to trade one card once per turn and tracks usage', () => {
-    const state = createStartedGameState({
-      gameId: 'ABC123',
-      hostId: 'p1',
-      players: [
-        { id: 'p1', name: 'nas' },
-        { id: 'p2', name: 'Player 2' }
-      ],
-      settings,
-      isSolitaire: false,
-      deck: buildDeck(settings)
-    });
+const cheatSettings = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint', 'off' | 'once' | 'unlimited'>>): GameSettings => ({
+  ...settings,
+  cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off', ...limits }
+});
+const table = (limits: Parameters<typeof cheatSettings>[0], players = 3) => createStartedGameState({
+  gameId: 'ABC123',
+  hostId: 'p1',
+  players: Array.from({ length: players }, (_, i) => ({ id: `p${i + 1}`, name: `Player ${i + 1}` })),
+  settings: cheatSettings(limits),
+  isSolitaire: false,
+  deck: buildDeck(settings)
+});
 
-    const tradedCardId = state.players[0]!.hand[0]!.id;
-    const beforeHandSize = state.players[0]!.hand.length;
-    const next = useNasCheat(state, 'p1', tradedCardId);
-
-    expect(next.players[0]!.hand.length).toBe(beforeHandSize);
-    expect(next.nasCheat.usedThisTurnByPlayerId.p1).toBe(true);
-    expect(next.statistics.players.p1?.nasCheatsUsed).toBe(1);
-    expect(next.players[0]!.hand.some((cardInHand) => cardInHand.id === tradedCardId)).toBe(false);
-    expect(next.drawPile.some((cardInDraw) => cardInDraw.id === tradedCardId)).toBe(true);
+describe('trade', () => {
+  it('swaps a hand card for the next draw card, and the handed over card goes back into the pile', () => {
+    const state = table({ trade: 'once' });
+    const traded = state.players[0]!.hand[0]!;
+    const next = state.drawPile[0]!;
+    const out = tradeCard(state, 'p1', traded.id);
+    expect(out.players[0]!.hand).toHaveLength(state.players[0]!.hand.length);
+    expect(out.players[0]!.hand.map((c) => c.id)).toContain(next.id);
+    expect(out.players[0]!.hand.map((c) => c.id)).not.toContain(traded.id);
+    expect(out.drawPile.map((c) => c.id)).toContain(traded.id);
+    // Nothing is lost or made up: every card is still in the game exactly once.
+    const ids = (s: typeof state) => [...s.drawPile, ...s.players.flatMap((p) => p.hand)].map((c) => c.id).sort();
+    expect(ids(out)).toEqual(ids(state));
+    expect(out.statistics.players.p1!.tradesUsed).toBe(1);
   });
 
-  it('rejects second cheat in the same turn and resets cheat usage on end turn', () => {
-    const state = createStartedGameState({
-      gameId: 'ABC123',
-      hostId: 'p1',
-      players: [
-        { id: 'p1', name: 'nas' },
-        { id: 'p2', name: 'Player 2' }
-      ],
-      settings,
-      isSolitaire: false,
-      deck: buildDeck(settings)
-    });
-
-    const firstCardId = state.players[0]!.hand[0]!.id;
-    const afterCheat = useNasCheat(state, 'p1', firstCardId);
-    const secondCardId = afterCheat.players[0]!.hand[0]!.id;
-    expect(() => useNasCheat(afterCheat, 'p1', secondCardId)).toThrowError(EngineError);
-
-    const canEndTurnState = { ...afterCheat, cardsPlayedThisTurn: settings.minCardsPerTurn };
-    const ended = endTurn(canEndTurnState, 'p1');
-    expect(ended.nasCheat.usedThisTurnByPlayerId.p1).toBe(false);
+  it('puts the handed over card at a random place, chosen by the caller\'s random source', () => {
+    const state = table({ trade: 'unlimited' });
+    const traded = state.players[0]!.hand[0]!;
+    const atStart = tradeCard(state, 'p1', traded.id, () => 0);
+    const atEnd = tradeCard(state, 'p1', traded.id, () => 0.999999);
+    expect(atStart.drawPile[0]!.id).toBe(traded.id);
+    expect(atEnd.drawPile.at(-1)!.id).toBe(traded.id);
   });
 
-  it('rejects nas cheat attempts from non-nas players', () => {
-    const state = createStartedGameState({
-      gameId: 'ABC123',
-      hostId: 'p1',
-      players: [
-        { id: 'p1', name: 'Host' },
-        { id: 'p2', name: 'Player 2' }
-      ],
-      settings,
-      isSolitaire: false,
-      deck: buildDeck(settings)
-    });
+  it('is off unless the game allows it, and under "once" only the first use works', () => {
+    expect(() => tradeCard(table({}), 'p1', 'c-2')).toThrow(EngineError);
+    const once = table({ trade: 'once' });
+    const after = tradeCard(once, 'p1', once.players[0]!.hand[0]!.id);
+    expect(() => tradeCard(after, 'p1', after.players[0]!.hand[0]!.id)).toThrow('already used');
+    const unlimited = table({ trade: 'unlimited' });
+    const twice = tradeCard(tradeCard(unlimited, 'p1', unlimited.players[0]!.hand[0]!.id), 'p1', unlimited.players[0]!.hand[1]!.id);
+    expect(twice.statistics.players.p1!.tradesUsed).toBe(2);
+  });
 
-    const cardId = state.players[0]!.hand[0]!.id;
-    expect(() => useNasCheat(state, 'p1', cardId)).toThrowError(EngineError);
+  it('is only for the active player, and needs a card in the draw pile', () => {
+    const state = table({ trade: 'unlimited' });
+    expect(() => tradeCard(state, 'p2', state.players[1]!.hand[0]!.id)).toThrow('active player');
+    expect(() => tradeCard({ ...state, drawPile: [] }, 'p1', state.players[0]!.hand[0]!.id)).toThrow('draw pile');
+  });
+
+  it('counts the swap as a trade for a game that still has the old Nas count', () => {
+    const state = table({ trade: 'unlimited' });
+    const legacy = { ...state, statistics: { ...state.statistics, players: { ...state.statistics.players, p1: { ...state.statistics.players.p1!, nasCheatsUsed: 2 } } } };
+    expect(tradeCard(legacy, 'p1', legacy.players[0]!.hand[0]!.id).statistics.players.p1).toMatchObject({ nasCheatsUsed: 2, tradesUsed: 1 });
+  });
+});
+
+describe('skip', () => {
+  it('passes the turn without the minimum, counts the use, and does not refill the hand', () => {
+    const state = table({ skip: 'once' });
+    const out = skipTurn(state, 'p1');
+    expect(out.currentPlayerIndex).toBe(1);
+    expect(out.statistics.players.p1!.skipsUsed).toBe(1);
+    expect(out.players[0]!.hand).toEqual(state.players[0]!.hand);
+    expect(out.cardsPlayedThisTurn).toBe(0);
+    expect(out.gamePhase).toBe('playing');
+  });
+
+  it('is only for the active player, never in solitaire, never after a card was played this turn', () => {
+    const state = table({ skip: 'unlimited' });
+    expect(() => skipTurn(state, 'p2')).toThrow('active player');
+    expect(() => skipTurn({ ...state, cardsPlayedThisTurn: 1 }, 'p1')).toThrow('before playing a card');
+    expect(() => skipTurn({ ...state, isSolitaire: true }, 'p1')).toThrow(EngineError);
+  });
+
+  it('is off unless allowed, and under "once" works one time only', () => {
+    expect(() => skipTurn(table({}), 'p1')).toThrow('not enabled');
+    const once = table({ skip: 'once' });
+    const afterFirst = skipTurn(once, 'p1');
+    // Come back round to p1 with no card played in between: still refused, p1 has used their skip.
+    const backToP1 = { ...afterFirst, currentPlayerIndex: 0 };
+    expect(() => skipTurn(backToP1, 'p1')).toThrow('already used');
+  });
+
+  // A table of unlimited skippers must not stall the game for ever.
+  it('ends the game as a loss when everyone has skipped in a row without a card being played', () => {
+    let state = table({ skip: 'unlimited' });
+    state = skipTurn(state, 'p1');
+    state = skipTurn(state, 'p2');
+    expect(state.gamePhase).toBe('playing');
+    state = skipTurn(state, 'p3');
+    expect(state.gamePhase).toBe('lost');
+  });
+
+  it('starts the count again when a card is played', () => {
+    let state = table({ skip: 'unlimited' });
+    state = skipTurn(state, 'p1');
+    state = skipTurn(state, 'p2');
+    // p3 plays a card on a pile, which breaks the run of skips.
+    const p3 = state.players[2]!;
+    const play = p3.hand.flatMap((card) => state.foundationPiles.filter((pile) => isValidPlay(card, pile)).map((pile) => ({ card, pile })))[0]!;
+    state = playCard(state, 'p3', play.card.id, play.pile.id);
+    expect(state.consecutiveSkips).toBe(0);
+  });
+});
+
+describe('recording a cheat that does not change the game', () => {
+  it('counts a card lookup, refuses it when off, and refuses a second one under "once"', () => {
+    expect(() => recordCheatUse(table({}), 'p1', 'lookup')).toThrow('not enabled');
+    const once = table({ lookup: 'once' });
+    const counted = recordCheatUse(once, 'p1', 'lookup');
+    expect(counted.statistics.players.p1!.lookupsUsed).toBe(1);
+    expect(() => recordCheatUse(counted, 'p1', 'lookup')).toThrow('already used');
+    const many = recordCheatUse(recordCheatUse(table({ lookup: 'unlimited' }), 'p1', 'lookup'), 'p1', 'lookup');
+    expect(many.statistics.players.p1!.lookupsUsed).toBe(2);
+  });
+
+  it('reads the old card seeker switch when no limits were given', () => {
+    const old = createStartedGameState({
+      gameId: 'ABC123', hostId: 'p1', players: [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }],
+      settings: { ...settings, allowCardLookup: true }, isSolitaire: false, deck: buildDeck(settings)
+    });
+    expect(recordCheatUse(old, 'p1', 'lookup').statistics.players.p1!.lookupsUsed).toBe(1);
   });
 });
 

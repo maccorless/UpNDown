@@ -1,5 +1,6 @@
 import { emptyPlayerStats } from '@upndown/engine';
-import type { GameState } from '@upndown/shared-types';
+import { CHEAT_KINDS, cheatLimitOf, type GameState } from '@upndown/shared-types';
+import { cheatCount, describeCheats } from './cheats.js';
 import type { CSSProperties, JSX } from 'react';
 import { deckProgress, lossLine, PLAYER_COLOR_HEX, statsHighlights } from './board-helpers.js';
 import { Modal } from './Modal.js';
@@ -81,8 +82,9 @@ export function EndGameStatisticsModal({
   const fallback = emptyPlayerStats();
   const rows = gameState.players.map((player) => ({ player, stats: statistics.players[player.id] ?? fallback }));
   const mostPlayed = Math.max(1, ...rows.map((row) => row.stats.cardsPlayed));
-  const hasNasCheatMode = gameState.nasCheat.enabledPlayerIds.length > 0;
-  const totalNasCheatsUsed = rows.reduce((sum, row) => sum + row.stats.nasCheatsUsed, 0);
+  const totalCheatsUsed = rows.reduce((sum, row) => sum + cheatCount(row.stats), 0);
+  // Shown when the game offered any cheat or one was used, so a game with none looks as it always did.
+  const showCheats = totalCheatsUsed > 0 || CHEAT_KINDS.some((kind) => cheatLimitOf(gameState.settings, kind) !== 'off');
   const durationMs = statistics.startedAtMs ? (statistics.endedAtMs ?? Date.now()) - statistics.startedAtMs : 0;
   const playsLabel = mode === 'multiplayer' ? `${statistics.turns} turns` : `${highlights.totalCardsPlayed} plays`;
   const top = highlights.topBackwardTen;
@@ -127,10 +129,10 @@ export function EndGameStatisticsModal({
           <div className="stats-tile-value">{highlights.averageMovement.toFixed(1)}</div>
           <div className="stats-tile-label">Avg Movement / Card</div>
         </div>
-        {hasNasCheatMode ? (
+        {showCheats ? (
           <div className="stats-tile">
-            <div className="stats-tile-value">{totalNasCheatsUsed}</div>
-            <div className="stats-tile-label">Nascheats Used</div>
+            <div className="stats-tile-value">{totalCheatsUsed}</div>
+            <div className="stats-tile-label">Cheats Used</div>
           </div>
         ) : null}
       </div>
@@ -148,7 +150,7 @@ export function EndGameStatisticsModal({
               <th scope="col">Player</th>
               <th scope="col">Cards Played</th>
               <th scope="col">Backward-10</th>
-              {hasNasCheatMode ? <th scope="col">Nascheats</th> : null}
+              {showCheats ? <th scope="col">Cheats</th> : null}
               <th scope="col">Avg Move / Card</th>
             </tr>
           </thead>
@@ -168,7 +170,7 @@ export function EndGameStatisticsModal({
                     {stats.cardsPlayed}
                   </td>
                   <td>{stats.specialPlays}</td>
-                  {hasNasCheatMode ? <td>{stats.nasCheatsUsed}</td> : null}
+                  {showCheats ? <td>{describeCheats(stats)}</td> : null}
                   <td>{average.toFixed(1)}</td>
                 </tr>
               );

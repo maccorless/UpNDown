@@ -1,7 +1,15 @@
-import { deckFitMessage, maxPlayersFor, type GameSettings } from '@upndown/shared-types';
+import { cheatLimitOf, deckFitMessage, maxPlayersFor, withCheatLimits, type CheatKind, type CheatLimit, type GameSettings } from '@upndown/shared-types';
 import { useState } from 'react';
 import { Modal } from './Modal.js';
 import { APP_VERSION } from './version.js';
+
+const LIMIT_LABELS: Record<CheatLimit, string> = { off: 'Off', once: 'Once per game', unlimited: 'Unlimited' };
+const LIMIT_OPTIONS = (['off', 'once', 'unlimited'] as const).map((value) => ({ value, label: value === 'once' ? 'Once' : LIMIT_LABELS[value] }));
+const CHEAT_ROWS: Array<{ kind: CheatKind; label: string; hint: string }> = [
+  { kind: 'lookup', label: 'Card seeker', hint: 'Find where a card is (Ctrl/Cmd-P). Only the asker sees the answer; the others are told one was used.' },
+  { kind: 'skip', label: 'Skip turn', hint: 'Pass your turn without the minimum (Ctrl/Cmd-S, after a confirmation). Before you are stuck, not after.' },
+  { kind: 'trade', label: 'Trade a card', hint: 'Swap a hand card for the next draw card (Ctrl/Cmd-Shift-X). The card you give goes back in at random.' }
+];
 
 type PresetName = 'trivial' | 'easy' | 'normal' | 'hard';
 
@@ -182,7 +190,9 @@ function OpenSettingsDialog({
                 </>
               )}
               <div><dt>Pile arrows</dt><dd>{yesNo(settings.showArrows)}</dd></div>
-              <div><dt>Card Lookup cheat</dt><dd>{yesNo(settings.allowCardLookup)}</dd></div>
+              {CHEAT_ROWS.filter((row) => !(isSolitaire && row.kind === 'skip')).map((row) => (
+                <div key={row.kind}><dt>{row.label}</dt><dd>{LIMIT_LABELS[cheatLimitOf(settings, row.kind)]}</dd></div>
+              ))}
             </dl>
           ) : (
             <div className="settings-groups">
@@ -340,14 +350,21 @@ function OpenSettingsDialog({
 
           {editable ? (
             <details className="settings-adv">
-              <summary>Cheats</summary>
-              <Switch
-                id="settings-card-lookup"
-                label="Card Lookup"
-                hint="Press Ctrl+Shift+C in a game to find where a card is. In multiplayer, everyone sees the result."
-                checked={settings.allowCardLookup}
-                onChange={(checked) => update({ allowCardLookup: checked })}
-              />
+              <summary>Cheat codes</summary>
+              {CHEAT_ROWS.filter((row) => !(isSolitaire && row.kind === 'skip')).map((row) => (
+                <div className="settings-row" key={row.kind}>
+                  <span className="settings-row-label" id={`settings-cheat-${row.kind}-label`}>{row.label}</span>
+                  <Segmented
+                    name={`settings-cheat-${row.kind}`}
+                    labelId={`settings-cheat-${row.kind}-label`}
+                    describedBy={`settings-cheat-${row.kind}-hint`}
+                    current={cheatLimitOf(settings, row.kind)}
+                    onPick={(value) => update(withCheatLimits({ ...settings, cheatLimits: { ...withCheatLimits(settings).cheatLimits!, [row.kind]: value as CheatLimit } }))}
+                    options={LIMIT_OPTIONS}
+                  />
+                  <span className="settings-hint" id={`settings-cheat-${row.kind}-hint`}>{row.hint}</span>
+                </div>
+              ))}
             </details>
           ) : null}
 

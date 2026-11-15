@@ -1,13 +1,15 @@
+import { cheatNoticeText, cheatStatuses, keepCheatCounts, useCheatHotkeys } from './cheats.js';
+import { CheatsPanel } from './CheatsPanel.js';
 import { isClaimed } from './claims.js';
 import { readSavedSeat } from './saved-seat.js';
 import { useSavedSeat } from './useSavedSeat.js';
-import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
+import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, recordCheatUse, requiredCardsForTurn, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
 import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
-import { deckFitMessage, defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, maxPlayersFor, randomPresidentName, type Card, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { deckFitMessage, defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, maxPlayersFor, randomPresidentName, type Card, type CardLookupResult, type CheatUsedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
@@ -26,7 +28,7 @@ const SOLO_PLAYER_ID = 'solo-player';
 
 type Mode = 'solitaire' | 'multiplayer';
 type ConnectionState = 'disconnected' | 'connecting' | 'connected';
-type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'nascheat' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | 'undo' | null;
+type PendingAction = 'create' | 'join' | 'lookup' | 'start' | 'play' | 'cheat' | 'endturn' | 'endgame' | 'leave' | 'updatesettings' | 'undo' | null;
 
 type Ack<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -195,8 +197,8 @@ interface GameBoardProps {
   setSelectedCardId: (cardId: string | null) => void;
   onPlayPile: (pileId: number) => void;
   onEndTurn?: () => void;
-  onNasCheat?: () => void;
-  canUseNasCheat?: boolean;
+  // Opens the cheats panel. Present only when the game has a cheat turned on, so the panel is reachable from the keyboard.
+  onOpenCheats?: () => void;
   playerId?: string | null;
   interactionDisabled?: boolean;
   onSetReaction?: (pileId: number, reactionType: ReactionType | null) => void;
@@ -230,8 +232,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     setSelectedCardId,
     onPlayPile,
     onEndTurn,
-    onNasCheat,
-    canUseNasCheat,
+    onOpenCheats,
     playerId,
     interactionDisabled,
     onSetReaction,
@@ -556,15 +557,9 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                 Undo
               </button>
             ) : null}
-            {onNasCheat ? (
-              <button
-                type="button"
-                className="secondary"
-                onClick={onNasCheat}
-                disabled={inputsDisabled || !canUseNasCheat}
-                data-testid="nas-cheat"
-              >
-                Nas Cheat
+            {onOpenCheats ? (
+              <button type="button" className="secondary" onClick={onOpenCheats} disabled={inputsDisabled} data-testid="open-cheats">
+                Cheats
               </button>
             ) : null}
           </div>
@@ -632,7 +627,10 @@ export function App(): JSX.Element {
   const [settingsDraft, setSettingsDraft] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
-  const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
+  // false: closed. 'panel': the cheats panel. 'skip': the panel, straight to the skip confirmation (the Ctrl/Cmd-S key).
+  const [cheatsOpen, setCheatsOpen] = useState<false | 'panel' | 'skip'>(false);
+  const [cheatNotice, setCheatNotice] = useState<string | null>(null);
+  const cheatNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
   const [kickedFromGameId, setKickedFromGameId] = useState<string | null>(null);
   const [kickedWhileAway, setKickedWhileAway] = useState(false);
@@ -673,7 +671,6 @@ export function App(): JSX.Element {
   const pendingAutoJoinGameIdRef = useRef<string | null>(pendingDeepLinkGameIdRef.current);
   // Touching the name hands control to the player: no auto-join while they type (the first letter would otherwise join as "S").
   const confirmName = (): void => { nameConfirmedRef.current = true; writeNameConfirmed(); pendingAutoJoinGameIdRef.current = null; };
-  const shownNasCheatGameKeyRef = useRef<string | null>(null);
   const previousMultiplayerSnapshotRef = useRef<{ gameId: string; phase: GameState['gamePhase'] } | null>(null);
   const suppressHostEndedNoticeRef = useRef(false);
   const joinablePollFailuresRef = useRef(0);
@@ -751,33 +748,6 @@ export function App(): JSX.Element {
       gameId: multiplayerState.gameId,
       phase: multiplayerState.gamePhase
     };
-  }, [mode, multiplayerState, playerId]);
-
-  const dismissNasCheatIntro = (): void => {
-    setShowNasCheatIntro(false);
-  };
-
-  useEffect(() => {
-    if (mode !== 'multiplayer' || !multiplayerState || !playerId || multiplayerState.gamePhase !== 'playing') {
-      dismissNasCheatIntro();
-      if (!multiplayerState || multiplayerState.gamePhase !== 'playing') {
-        shownNasCheatGameKeyRef.current = null;
-      }
-      return;
-    }
-
-    const nasEnabledForMe = multiplayerState.nasCheat.enabledPlayerIds.includes(playerId);
-    if (!nasEnabledForMe) {
-      dismissNasCheatIntro();
-      return;
-    }
-
-    const introKey = `${multiplayerState.gameId}:${multiplayerState.statistics.startedAtMs ?? 'none'}`;
-    if (shownNasCheatGameKeyRef.current === introKey) {
-      return;
-    }
-    shownNasCheatGameKeyRef.current = introKey;
-    setShowNasCheatIntro(true);
   }, [mode, multiplayerState, playerId]);
 
   useEffect(() => {
@@ -908,10 +878,10 @@ export function App(): JSX.Element {
       activeGameIdRef.current = null;
     };
 
-    const onCardLookupResult = (result: CardLookupResult): void => {
-      if (cardLookupToastTimerRef.current) clearTimeout(cardLookupToastTimerRef.current);
-      setCardLookupToast(result);
-      cardLookupToastTimerRef.current = setTimeout(() => setCardLookupToast(null), 3500);
+    const onCheatUsed = (event: CheatUsedEvent): void => {
+      if (cheatNoticeTimerRef.current) clearTimeout(cheatNoticeTimerRef.current);
+      setCheatNotice(cheatNoticeText(event));
+      cheatNoticeTimerRef.current = setTimeout(() => setCheatNotice(null), 3500);
     };
 
     socket.on('connect', onConnect);
@@ -921,7 +891,7 @@ export function App(): JSX.Element {
     socket.on('game:reactionsUpdated', onReactionsUpdated);
     socket.on('game:specialPlay', onSpecialPlay);
     socket.on('game:kicked', onKicked);
-    socket.on('game:cardLookupResult', onCardLookupResult);
+    socket.on('game:cheatUsed', onCheatUsed);
 
     if (!socket.connected) {
       socket.connect();
@@ -935,7 +905,7 @@ export function App(): JSX.Element {
       socket.off('game:reactionsUpdated', onReactionsUpdated);
       socket.off('game:specialPlay', onSpecialPlay);
       socket.off('game:kicked', onKicked);
-      socket.off('game:cardLookupResult', onCardLookupResult);
+      socket.off('game:cheatUsed', onCheatUsed);
       socket.disconnect();
       setConnectionState('disconnected');
       setGameReactions({});
@@ -1063,26 +1033,6 @@ export function App(): JSX.Element {
   useEffect(() => {
     setJoinLookup(null);
   }, [joinGameId]);
-
-  // Ctrl+Shift+C opens the card lookup modal when the cheat is enabled
-  useEffect(() => {
-    const activeState = mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null);
-    if (!activeState || activeState.gamePhase !== 'playing' || !activeState.settings.allowCardLookup) {
-      return;
-    }
-    const onKeyDown = (e: KeyboardEvent): void => {
-      if (e.ctrlKey && e.shiftKey && e.key === 'C') {
-        e.preventDefault();
-        setCardLookupValue('');
-        setCardLookupOpen(true);
-      }
-      if (e.key === 'Escape') {
-        setCardLookupOpen(false);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [mode, multiplayerState, solitaireState]);
 
   // Sound: win / lose
   const prevPhaseRef = useRef<string | null>(null);
@@ -1266,7 +1216,8 @@ export function App(): JSX.Element {
     setSolitaireUndoStack((stack) => {
       if (stack.length === 0) return stack;
       const prev = stack[stack.length - 1]!;
-      setSolitaireState(prev);
+      // Cheats counted since the snapshot (a card lookup, a hint) are not undone with the move.
+      setSolitaireState((current) => keepCheatCounts(prev, current));
       setSolitaireSelectedCardId(null);
       setError(null);
       return stack.slice(0, -1);
@@ -1418,25 +1369,44 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
   };
 
-  const handleMultiplayerNasCheat = async (): Promise<void> => {
-    if (!multiplayerState || !multiplayerSelectedCardId) {
-      return;
-    }
+  // Cheats. In multiplayer the server decides; in solitaire the whole game is local, so the engine is used directly.
+  const openLookup = (): void => {
+    setCardLookupValue('');
+    setCardLookupOpen(true);
+  };
 
-    const ack = await emitWithAck<{ gameState: GameState }>(
-      'game:nasCheat',
-      {
-        gameId: multiplayerState.gameId,
-        cardId: multiplayerSelectedCardId
-      },
-      'nascheat'
-    );
-
+  const handleCheatSkip = async (): Promise<void> => {
+    if (!multiplayerState) return;
+    const ack = await emitWithAck<{ gameState: GameState }>('game:skip', { gameId: multiplayerState.gameId }, 'cheat');
     if (!ack.ok) {
       setError(ack.error);
       return;
     }
+    setError(null);
+    setMultiplayerSelectedCardId(null);
+    setMultiplayerState(ack.data.gameState);
+  };
 
+  const handleCheatTrade = async (): Promise<void> => {
+    if (mode === 'solitaire') {
+      if (!solitaireSelectedCardId) return;
+      try {
+        // A trade is for good: undo cannot take it back, so the undo history starts again.
+        setSolitaireState(tradeCardEngine(solitaireState, SOLO_PLAYER_ID, solitaireSelectedCardId));
+        setSolitaireUndoStack([]);
+        setSolitaireSelectedCardId(null);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to trade');
+      }
+      return;
+    }
+    if (!multiplayerState || !multiplayerSelectedCardId) return;
+    const ack = await emitWithAck<{ gameState: GameState }>('game:trade', { gameId: multiplayerState.gameId, cardId: multiplayerSelectedCardId }, 'cheat');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
     setError(null);
     setMultiplayerSelectedCardId(null);
     setMultiplayerState(ack.data.gameState);
@@ -1498,7 +1468,7 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
   };
 
-  const handleCardLookupSubmit = (shiftKey: boolean): void => {
+  const handleCardLookupSubmit = (): void => {
     const cardValue = parseInt(cardLookupValue, 10);
     if (isNaN(cardValue)) return;
     setCardLookupOpen(false);
@@ -1513,8 +1483,14 @@ export function App(): JSX.Element {
       cardLookupToastTimerRef.current = setTimeout(() => setCardLookupToast(null), 3500);
     };
 
-    // Solitaire: the full state is local, so look up here
+    // Solitaire: the full state is local, so look up here (and count the use, which the cheat limit may refuse).
     if (mode === 'solitaire') {
+      try {
+        setSolitaireState(recordCheatUse(solitaireState, SOLO_PLAYER_ID, 'lookup'));
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to use the card seeker');
+        return;
+      }
       let status: CardLookupResult['status'];
       let holderName: string | undefined;
       if (activeState.drawPile.some((c) => c.value === cardValue)) {
@@ -1532,16 +1508,12 @@ export function App(): JSX.Element {
       return;
     }
 
-    // Multiplayer: the server holds the hidden cards. Secret mode answers only this player; normal mode broadcasts.
-    if (shiftKey) {
-      void requestSocketAck<{ result: CardLookupResult }>('game:cardLookup', { gameId: activeState.gameId, cardValue, secret: true })
-        .then((ack) => {
-          if (ack.ok) showToast(ack.data.result);
-          else setError(ack.error);
-        });
-      return;
-    }
-    getSocket().emit('game:cardLookup', { gameId: activeState.gameId, cardValue });
+    // Multiplayer: the server holds the hidden cards and answers only this player; the others are told a lookup happened.
+    void requestSocketAck<{ result: CardLookupResult }>('game:cardLookup', { gameId: activeState.gameId, cardValue })
+      .then((ack) => {
+        if (ack.ok) showToast(ack.data.result);
+        else setError(ack.error);
+      });
   };
 
   const sendSetReaction = (pileId: number, reactionType: ReactionType | null): void => {
@@ -1771,17 +1743,18 @@ export function App(): JSX.Element {
   const multiplayerInteractionDisabled = pendingAction !== null || connectionState !== 'connected';
   const multiplayerGameActive = !!multiplayerState && multiplayerState.gamePhase !== 'lobby';
   const isHost = !!multiplayerState && multiplayerState.hostId === playerId;
-  const isNasCheatActiveForMe = !!multiplayerState
-    && !!playerId
-    && multiplayerState.nasCheat.enabledPlayerIds.includes(playerId);
-  const canUseNasCheat = !!multiplayerState
-    && !!playerId
-    && multiplayerState.gamePhase === 'playing'
-    && multiplayerState.players[multiplayerState.currentPlayerIndex]?.id === playerId
-    && multiplayerState.drawPile.length > 0
-    && !!multiplayerSelectedCardId
-    && isNasCheatActiveForMe
-    && !multiplayerState.nasCheat.usedThisTurnByPlayerId[playerId];
+  const cheatState = mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' && solitaireActive ? solitaireState : null);
+  const cheatSelectedCardId = mode === 'multiplayer' ? multiplayerSelectedCardId : solitaireSelectedCardId;
+  const cheatPlayerId = mode === 'multiplayer' ? playerId : SOLO_PLAYER_ID;
+  const cheatStatusList = cheatState && cheatState.gamePhase === 'playing' ? cheatStatuses(cheatState, cheatPlayerId, cheatSelectedCardId) : [];
+  const cheatCan = (kind: 'lookup' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
+  useCheatHotkeys({
+    active: cheatStatusList.length > 0,
+    ...(cheatCan('lookup') ? { onLookup: openLookup } : {}),
+    ...(cheatCan('skip') ? { onSkip: () => setCheatsOpen('skip') } : {}),
+    // Trade needs a selected card; without one the panel opens and says so.
+    ...(cheatStatusList.some((status) => status.kind === 'trade') ? { onTrade: () => { if (cheatCan('trade')) void handleCheatTrade(); else setCheatsOpen('panel'); } } : {})
+  });
   const settingsLockedByActiveGame = (mode === 'solitaire' && solitaireActive) || (mode === 'multiplayer' && multiplayerGameActive);
   const canChangeMode = (mode === 'solitaire' && !solitaireActive) || (mode === 'multiplayer' && !multiplayerState);
   const createSettingsError = validateCreateSettings(multiplayerCreateSettings);
@@ -1839,7 +1812,7 @@ export function App(): JSX.Element {
   return (
     <main className={`app ${isBoardMode ? 'board-mode' : ''} ${showSupportBar ? 'support-mode' : ''} ${mode === null ? 'landing-mode' : ''}`}>
       <section className="app-header">
-        <h1><span className="word-up">Up</span>N<span className="word-down">Down</span></h1>
+        <h1 onDoubleClick={() => { if (cheatStatusList.length > 0) setCheatsOpen('panel'); }}><span className="word-up">Up</span>N<span className="word-down">Down</span></h1>
         <div className="header-actions">
           <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} />
           {mode === null ? (
@@ -1984,6 +1957,7 @@ export function App(): JSX.Element {
           specialPlayPileId={solitaireSpecialPlayPileId}
           onUndo={solitaireUndoStack.length > 0 ? handleSolitaireUndo : undefined}
           canUndo={solitaireUndoStack.length > 0}
+          {...(cheatStatusList.length > 0 ? { onOpenCheats: () => setCheatsOpen('panel') } : {})}
         />
         ) : (
           <section className="panel lobby" aria-label="solitaire ended">
@@ -2236,7 +2210,6 @@ export function App(): JSX.Element {
                 onEndTurn={() => {
                   void handleMultiplayerEndTurn();
                 }}
-                canUseNasCheat={canUseNasCheat}
                 playerId={playerId}
                 interactionDisabled={multiplayerInteractionDisabled}
                 onSetReaction={sendSetReaction}
@@ -2249,9 +2222,7 @@ export function App(): JSX.Element {
                 onKickPlayer={isHost ? (targetId: string) => { void handleKickPlayer(targetId); } : undefined}
                 onTakeOverHost={(hostId: string) => { void handleKickPlayer(hostId); }}
                 isHost={!!isHost}
-                {...(isNasCheatActiveForMe
-                  ? { onNasCheat: () => { void handleMultiplayerNasCheat(); } }
-                  : {})}
+                {...(cheatStatusList.length > 0 ? { onOpenCheats: () => setCheatsOpen('panel') } : {})}
               />
             ) : (
               <section className="panel lobby" aria-label="seat lost">
@@ -2332,27 +2303,6 @@ export function App(): JSX.Element {
         </Modal>
       ) : null}
 
-      {showNasCheatIntro ? (
-        <Modal className="panel nas-cheat-modal" dismiss="none" label="nas cheat mode enabled" onClose={dismissNasCheatIntro}>
-          <button
-            type="button"
-            className="nas-cheat-close"
-            aria-label="Close Nas Cheat Info"
-            onClick={dismissNasCheatIntro}
-          >
-            ×
-          </button>
-          <h2>Nas Cheat Mode Enabled</h2>
-          <p>
-            Each turn, you can swap exactly one card from your hand.
-            The selected card is shuffled back into the draw pile at a random position,
-            and you draw the top card as a replacement.
-          </p>
-          <p>You can use this power once per turn.</p>
-          <p>Select a card, then tap the Nas Cheat button in your hand controls.</p>
-        </Modal>
-      ) : null}
-
       {hostEndedModalGameId ? (
         <Modal className="panel host-ended-modal" dismiss="none" label="host ended the game" onClose={() => undefined}>
           <h2>Host Ended The Game</h2>
@@ -2415,7 +2365,7 @@ export function App(): JSX.Element {
             onChange={(e) => setCardLookupValue(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
-                handleCardLookupSubmit(e.shiftKey);
+                handleCardLookupSubmit();
               } else if (e.key === 'Escape') {
                 setCardLookupOpen(false);
               }
@@ -2428,13 +2378,28 @@ export function App(): JSX.Element {
               type="button"
               className="primary"
               disabled={!cardLookupValue}
-              onClick={() => handleCardLookupSubmit(false)}
+              onClick={() => handleCardLookupSubmit()}
             >
               Look Up
             </button>
           </div>
         </Modal>
       ) : null}
+
+      {cheatsOpen ? (
+        <CheatsPanel
+          statuses={cheatStatusList}
+          startWithSkipConfirm={cheatsOpen === 'skip'}
+          busy={pendingAction !== null}
+          onClose={() => setCheatsOpen(false)}
+          onLookup={openLookup}
+          onSkip={() => { void handleCheatSkip(); }}
+          onTrade={() => { void handleCheatTrade(); }}
+        />
+      ) : null}
+
+      {/* Always present, so a screen reader announces a notice when its text appears. Plain div: the end-to-end specs select role=status strictly. */}
+      <div className="cheat-notice" aria-live="polite">{cheatNotice}</div>
 
       {cardLookupToast ? (
         <div className="card-lookup-toast" role="status" aria-live="polite">

@@ -180,7 +180,7 @@ tests/e2e               Playwright smoke tests
 | autoRefillHand   | false   | on/off           | Always on in solitaire          |
 | allowUndo        | false   | on/off           |                                 |
 | privateGame      | false   | on/off           | Hides from public join list     |
-| allowCardLookup  | false   | on/off           | Cheat: Ctrl+Shift+C lookup      |
+| allowCardLookup  | false   | on/off           | Old card seeker switch; `cheatLimits` (off, once, unlimited per cheat) replaces it |
 | showArrows       | true    | on/off           | Up/down arrow each side of pile card |
 
 Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom state), Cards (highest card slider, hand size, cards per turn, auto refill, lowest card under Advanced), Players (maximum, private game), pile arrows and the card-lookup cheat. Non-hosts and in-game viewers see a read-only summary. Sound effects are a per-device preference, not a game setting.
@@ -213,7 +213,7 @@ Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom sta
   - ✅ Backward-10 special play animation (golden flash + floating label)
   - ✅ End-game confirmation modal (prevents accidental game termination)
   - ✅ End-game statistics modal (per-player and aggregate)
-  - ✅ Nas Cheat intro modal (for players named "nas")
+  - ✅ Cheats panel (double tap the logo, or the Cheats button) with card seeker, skip and trade, each off, once or unlimited
   - 🔄 Chat interface (planned)
 
 #### Interactive Elements
@@ -236,7 +236,7 @@ Immediate updates via Socket.IO for:
 - ✅ Backward-10 special play notifications
 - ✅ Undo play synchronisation
 - ✅ Settings updates
-- ✅ Card lookup results
+- ✅ Card lookup results (private to the asker; others are told a lookup happened)
 - 🔄 Chat messages (future)
 
 **Status**: ✅ **Core real-time features implemented**
@@ -256,7 +256,7 @@ All Socket.IO events are rate-limited server-side per socket using a sliding-win
 - ✅ **Cards Played**: Total count
 - ✅ **Total Movement**: Net progress along each pile's direction (a backward 10 counts as −10); the team total equals how far the piles ended from their starts
 - ✅ **Special Plays**: Count of backward-10 moves
-- ✅ **Nas Cheats Used**: Card-swap cheat uses
+- ✅ **Cheats Used**: skips, trades, card lookups and hints per player
 
 #### Statistics Display
 End-game statistics modal shows:
@@ -296,8 +296,8 @@ End-game statistics modal shows:
 19. End-game confirmation modal
 20. Game ID invite link with one-click copy
 21. Player kick (lobby and active game) with card return to draw pile
-22. Nas Cheat ability (card swap, once per turn, for players named "nas")
-23. Card lookup cheat (Ctrl+Shift+C, broadcast to all players)
+22. Trade cheat (swap a hand card for the next draw card; replaces the name-gated Nas swap)
+23. Card seeker cheat (Ctrl/Cmd-P; the answer is private; others are notified), skip cheat (Ctrl/Cmd-S), cheats panel and notices
 24. Rate limiting on all Socket.IO events
 25. TTL-based orphan room reaping
 26. In-memory state storage (no external database dependency)
@@ -351,13 +351,14 @@ Client  ──Socket.IO event──►  Server
 | `game:playCard`       | Play a card to a foundation pile     |
 | `game:endTurn`        | End the current player's turn        |
 | `game:undoPlay`       | Undo the last card play              |
-| `game:nasCheat`       | Use the Nas Cheat card swap          |
+| `game:skip`           | Skip your turn (cheat; before playing a card) |
+| `game:trade`          | Trade a hand card for the next draw card (cheat) |
 | `game:endGame`        | Host ends an active game             |
 | `game:updateSettings` | Host updates lobby settings          |
 | `game:leave`          | Leave the current game               |
 | `game:kickPlayer`     | Host kicks another player            |
 | `game:setReaction`    | Set a pile reaction                  |
-| `game:cardLookup`     | Look up where a specific card is (`secret: true` answers only the asker) |
+| `game:cardLookup`     | Look up where a specific card is (answers only the asker) |
 
 **Server → Client (broadcasts)**
 | Event                   | Description                              |
@@ -366,7 +367,7 @@ Client  ──Socket.IO event──►  Server
 | `game:updated`          | Per-recipient game state (own hand only; others' hands and draw pile are placeholders) |
 | `game:reactionsUpdated` | Updated reaction state                   |
 | `game:specialPlay`      | Backward-10 animation trigger            |
-| `game:cardLookupResult` | Card location broadcast to room          |
+| `game:cheatUsed`        | A player used a cheat: who and which kind, never what it found |
 | `game:kicked`           | Notifies a kicked player                 |
 
 ---
@@ -416,7 +417,7 @@ Client  ──Socket.IO event──►  Server
 - Monorepo structure (packages/engine, packages/shared-types, apps/client, apps/server)
 - Comprehensive rate limiting on all events
 - Shared DTOs and defaults in packages/shared-types
-- Comprehensive statistics, reactions, undo, kick, Nas Cheat, card lookup
+- Comprehensive statistics, reactions, undo, kick, cheats (skip, trade, card seeker)
 - Sound effects, invite links, deep-link auto-join
 
 ---

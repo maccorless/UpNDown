@@ -95,6 +95,8 @@ export interface GameState {
   nasCheat: NasCheatState;
   settings: GameSettings;
   isSolitaire: boolean;
+  // Skips in a row with no card played in between; a full round of them ends the game as a loss.
+  consecutiveSkips?: number | undefined;
   reconnection?: ReconnectionView;
 }
 
@@ -126,7 +128,18 @@ export interface PlayCardPayload {
   pileId: number;
 }
 
-export interface NasCheatPayload {
+export interface SkipPayload {
+  gameId: string;
+}
+
+// The cheat that tells the others a player used a cheat. Never says which card or what the answer was.
+export interface CheatUsedEvent {
+  playerId: string;
+  playerName: string;
+  kind: CheatKind;
+}
+
+export interface TradePayload {
   gameId: string;
   cardId: string;
 }

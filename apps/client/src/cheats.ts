@@ -1,0 +1,119 @@
+import { cheatLimitOf, type CheatKind, type CheatUsedEvent, type GameState, type PlayerStatistics } from '@upndown/shared-types';
+import { useEffect } from 'react';
+
+export const CHEAT_TITLES: Record<CheatKind, string> = {
+  lookup: 'Card seeker',
+  skip: 'Skip turn',
+  trade: 'Trade a card',
+  hint: 'Hint'
+};
+
+export interface CheatStatus {
+  kind: CheatKind;
+  // What the game allows: once is one use per player, unlimited has no limit.
+  limit: 'once' | 'unlimited';
+  used: number;
+  available: boolean;
+  // Why a cheat cannot be used right now (never set when it can).
+  reason?: string;
+}
+
+const usedOf = (state: GameState, playerId: string | null, kind: CheatKind): number => {
+  const stats = playerId ? state.statistics.players[playerId] : undefined;
+  if (!stats) return 0;
+  return kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : stats.hintsUsed;
+};
+
+// The cheats this game offers this player, and whether each can be used this moment. Cheats the game has turned off are not
+// listed at all. Skip needs a table (there is no turn to skip alone), and hints are not in the panel yet.
+export function cheatStatuses(state: GameState, playerId: string | null, selectedCardId: string | null): CheatStatus[] {
+  const mine = !!playerId && state.players[state.currentPlayerIndex]?.id === playerId;
+  const playing = state.gamePhase === 'playing';
+  const out: CheatStatus[] = [];
+  for (const kind of ['lookup', 'skip', 'trade'] as const) {
+    const limit = cheatLimitOf(state.settings, kind);
+    if (limit === 'off' || (kind === 'skip' && state.isSolitaire)) continue;
+    const used = usedOf(state, playerId, kind);
+    let reason: string | undefined;
+    if (!playing) reason = 'The game is not being played';
+    else if (limit === 'once' && used >= 1) reason = 'Already used';
+    else if (kind === 'skip' && !mine) reason = 'Only on your turn';
+    else if (kind === 'skip' && state.cardsPlayedThisTurn > 0) reason = 'Only before you play a card this turn';
+    else if (kind === 'trade' && !state.isSolitaire && !mine) reason = 'Only on your turn';
+    else if (kind === 'trade' && state.drawPile.length === 0) reason = 'The draw pile is empty';
+    else if (kind === 'trade' && !selectedCardId) reason = 'Select a card in your hand first';
+    out.push({ kind, limit, used, available: !reason, ...(reason ? { reason } : {}) });
+  }
+  return out;
+}
+
+export function cheatNoticeText(event: Pick<CheatUsedEvent, 'playerName' | 'kind'>): string {
+  const who = event.playerName || 'A player';
+  if (event.kind === 'skip') return `${who} skipped a turn`;
+  if (event.kind === 'trade') return `${who} traded a card`;
+  if (event.kind === 'lookup') return `${who} used the card seeker`;
+  return `${who} used a hint`;
+}
+
+interface HotkeyArgs {
+  active: boolean;
+  onLookup?: () => void;
+  onSkip?: () => void;
+  onTrade?: () => void;
+}
+
+const typingIn = (target: EventTarget | null): boolean => {
+  const el = target as HTMLElement | null;
+  return !!el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable);
+};
+
+// Accelerators only: the panel is the dependable way in (and the only one on a phone). A key is taken from the browser only
+// when it does something here, so printing and saving still work whenever the cheat is not available.
+// Card seeker: Ctrl/Cmd-P. Skip: Ctrl/Cmd-S. Trade: Ctrl/Cmd-Shift-X. Ctrl/Cmd-T opens a browser tab and cannot be used.
+export function useCheatHotkeys({ active, onLookup, onSkip, onTrade }: HotkeyArgs): void {
+  useEffect(() => {
+    if (!active) return undefined;
+    const onKeyDown = (e: KeyboardEvent): void => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey || typingIn(e.target)) return;
+      const run = (action: (() => void) | undefined): void => {
+        if (!action) return;
+        e.preventDefault();
+        action();
+      };
+      if (!e.shiftKey && e.code === 'KeyP') run(onLookup);
+      else if (!e.shiftKey && e.code === 'KeyS') run(onSkip);
+      else if (e.shiftKey && e.code === 'KeyX') run(onTrade);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [active, onLookup, onSkip, onTrade]);
+}
+
+// After an undo, cheats counted since the snapshot stay counted: a lookup or a hint cannot be taken back, so undoing a play
+// must not refund one.
+export function keepCheatCounts(restored: GameState, current: GameState): GameState {
+  return {
+    ...restored,
+    statistics: {
+      ...restored.statistics,
+      players: Object.fromEntries(Object.entries(restored.statistics.players).map(([id, stats]) => {
+        const now = current.statistics.players[id];
+        return [id, now ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed } : stats];
+      }))
+    }
+  };
+}
+
+// Every cheat a player used, counted. The old card-swap count is the same thing as trades and is not added twice.
+export const cheatCount = (stats: PlayerStatistics): number => stats.skipsUsed + stats.tradesUsed + stats.lookupsUsed + stats.hintsUsed;
+
+// "2 skips, 1 trade" for the end screen, or a dash when the player used none.
+export function describeCheats(stats: PlayerStatistics): string {
+  const parts: string[] = [];
+  const add = (count: number, one: string, many: string): void => { if (count > 0) parts.push(`${count} ${count === 1 ? one : many}`); };
+  add(stats.skipsUsed, 'skip', 'skips');
+  add(stats.tradesUsed, 'trade', 'trades');
+  add(stats.lookupsUsed, 'card lookup', 'card lookups');
+  add(stats.hintsUsed, 'hint', 'hints');
+  return parts.length > 0 ? parts.join(', ') : 'None';
+}

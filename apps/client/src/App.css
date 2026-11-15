@@ -2820,3 +2820,49 @@ button.mode-card:not(:disabled):active {
     grid-template-rows: auto minmax(0, 1fr) auto auto;
   }
 }
+
+/* Cheats panel and the notice other players get when a cheat is used */
+.cheats-panel {
+  max-width: 28rem;
+}
+
+.cheats-list {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.cheats-item {
+  display: grid;
+  gap: 4px;
+}
+
+.cheats-item button[disabled] {
+  opacity: 0.5;
+}
+
+.cheats-note {
+  font-size: 0.85rem;
+  color: var(--muted, #b7c5d8);
+}
+
+.cheat-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  max-width: min(92vw, 28rem);
+  padding: 0;
+  pointer-events: none;
+  z-index: 50;
+}
+
+.cheat-notice:not(:empty) {
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(13, 27, 42, 0.95);
+  color: #f1f5f9;
+  border: 1px solid rgba(183, 197, 216, 0.35);
+}

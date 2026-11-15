@@ -4,7 +4,7 @@ import {
   gameSettingsSchema,
   gameStateSchema,
   joinGamePayloadSchema,
-  nasCheatPayloadSchema,
+  tradePayloadSchema,
   updateSettingsPayloadSchema
 } from '../src/schemas.js';
 import { cheatLimitOf, deckFitMessage, maxPlayersFor, withCheatLimits } from '../src/game-types.js';
@@ -98,13 +98,13 @@ describe('updateSettingsPayloadSchema', () => {
   });
 });
 
-describe('nasCheatPayloadSchema', () => {
+describe('tradePayloadSchema', () => {
   it('accepts a valid nas cheat payload', () => {
-    expect(nasCheatPayloadSchema.safeParse({ gameId: 'Q7M2K9', cardId: 'c-42' }).success).toBe(true);
+    expect(tradePayloadSchema.safeParse({ gameId: 'Q7M2K9', cardId: 'c-42' }).success).toBe(true);
   });
 
   it('rejects malformed nas cheat payloads', () => {
-    expect(nasCheatPayloadSchema.safeParse({ gameId: 'abc', cardId: '' }).success).toBe(false);
+    expect(tradePayloadSchema.safeParse({ gameId: 'abc', cardId: '' }).success).toBe(false);
   });
 });
 

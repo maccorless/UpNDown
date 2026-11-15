@@ -1,5 +1,6 @@
 import type {
   Card,
+  CheatKind,
   FoundationPile,
   GameState,
   GameSettings,
@@ -7,7 +8,7 @@ import type {
   PlayerColor,
   PlayerStatistics
 } from '@upndown/shared-types';
-import { PLAYER_COLORS } from '@upndown/shared-types';
+import { cheatLimitOf, PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from './init.js';
 import { EngineError } from './errors.js';
 import { isValidPlay, requiredCardsForTurn } from './rules.js';
@@ -62,13 +63,6 @@ function ensureStatsForPlayers(state: GameState): GameState {
       usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
     }
   };
-}
-
-function randomIndex(maxExclusive: number): number {
-  if (maxExclusive <= 0) {
-    return 0;
-  }
-  return Math.floor(Math.random() * maxExclusive);
 }
 
 function drawOne(drawPile: Card[]): Card | null {
@@ -353,6 +347,7 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
   const previousTopValue = pile.topCard.value;
   pile.topCard = card;
   nextState.cardsPlayedThisTurn += 1;
+  nextState.consecutiveSkips = 0;
 
   const activeStats = nextState.statistics.players[player.id] ?? emptyPlayerStats();
   const movementDelta = card.value - previousTopValue;
@@ -447,79 +442,129 @@ export function settleAfterRemoval(state: GameState): GameState {
   return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(next)));
 }
 
-export function useNasCheat(state: GameState, playerId: string, cardId: string): GameState {
+// A cheat is allowed when its setting is not off and, under "once", this player has not used it yet. Counts are the
+// player's own, so a rejoin (which moves the seat's statistics) keeps them.
+const usedCount = (stats: PlayerStatistics, kind: CheatKind): number =>
+  kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : stats.hintsUsed;
+
+export function assertCheatAvailable(state: GameState, playerId: string, kind: CheatKind): void {
+  const limit = cheatLimitOf(state.settings, kind);
+  if (limit === 'off') {
+    throw new EngineError('INVALID_PLAY', 'This cheat is not enabled for this game');
+  }
+  const stats = state.statistics.players[playerId] ?? emptyPlayerStats();
+  if (limit === 'once' && usedCount(stats, kind) >= 1) {
+    throw new EngineError('INVALID_PLAY', 'You have already used this cheat');
+  }
+}
+
+function withCheatCounted(state: GameState, playerId: string, kind: CheatKind): GameState {
+  const stats = state.statistics.players[playerId] ?? emptyPlayerStats();
+  const field = kind === 'skip' ? 'skipsUsed' : kind === 'trade' ? 'tradesUsed' : kind === 'lookup' ? 'lookupsUsed' : 'hintsUsed';
+  return {
+    ...state,
+    statistics: {
+      ...state.statistics,
+      players: { ...state.statistics.players, [playerId]: { ...stats, [field]: stats[field] + 1 } }
+    }
+  };
+}
+
+// Counts a use of a cheat that does not change the game (the card seeker, a hint) after checking it is allowed.
+export function recordCheatUse(state: GameState, playerId: string, kind: CheatKind): GameState {
   if (state.gamePhase !== 'playing') {
-    throw new EngineError('GAME_NOT_PLAYING', 'Cannot use Nas cheat when game is not in playing phase');
+    throw new EngineError('GAME_NOT_PLAYING', 'Cheats can only be used while a game is being played');
+  }
+  if (!state.players.some((player) => player.id === playerId)) {
+    throw new EngineError('NOT_PLAYER_TURN', 'Player not found in game');
+  }
+  assertCheatAvailable(state, playerId, kind);
+  return withCheatCounted(state, playerId, kind);
+}
+
+// Pass the turn without meeting the minimum, as a cheat. It is not a rescue: it is only possible while the game is still
+// being played and before a card has been played this turn. A full round of skips with no card played by anyone ends the
+// game as a loss, so an unlimited skip cannot stall a table for ever.
+export function skipTurn(state: GameState, playerId: string): GameState {
+  if (state.gamePhase !== 'playing') {
+    throw new EngineError('GAME_NOT_PLAYING', 'Cannot skip when game is not in playing phase');
+  }
+  if (state.isSolitaire) {
+    throw new EngineError('INVALID_PLAY', 'There is no turn to skip in solitaire');
+  }
+  const current = state.players[state.currentPlayerIndex];
+  if (!current || current.id !== playerId) {
+    throw new EngineError('NOT_PLAYER_TURN', 'Only active player can skip');
+  }
+  assertCheatAvailable(state, playerId, 'skip');
+  if (state.cardsPlayedThisTurn > 0) {
+    throw new EngineError('INVALID_PLAY', 'You can only skip before playing a card this turn');
+  }
+
+  const counted = withCheatCounted(state, playerId, 'skip');
+  const streak = (state.consecutiveSkips ?? 0) + 1;
+  const nextState: GameState = {
+    ...counted,
+    players: counted.players.map(clonePlayer),
+    foundationPiles: counted.foundationPiles.map((pile) => ({ ...pile })),
+    drawPile: [...counted.drawPile],
+    cardsPlayedThisTurn: 0,
+    consecutiveSkips: streak,
+    statistics: { ...counted.statistics, turns: counted.statistics.turns + 1 },
+    nasCheat: { ...counted.nasCheat, usedThisTurnByPlayerId: Object.fromEntries(counted.players.map((player) => [player.id, false])) }
+  };
+
+  if (streak >= nextState.players.length) {
+    return ensureStatsForPlayers({
+      ...nextState,
+      gamePhase: 'lost',
+      statistics: { ...nextState.statistics, endedAtMs: nextState.statistics.endedAtMs ?? Date.now() }
+    });
+  }
+
+  nextState.currentPlayerIndex = nextPlayerIndexWithCards(nextState.players, nextState.currentPlayerIndex);
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
+}
+
+// Trade a card from your hand for the next card of the draw pile; the card you hand over goes back into the pile at a
+// random place. Only the active player may trade. `random` is injectable so a game can be reproduced.
+export function tradeCard(state: GameState, playerId: string, cardId: string, random: () => number = Math.random): GameState {
+  if (state.gamePhase !== 'playing') {
+    throw new EngineError('GAME_NOT_PLAYING', 'Cannot trade when game is not in playing phase');
   }
 
   const playerIndex = state.players.findIndex((player) => player.id === playerId);
   if (playerIndex < 0) {
     throw new EngineError('NOT_PLAYER_TURN', 'Player not found in game');
   }
-
   if (!state.isSolitaire && playerIndex !== state.currentPlayerIndex) {
-    throw new EngineError('NOT_PLAYER_TURN', 'Only the active player may use Nas cheat');
+    throw new EngineError('NOT_PLAYER_TURN', 'Only the active player may trade');
   }
-
-  if (!state.nasCheat.enabledPlayerIds.includes(playerId)) {
-    throw new EngineError('INVALID_PLAY', 'Nas cheat mode is not enabled for this player');
-  }
-
-  if (state.nasCheat.usedThisTurnByPlayerId[playerId]) {
-    throw new EngineError('INVALID_PLAY', 'Nas cheat can only be used once per turn');
-  }
-
+  assertCheatAvailable(state, playerId, 'trade');
   if (state.drawPile.length === 0) {
-    throw new EngineError('INVALID_PLAY', 'Nas cheat requires at least one card in draw pile');
+    throw new EngineError('INVALID_PLAY', 'Trading requires at least one card in the draw pile');
   }
 
+  const counted = withCheatCounted(state, playerId, 'trade');
   const nextState: GameState = {
-    ...state,
-    players: state.players.map(clonePlayer),
-    foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
-    drawPile: [...state.drawPile],
-    statistics: {
-      ...state.statistics,
-      players: { ...state.statistics.players }
-    },
-    nasCheat: {
-      ...state.nasCheat,
-      usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
-    }
+    ...counted,
+    players: counted.players.map(clonePlayer),
+    foundationPiles: counted.foundationPiles.map((pile) => ({ ...pile })),
+    drawPile: [...counted.drawPile]
   };
 
   const player = nextState.players[playerIndex];
-  if (!player) {
-    throw new EngineError('NOT_PLAYER_TURN', 'Player not found in game');
-  }
-
-  const cardIndex = player.hand.findIndex((card) => card.id === cardId);
-  if (cardIndex < 0) {
+  const cardIndex = player?.hand.findIndex((card) => card.id === cardId) ?? -1;
+  if (!player || cardIndex < 0) {
     throw new EngineError('CARD_NOT_FOUND', 'Card does not exist in player hand');
   }
-
   const [tradedCard] = player.hand.splice(cardIndex, 1);
-  if (!tradedCard) {
+  const replacementCard = drawOne(nextState.drawPile);
+  if (!tradedCard || !replacementCard) {
     throw new EngineError('CARD_NOT_FOUND', 'Card does not exist in player hand');
   }
-
-  const replacementCard = drawOne(nextState.drawPile);
-  if (!replacementCard) {
-    player.hand.splice(cardIndex, 0, tradedCard);
-    throw new EngineError('INVALID_PLAY', 'Nas cheat requires at least one card in draw pile');
-  }
-
   player.hand.push(replacementCard);
+  nextState.drawPile.splice(Math.floor(random() * (nextState.drawPile.length + 1)), 0, tradedCard);
 
-  const insertAt = randomIndex(nextState.drawPile.length + 1);
-  nextState.drawPile.splice(insertAt, 0, tradedCard);
-
-  nextState.nasCheat.usedThisTurnByPlayerId[playerId] = true;
-  const playerStats = nextState.statistics.players[playerId] ?? emptyPlayerStats();
-  nextState.statistics.players[playerId] = {
-    ...playerStats,
-    nasCheatsUsed: playerStats.nasCheatsUsed + 1
-  };
-
-  return ensureStatsForPlayers(nextState);
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
 }

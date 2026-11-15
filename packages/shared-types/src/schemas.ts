@@ -99,9 +99,13 @@ export const playCardPayloadSchema = z.object({
   pileId: z.number().int().min(0).max(3)
 });
 
-export const nasCheatPayloadSchema = z.object({
+export const tradePayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
   cardId: z.string().min(1)
+});
+
+export const skipPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/)
 });
 
 export const updateSettingsPayloadSchema = z.object({
@@ -196,7 +200,8 @@ export const gameStateSchema = z.object({
     usedThisTurnByPlayerId: z.record(z.string().max(100), z.boolean())
   }),
   settings: gameSettingsSchema,
-  isSolitaire: z.boolean()
+  isSolitaire: z.boolean(),
+  consecutiveSkips: z.number().int().min(0).max(100).optional()
 });
 
 // What a browser reports when a signed-in player finishes a solitaire game. The server cannot watch a solitaire game,
