@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-15 | — | Fix: privacy page now says the application does not log IP addresses, names Railway and Cloudflare as the parties that may, states how long data and sessions are kept, and covers games recorded as left when a player is removed |
 | 2026-11-15 | — | Feat: dropped connections in a live game. After 10 seconds the others are told who is reconnecting; after 90 seconds the host can kick them or keep waiting; if the host is gone, the next available player can kick the old host and take over as host. A kick in a live game counts as a quit for the kicked player, and hands are topped up and the game re-checked after a kick |
 | 2026-11-15 | — | Feat: a connection is in one game at a time: starting or joining another leaves a lobby or finished game it was still in, and is refused with a clear message while a game is being played. At most 500 rooms exist at once, the lobby list shows the 50 newest, and a signed-in account can save at most 5,000 solitaire games |
 | 2026-11-15 | — | Fix: security updates to the server's dependencies: Express 4.22.3 and Socket.IO 4.8.3 with the patched ws, engine.io, socket.io-parser, body-parser, qs, path-to-regexp and proxy-addr. Production advisories drop from 10 to 1 (zod, which needs a major upgrade, left for later) |
