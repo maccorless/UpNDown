@@ -293,7 +293,8 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
 
   io.on('connection', (socket) => {
     connectedPlayerIds.add(socket.id);
-    log('info', 'socket.connected', { socketId: socket.id, clientIp: clientIpOf(socket) });
+    // The client address is deliberately not logged. It is only used for rate limits, and nothing needs it on disk.
+    log('info', 'socket.connected', { socketId: socket.id });
     socket.emit('server:ready', { message: 'connected', playerId: socket.id });
 
     socket.on('game:rejoin', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {

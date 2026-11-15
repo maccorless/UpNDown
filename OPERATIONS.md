@@ -26,7 +26,7 @@
 2. Confirm CORS config:
    - `ALLOWED_ORIGINS` contains the exact public URL(s) of the app.
 3. Confirm proxy settings:
-   - `DEPLOY_TARGET` is set (`skiff` or `railway`) and `clientIp` in `socket.connected` logs is the real client IP.
+   - `DEPLOY_TARGET` is set (`skiff` or `railway`). The client address is deliberately not logged; `test/deploy-target.test.ts` covers how each target counts proxies.
 4. Validate multiplayer smoke path:
    - create -> join -> start -> play -> end turn.
 

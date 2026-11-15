@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-14 | — | Change: the client's IP address is no longer written to the application log (it was recorded once per socket connection). It is still used, in memory only, for rate limits |
 | 2026-11-14 | — | Feat: solitaire saves your game on this device: leave mid-game and the landing offers "Continue solitaire" (cards left, when it was saved) with your exact hand, piles and undo history. Starting over asks first. The save is removed when you win, lose or press End Game, and never leaves your browser |
 | 2026-11-14 | — | Feat: solitaire needs no connection. The only things it ever sends are sign-in and, when a signed-in player finishes a game, its result, saved to their history once ("Saved to your history.", or Try again if it could not be sent). Guests and games ended early send nothing |
 | 2026-11-14 | — | Docs: privacy page now has a "Games in progress" section: what is kept while a game runs (names, hands, piles, settings, turn, rejoin tokens, which account holds a seat), that it is in memory today and may move to the database, when it is deleted, and that there is no move-by-move record |

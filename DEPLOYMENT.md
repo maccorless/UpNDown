@@ -10,7 +10,7 @@ The platform is chosen with env vars on the service, not in code.
 |----------|----------|-------|
 | `DEPLOY_TARGET` | recommended | `skiff` or `railway`. Sets the default for `TRUSTED_PROXY_HOPS` (skiff `2`, railway `1`). Unset gives `0`. |
 | `ALLOWED_ORIGINS` | yes | Exact public URL(s) of the app, comma-separated, e.g. `https://upndown.up.railway.app`. The server refuses to start in production without it. |
-| `TRUSTED_PROXY_HOPS` | no | Overrides the `DEPLOY_TARGET` default. Number of reverse proxies in front of the server, used to find the real client IP in `X-Forwarded-For` for per-IP limits. Too high lets clients spoof their IP; too low makes users share one limit. Check the `clientIp` field of the `socket.connected` log after deploying. |
+| `TRUSTED_PROXY_HOPS` | no | Overrides the `DEPLOY_TARGET` default. Number of reverse proxies in front of the server, used to find the real client IP in `X-Forwarded-For` for per-IP limits. Too high lets clients spoof their IP; too low makes users share one limit. The address is not logged; to check a setting, temporarily add `clientIp` back to the `socket.connected` log line in `apps/server/src/index.ts`, connect once, and compare. |
 | `PORT` | no | Set by the platform. The image defaults to `8080`. |
 | `DATABASE_URL` | no | Postgres connection string (Railway: `${{Postgres.DATABASE_URL}}`, the private-network URL). With the four variables below it turns on optional Google login. The server applies its schema migrations at startup. Leave unset on Skiff: guest play only. |
 | `PUBLIC_BASE_URL` | with login | The one address login works on, an origin with no path or trailing slash, e.g. `https://upndown.cloud`. `http` is accepted only for localhost. |
@@ -18,7 +18,7 @@ The platform is chosen with env vars on the service, not in code.
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | with login | From the Google Cloud OAuth client. Treat the secret like a password. |
 | `LEGACY_HOST` | no | Old address whose page loads redirect (302) to `PUBLIC_BASE_URL`, keeping the path and query so invite links survive. Defaults to Railway's `RAILWAY_PUBLIC_DOMAIN`, but on this project that variable is `upndown.cloud` itself (the canonical host never redirects to itself), so the redirect stays off until you set `LEGACY_HOST=upndown-server-production.up.railway.app`. |
 
-`TRUSTED_PROXY_HOPS` matters more with login: the sign-in routes are rate limited per client address. Measured 14-Nov-2026 with the Railway default of 1: the `socket.connected` log showed `152.233.40.x` rather than the real client on both `upndown.cloud` and the `.up.railway.app` address, so unrelated players share one limit bucket. The error is on the safe side (a client cannot spoof its way past it). Try `TRUSTED_PROXY_HOPS=2`, connect once, and confirm the logged `clientIp` is your own address.
+`TRUSTED_PROXY_HOPS` matters more with login: the sign-in routes are rate limited per client address. Measured 14-Nov-2026 (when the address was still logged): with the Railway default of 1 the logged address was Railway's edge, and with 2 to 5 it was Cloudflare's, on both `upndown.cloud` and the `.up.railway.app` address, so unrelated players share a limit bucket. The error is on the safe side (a client cannot spoof its way past it). The code accepts 0 to 5, so a larger value stops the service from starting. Decision: leave it at 5 for now. The address is no longer written to the logs.
 
 Login is on only when all five of `DATABASE_URL`, `PUBLIC_BASE_URL`, `AUTH_STATE_SECRET`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set and the database answers. Otherwise the server logs `auth.disabled` with the reason (variable names only) and everyone plays as a guest. `GET /api/auth/config` reports the state.
 
@@ -56,7 +56,7 @@ To point a production build at a different server, set `VITE_SOCKET_URL` at buil
 3. Open a second browser or tab and join.
 4. Start the game and play cards.
 5. Confirm `/health` returns `ok: true`.
-6. Confirm server logs show structured events (`game.created`, `game.joined`, etc.) and that `clientIp` on `socket.connected` is your real IP, not a proxy's.
+6. Confirm server logs show structured events (`game.created`, `game.joined`, etc.) (the client address is deliberately not logged).
 
 ## 6. Migrating an existing two-service Railway project
 
