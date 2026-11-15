@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>UpNDown - How to Play</title>
   <style>
+    html {
+      font-size: 18px;
+    }
+
     :root {
       --bg: #0d1b2a;
       --panel: #14253d;
@@ -59,6 +63,21 @@
       background: linear-gradient(180deg, rgba(138, 201, 38, 0.08), rgba(13, 27, 42, 0.92));
     }
 
+    .quick-start {
+      border-color: rgba(138, 201, 38, 0.45);
+    }
+
+    .quick-start dt {
+      color: var(--good);
+      font-weight: 700;
+      margin-top: 8px;
+    }
+
+    .quick-start dd {
+      margin: 0;
+      color: var(--muted);
+    }
+
     code {
       background: #0d1b2a;
       border: 1px solid var(--line);
@@ -73,6 +92,21 @@
     <section>
       <h1>How to Play UpNDown</h1>
       <p>UpNDown is a cooperative card game. Everyone wins together or loses together.</p>
+    </section>
+
+    <section class="quick-start" aria-labelledby="quick-start-title">
+      <h2 id="quick-start-title">Quick start</h2>
+      <dl>
+        <dt>Goal</dt>
+        <dd>Play every card from every hand onto the four piles. Win together or lose together.</dd>
+        <dt>A turn</dt>
+        <dd>Two piles go up from 1 and two go down from 100. Play a card higher than an up pile, or lower than a down pile. The exception: a card exactly 10 the other way is allowed and sets that pile back. Play the required minimum each turn (usually 2, or 1 once the draw pile is empty), then end your turn.</dd>
+        <dt>Solitaire or multiplayer</dt>
+        <dd>Solitaire is just you, works without a connection and saves on this device. Multiplayer is 2 to 6 players: host a table and share the code or link, or join a friend's.</dd>
+        <dt>Signing in</dt>
+        <dd>Optional. Sign in with Google to keep your name, settings and results. Play as a guest and nothing is kept.</dd>
+      </dl>
+      <p>The full rules follow.</p>
     </section>
 
     <section>

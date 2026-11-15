@@ -14,7 +14,7 @@ const finished = (phase: 'won' | 'lost'): GameState => ({ ...fresh(), gamePhase:
 // A game with one card played, which is the least that is worth saving.
 const played = (): GameState => {
   const state = fresh();
-  return { ...state, statistics: { ...state.statistics, players: { 'solo-player': { cardsPlayed: 1, totalMovement: 5, specialPlays: 0, nasCheatsUsed: 0 } } } };
+  return { ...state, statistics: { ...state.statistics, players: { 'solo-player': { cardsPlayed: 1, totalMovement: 5, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 } } } };
 };
 const RUN = 'run-test';
 // Saves are dated near now, because a game left for over a month is forgotten.

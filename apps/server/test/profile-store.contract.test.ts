@@ -10,7 +10,7 @@ const at = (iso: string): Date => new Date(iso);
 const resultRow = (userId: string, gameId: string, over: Partial<GameResultRow> = {}): GameResultRow => ({
   userId, gameId, mode: 'multiplayer', outcome: 'won', startedAt: at('2030-01-01T10:00:00Z'), endedAt: at('2030-01-01T10:20:00Z'),
   durationMs: 1_200_000, turns: 14, playerCount: 3, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 30, myTotalMovement: -8,
-  mySpecialPlays: 2, myNasCheats: 0, handSize: 7, minCardsPerTurn: 2, maxCard: 99, settings: { handSize: 7 }, ...over
+  mySpecialPlays: 2, myNasCheats: 0, mySkips: 0, myTrades: 0, myLookups: 0, myHints: 0, handSize: 7, minCardsPerTurn: 2, maxCard: 99, settings: { handSize: 7 }, ...over
 });
 
 // One set of rules, run against both stores, so route tests on the in-memory store say something about Postgres.

@@ -64,5 +64,17 @@ create index game_results_user_ended_idx on game_results(user_id, ended_at desc)
     // Existing accounts start false, so they are asked once.
     id: '002_name_confirmed',
     sql: `alter table users add column name_confirmed boolean not null default false;`
+  },
+  {
+    // Cheats used in a game, by kind. my_nas_cheats keeps the count from before: it is the old card swap, which is a
+    // trade, so reads add the two. Defaults of 0 let a container from before this keep inserting while this one is live.
+    id: '003_cheats_in_results',
+    sql: `
+alter table game_results
+  add column my_skips int not null default 0,
+  add column my_trades int not null default 0,
+  add column my_lookups int not null default 0,
+  add column my_hints int not null default 0;
+`
   }
 ];

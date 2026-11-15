@@ -36,7 +36,11 @@ export function emptyPlayerStats(): PlayerStatistics {
     cardsPlayed: 0,
     totalMovement: 0,
     specialPlays: 0,
-    nasCheatsUsed: 0
+    nasCheatsUsed: 0,
+    skipsUsed: 0,
+    tradesUsed: 0,
+    lookupsUsed: 0,
+    hintsUsed: 0
   };
 }
 
@@ -359,10 +363,10 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     || (pile.type === 'descending' && movementDelta === 10)
   );
   nextState.statistics.players[player.id] = {
+    ...activeStats,
     cardsPlayed: activeStats.cardsPlayed + 1,
     totalMovement: activeStats.totalMovement + movement,
-    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0),
-    nasCheatsUsed: activeStats.nasCheatsUsed
+    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0)
   };
 
   if (nextState.isSolitaire || nextState.settings.autoRefillHand) {

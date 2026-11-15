@@ -1,3 +1,4 @@
+import { emptyPlayerStats } from '@upndown/engine';
 import type { GameState } from '@upndown/shared-types';
 import type { CSSProperties, JSX } from 'react';
 import { deckProgress, lossLine, PLAYER_COLOR_HEX, statsHighlights } from './board-helpers.js';
@@ -77,7 +78,7 @@ export function EndGameStatisticsModal({
   const won = gameState.gamePhase === 'won';
   const progress = deckProgress(gameState);
   const highlights = statsHighlights({ players: gameState.players, statistics });
-  const fallback = { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 };
+  const fallback = emptyPlayerStats();
   const rows = gameState.players.map((player) => ({ player, stats: statistics.players[player.id] ?? fallback }));
   const mostPlayed = Math.max(1, ...rows.map((row) => row.stats.cardsPlayed));
   const hasNasCheatMode = gameState.nasCheat.enabledPlayerIds.length > 0;

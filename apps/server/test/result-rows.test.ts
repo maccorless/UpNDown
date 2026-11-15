@@ -21,8 +21,8 @@ const state = (over: Partial<GameState> = {}): GameState => ({
     startedAtMs: 1_000_000,
     endedAtMs: 1_090_000,
     players: {
-      p1: { cardsPlayed: 30, totalMovement: 150, specialPlays: 2, nasCheatsUsed: 0 },
-      p2: { cardsPlayed: 20, totalMovement: -8, specialPlays: 5, nasCheatsUsed: 1 }
+      p1: { cardsPlayed: 30, totalMovement: 150, specialPlays: 2, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 },
+      p2: { cardsPlayed: 20, totalMovement: -8, specialPlays: 5, nasCheatsUsed: 1, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 }
     }
   },
   nasCheat: { enabledPlayerIds: [], usedThisTurnByPlayerId: {} },
@@ -96,3 +96,22 @@ describe('buildResultRows', () => {
     expect(row!.endedAt.getTime()).toBe(row!.startedAt.getTime());
   });
 });
+
+describe('cheats in a result row', () => {
+  it('carries each player\'s skips, trades, lookups and hints into their own row', () => {
+    const base = state();
+    const cheated = state({
+      statistics: {
+        ...base.statistics,
+        players: {
+          p1: { ...base.statistics.players.p1!, skipsUsed: 1, lookupsUsed: 4 },
+          p2: { ...base.statistics.players.p2!, tradesUsed: 2, hintsUsed: 3 }
+        }
+      }
+    });
+    const [ann, bob] = buildResultRows({ state: cheated, runId: 'run-1', outcome: 'won', userIdByPlayerId: users, nowMs: 5 });
+    expect(ann).toMatchObject({ mySkips: 1, myTrades: 0, myLookups: 4, myHints: 0 });
+    expect(bob).toMatchObject({ mySkips: 0, myTrades: 2, myLookups: 0, myHints: 3 });
+  });
+});
+

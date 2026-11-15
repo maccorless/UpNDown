@@ -23,7 +23,13 @@ export const gameSettingsSchema = z
     allowUndo: z.boolean(),
     privateGame: z.boolean(),
     allowCardLookup: z.boolean(),
-    showArrows: z.boolean()
+    showArrows: z.boolean(),
+    cheatLimits: z.object({
+      lookup: z.enum(['off', 'once', 'unlimited']),
+      skip: z.enum(['off', 'once', 'unlimited']),
+      trade: z.enum(['off', 'once', 'unlimited']),
+      hint: z.enum(['off', 'once', 'unlimited'])
+    }).optional()
   })
   .superRefine((settings, ctx) => {
     if (settings.maxCardValue <= settings.minCardValue) {
@@ -178,8 +184,12 @@ export const gameStateSchema = z.object({
       cardsPlayed: z.number().int().min(0),
       totalMovement: z.number().int(),
       specialPlays: z.number().int().min(0),
-      nasCheatsUsed: z.number().int().min(0)
-    }))
+      nasCheatsUsed: z.number().int().min(0).default(0),
+      skipsUsed: z.number().int().min(0).default(0),
+      tradesUsed: z.number().int().min(0).optional(),
+      lookupsUsed: z.number().int().min(0).default(0),
+      hintsUsed: z.number().int().min(0).default(0)
+    }).transform((stats) => ({ ...stats, tradesUsed: stats.tradesUsed ?? stats.nasCheatsUsed })))
   }),
   nasCheat: z.object({
     enabledPlayerIds: z.array(z.string().max(100)).max(6),
@@ -203,7 +213,12 @@ export const solitaireResultPayloadSchema = z.object({
   cardsPlayed: z.number().int().min(0).max(200),
   totalMovement: z.number().int().min(-100_000).max(100_000),
   specialPlays: z.number().int().min(0).max(200),
-  nasCheats: z.number().int().min(0).max(200),
+  // Cheats used, by kind. nasCheats is the old name for trades and is still accepted.
+  nasCheats: z.number().int().min(0).max(200).default(0),
+  skips: z.number().int().min(0).max(200).default(0),
+  trades: z.number().int().min(0).max(200).default(0),
+  lookups: z.number().int().min(0).max(2000).default(0),
+  hints: z.number().int().min(0).max(2000).default(0),
   settings: gameSettingsSchema
 }).superRefine((r, ctx) => {
   const fail = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }); };
@@ -213,7 +228,7 @@ export const solitaireResultPayloadSchema = z.object({
   if (r.endedAtMs - r.startedAtMs > 24 * 24 * 3_600_000) fail('duration too long');
   if (r.cardsTotal !== r.settings.maxCardValue - r.settings.minCardValue + 1) fail('cardsTotal does not match the settings');
   if (r.cardsLeft > r.cardsTotal || r.cardsPlayed > r.cardsTotal || r.cardsPlayed + r.cardsLeft > r.cardsTotal) fail('cards do not add up');
-  if (r.specialPlays > r.cardsPlayed || r.nasCheats > r.cardsPlayed) fail('more special plays than plays');
+  if (r.specialPlays > r.cardsPlayed || r.nasCheats > r.cardsPlayed || r.trades > r.cardsPlayed) fail('more special plays than plays');
   if (r.outcome === 'won' && r.cardsLeft !== 0) fail('a win leaves no cards');
   if (r.outcome === 'lost' && r.cardsLeft === 0) fail('a loss leaves cards');
 });

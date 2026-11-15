@@ -1,3 +1,4 @@
+import { emptyPlayerStats } from '@upndown/engine';
 import type { Card, GameState, PlayerColor } from '@upndown/shared-types';
 
 // The special "backward 10" play: exactly 10 against the pile's direction. Any other legal play moves with it.
@@ -47,7 +48,7 @@ export interface StatsHighlights {
 export function statsHighlights(state: Pick<GameState, 'players' | 'statistics'>): StatsHighlights {
   const rows = state.players.map((player) => ({
     name: player.name,
-    stats: state.statistics.players[player.id] ?? { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 }
+    stats: state.statistics.players[player.id] ?? emptyPlayerStats()
   }));
   const sum = (key: 'cardsPlayed' | 'totalMovement' | 'specialPlays'): number => rows.reduce((total, row) => total + row.stats[key], 0);
   const totalCardsPlayed = sum('cardsPlayed');

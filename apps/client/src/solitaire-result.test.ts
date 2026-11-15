@@ -14,7 +14,7 @@ function winningGame(): GameState {
   state.drawPile = [];
   state.players[0]!.hand = [{ id: 'c-2', value: 2 }];
   state.statistics.startedAtMs = Date.now() - 600_000;
-  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 };
   return playCard(state, 'solo-player', 'c-2', 0);
 }
 
@@ -22,7 +22,7 @@ function lostGame(): GameState {
   const state = structuredClone(fresh());
   state.statistics.startedAtMs = Date.now() - 300_000;
   state.statistics.endedAtMs = Date.now();
-  state.statistics.players['solo-player'] = { cardsPlayed: 40, totalMovement: 150, specialPlays: 1, nasCheatsUsed: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 40, totalMovement: 150, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 };
   state.drawPile = state.drawPile.slice(0, 40);
   state.players[0]!.hand = state.players[0]!.hand.slice(0, 18);
   return { ...state, gamePhase: 'lost' };

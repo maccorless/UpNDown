@@ -33,7 +33,7 @@ const WON_STATE: GameState = {
         cardsPlayed: 0,
         totalMovement: 0,
         specialPlays: 0,
-        nasCheatsUsed: 0
+        nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0
       }
     }
   },

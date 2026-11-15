@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   createGamePayloadSchema,
   gameSettingsSchema,
+  gameStateSchema,
   joinGamePayloadSchema,
   nasCheatPayloadSchema,
   updateSettingsPayloadSchema
 } from '../src/schemas.js';
-import { deckFitMessage, maxPlayersFor } from '../src/game-types.js';
+import { cheatLimitOf, deckFitMessage, maxPlayersFor, withCheatLimits } from '../src/game-types.js';
 
 const validSettings = {
   minCardValue: 2,
@@ -127,3 +128,43 @@ describe('hand size and the deck', () => {
     expect(maxPlayersFor(tiny)).toBe(1);
   });
 });
+
+describe('cheat limits', () => {
+  const base = { allowCardLookup: false };
+  it('reads the old card seeker switch when no limits are given', () => {
+    expect(cheatLimitOf({ allowCardLookup: true }, 'lookup')).toBe('unlimited');
+    expect(cheatLimitOf(base, 'lookup')).toBe('off');
+    expect(cheatLimitOf({ allowCardLookup: true }, 'trade')).toBe('off');
+  });
+
+  it('lets cheatLimits win over the old switch', () => {
+    const limits = { lookup: 'once', skip: 'unlimited', trade: 'off', hint: 'once' } as const;
+    expect(cheatLimitOf({ allowCardLookup: false, cheatLimits: limits }, 'lookup')).toBe('once');
+    expect(cheatLimitOf({ allowCardLookup: true, cheatLimits: { ...limits, lookup: 'off' } }, 'lookup')).toBe('off');
+  });
+
+  // The old container keeps serving during a deploy and reads only allowCardLookup, so both must be written.
+  it('writes both forms, so a setting from either generation reads the same', () => {
+    const out = withCheatLimits({ ...validSettings, allowCardLookup: true });
+    expect(out.cheatLimits?.lookup).toBe('unlimited');
+    expect(out.allowCardLookup).toBe(true);
+    const off = withCheatLimits({ ...validSettings, cheatLimits: { lookup: 'off', skip: 'once', trade: 'off', hint: 'off' }, allowCardLookup: true });
+    expect(off.allowCardLookup).toBe(false);
+    expect(gameSettingsSchema.safeParse(off).success).toBe(true);
+  });
+
+  it('still parses settings saved before limits existed', () => {
+    expect(gameSettingsSchema.safeParse(validSettings).success).toBe(true);
+  });
+});
+
+describe('statistics from before cheats were counted by kind', () => {
+  it('reads the old card swap count as trades, and fills the new counters with zero', () => {
+    const parsed = gameStateSchema.shape.statistics.parse({
+      turns: 3, startedAtMs: 1, endedAtMs: null,
+      players: { p1: { cardsPlayed: 4, totalMovement: 9, specialPlays: 1, nasCheatsUsed: 2 } }
+    });
+    expect(parsed.players.p1).toEqual({ cardsPlayed: 4, totalMovement: 9, specialPlays: 1, nasCheatsUsed: 2, skipsUsed: 0, tradesUsed: 2, lookupsUsed: 0, hintsUsed: 0 });
+  });
+});
+

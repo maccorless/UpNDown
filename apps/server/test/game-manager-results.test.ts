@@ -111,8 +111,8 @@ describe('quitting a started game', () => {
     l.manager.startGame('p1', l.gameId);
     rig(l.room, (s) => {
       s.statistics.turns = 4;
-      s.statistics.players.p1 = { cardsPlayed: 9, totalMovement: 40, specialPlays: 1, nasCheatsUsed: 0 };
-      s.statistics.players.p2 = { cardsPlayed: 7, totalMovement: 30, specialPlays: 0, nasCheatsUsed: 0 };
+      s.statistics.players.p1 = { cardsPlayed: 9, totalMovement: 40, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 };
+      s.statistics.players.p2 = { cardsPlayed: 7, totalMovement: 30, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 };
     });
     l.manager.endGame('p1', l.gameId);
     const rows = l.rows();

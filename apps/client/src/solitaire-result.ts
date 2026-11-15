@@ -1,3 +1,4 @@
+import { emptyPlayerStats } from '@upndown/engine';
 import { solitaireResultPayloadSchema, type GameState, type SolitaireResultPayload } from '@upndown/shared-types';
 
 // Solitaire runs entirely in the browser and needs no connection. The one thing it ever sends is this: when a signed-in
@@ -15,7 +16,7 @@ export function newRunId(): string {
 
 export function buildSolitairePayload(state: GameState, runId: string): SolitaireResultPayload | null {
   if (state.gamePhase !== 'won' && state.gamePhase !== 'lost') return null;
-  const mine = state.statistics.players[SOLO_PLAYER_ID] ?? { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0 };
+  const mine = state.statistics.players[SOLO_PLAYER_ID] ?? emptyPlayerStats();
   const now = Date.now();
   const endedAtMs = state.statistics.endedAtMs ?? now;
   // A tab left open with a game running for weeks reports the most the server stores, not nothing.

@@ -11,7 +11,7 @@ const settings: AuthSettings = {
 };
 const row = (userId: string, gameId = 'run-1'): GameResultRow => ({
   userId, gameId, mode: 'multiplayer', outcome: 'won', startedAt: new Date(0), endedAt: new Date(1000), durationMs: 1000, turns: 3,
-  playerCount: 2, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 5, myTotalMovement: 5, mySpecialPlays: 0, myNasCheats: 0,
+  playerCount: 2, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 5, myTotalMovement: 5, mySpecialPlays: 0, myNasCheats: 0, mySkips: 0, myTrades: 0, myLookups: 0, myHints: 0,
   handSize: 7, minCardsPerTurn: 2, maxCard: 99, settings: {}
 });
 

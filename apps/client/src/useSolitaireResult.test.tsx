@@ -15,10 +15,10 @@ const won = (): GameState => {
   state.gamePhase = 'won';
   state.statistics.startedAtMs = Date.now() - 600_000;
   state.statistics.endedAtMs = Date.now();
-  state.statistics.players['solo-player'] = { cardsPlayed: 98, totalMovement: 300, specialPlays: 2, nasCheatsUsed: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 98, totalMovement: 300, specialPlays: 2, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 };
   return state;
 };
-const lost = (): GameState => ({ ...won(), gamePhase: 'lost', drawPile: playing().drawPile.slice(0, 30) , statistics: { ...won().statistics, players: { 'solo-player': { cardsPlayed: 68, totalMovement: 200, specialPlays: 1, nasCheatsUsed: 0 } } } });
+const lost = (): GameState => ({ ...won(), gamePhase: 'lost', drawPile: playing().drawPile.slice(0, 30) , statistics: { ...won().statistics, players: { 'solo-player': { cardsPlayed: 68, totalMovement: 200, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 } } } });
 
 type Props = { active: boolean; state: GameState; runId: string; signedIn: boolean };
 const render = (initial: Props) => renderHook((p: Props) => useSolitaireResult(p), { initialProps: initial });

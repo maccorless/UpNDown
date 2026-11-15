@@ -35,13 +35,27 @@ export interface GameSettings {
   privateGame: boolean;
   allowCardLookup: boolean;
   showArrows: boolean;
+  // Per-game limit on each cheat. Absent means off, except that a saved game or setting from before this existed keeps
+  // meaning what allowCardLookup said for the card seeker. Use cheatLimitOf to read it.
+  cheatLimits?: CheatLimits | undefined;
 }
+
+export type CheatKind = 'lookup' | 'skip' | 'trade' | 'hint';
+// off: not available. once: one use per player per game. unlimited: no limit.
+export type CheatLimit = 'off' | 'once' | 'unlimited';
+export type CheatLimits = Record<CheatKind, CheatLimit>;
+export const CHEAT_KINDS: readonly CheatKind[] = ['lookup', 'skip', 'trade', 'hint'];
 
 export interface PlayerStatistics {
   cardsPlayed: number;
   totalMovement: number;
   specialPlays: number;
+  // The old card swap, kept readable for saved games and stored results. New games count swaps as tradesUsed.
   nasCheatsUsed: number;
+  skipsUsed: number;
+  tradesUsed: number;
+  lookupsUsed: number;
+  hintsUsed: number;
 }
 
 export interface GameStatistics {
@@ -213,4 +227,19 @@ export function deckFitMessage(settings: Pick<GameSettings, 'minCardValue' | 'ma
     return `This deck has ${deckSizeOf(settings)} cards, which is not enough for ${settings.minPlayers} players with a hand of ${settings.handSize}. Raise the top card or lower the hand size.`;
   }
   return null;
+}
+
+// The limit for one cheat, whichever way the settings were written. When cheatLimits is present it wins; otherwise only the
+// card seeker can be on, as the old allowCardLookup said.
+export function cheatLimitOf(settings: Pick<GameSettings, 'allowCardLookup' | 'cheatLimits'>, kind: CheatKind): CheatLimit {
+  const given = settings.cheatLimits?.[kind];
+  if (given) return given;
+  return kind === 'lookup' && settings.allowCardLookup ? 'unlimited' : 'off';
+}
+
+// Writes both representations, so a container from before cheatLimits existed (it keeps serving during a deploy) still
+// reads a valid allowCardLookup.
+export function withCheatLimits<T extends GameSettings>(settings: T): T {
+  const cheatLimits = Object.fromEntries(CHEAT_KINDS.map((kind) => [kind, cheatLimitOf(settings, kind)])) as CheatLimits;
+  return { ...settings, cheatLimits, allowCardLookup: cheatLimits.lookup !== 'off' };
 }

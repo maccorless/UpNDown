@@ -58,7 +58,7 @@ describe('POST /api/me/solitaire-results', () => {
       expect(store.results).toHaveLength(1);
       expect(store.results[0]).toMatchObject({
         userId, gameId: body.gameId, mode: 'solitaire', outcome: 'won', playerCount: 1, cardsTotal: 98, cardsLeft: 0,
-        myCardsPlayed: 98, myTotalMovement: 411, mySpecialPlays: 4, myNasCheats: 0, handSize: defaultSolitaireSettings.handSize,
+        myCardsPlayed: 98, myTotalMovement: 411, mySpecialPlays: 4, myNasCheats: 0, mySkips: 0, myTrades: 0, myLookups: 0, myHints: 0, handSize: defaultSolitaireSettings.handSize,
         maxCard: defaultSolitaireSettings.maxCardValue, durationMs: 20 * MIN
       });
       expect(store.results[0]!.endedAt.getTime()).toBe(body.endedAtMs);
@@ -185,7 +185,7 @@ describe('POST /api/me/solitaire-results', () => {
   describe('history size', () => {
     const fakeRow = (userId: string, n: number) => ({
       userId, gameId: `old-${n}`, mode: 'solitaire' as const, outcome: 'won' as const, startedAt: new Date(0), endedAt: new Date(1000), durationMs: 1000,
-      turns: 0, playerCount: 1, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 98, myTotalMovement: 1, mySpecialPlays: 0, myNasCheats: 0,
+      turns: 0, playerCount: 1, cardsTotal: 98, cardsLeft: 0, myCardsPlayed: 98, myTotalMovement: 1, mySpecialPlays: 0, myNasCheats: 0, mySkips: 0, myTrades: 0, myLookups: 0, myHints: 0,
       handSize: 7, minCardsPerTurn: 1, maxCard: 99, settings: {}
     });
 
