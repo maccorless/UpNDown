@@ -35,30 +35,30 @@ So the first honest question is the ceiling. The plan starts by measuring it.
 
 | Table (no cheats) | Won | Average score | Cards left |
 |---|---|---|---|
-| Solitaire, 2 to 79, hand 7 | 41% | 55 | 3.9 |
-| Solitaire, 2 to 79, hand 9 | 91% | 94 | 0.2 |
-| Solitaire, 2 to 99, hand 9 | 24% | 41 | 6.9 |
-| Solitaire, 2 to 99, hand 11 | 74% | 82 | 0.7 |
-| Two players, 2 to 79, hand 7 | 54% | 67 | 1.5 |
-| Two players, 2 to 99, hand 9 | 47% | 62 | 1.8 |
-| Four players, 2 to 79, hand 7 | 65% | 75 | 0.9 |
-| Four players, 2 to 99, hand 7 (the default) | 18% | 41 | 4.8 |
-| Four players, 2 to 99, hand 9 | 58% | 70 | 1.3 |
+| Solitaire, 2 to 79, hand 7 | 41% | 89.5 | 3.9 |
+| Solitaire, 2 to 79, hand 9 | 91% | 99.0 | 0.2 |
+| Solitaire, 2 to 99, hand 9 | 24% | 84.0 | 6.9 |
+| Solitaire, 2 to 99, hand 11 | 74% | 97.0 | 0.7 |
+| Two players, 2 to 79, hand 7 | 54% | 94.3 | 1.5 |
+| Two players, 2 to 99, hand 9 | 47% | 93.4 | 1.8 |
+| Four players, 2 to 79, hand 7 | 65% | 95.9 | 0.9 |
+| Four players, 2 to 99, hand 7 (the default) | 18% | 87.8 | 4.8 |
+| Four players, 2 to 99, hand 9 | 58% | 94.9 | 1.3 |
 
-(The score here and everywhere below is the one Ken chose on 15-Nov-2026, section 3.3. The first draft's numbers used a different, flatter scoring and were redone.) The tables worth training on are the ones where the current strategy is neither always beaten nor always winning, about 20% to 90% won. Two more rows from the same grid that the real defaults need: two players on the default deck with a hand of 7 win 5% (score 26, 12.2 cards left), and default solitaire wins 1% (score 13, 23.4 cards left). Stage 1 rows: two players 2 to 79 hand 9 win 92%, four players 2 to 79 hand 9 win 82%.
+(The score here and everywhere below is the one Ken chose on 15-Nov-2026, section 3.3. Earlier drafts used two other scorings and every number was redone.) The tables worth training on are the ones where the current strategy is neither always beaten nor always winning, about 20% to 90% won. Two more rows from the same grid that the real defaults need: two players on the default deck with a hand of 7 win 5% (score 75.6, 12.2 cards left), and default solitaire wins 1% (score 51.0, 23.4 cards left). Stage 1 rows: two players 2 to 79 hand 9 win 92%, four players 2 to 79 hand 9 win 82%.
 
 **Measured costs and noise** (600 games each, current strategy, no cheats, 15-Nov-2026):
 
 | Table | Steps a game | Steps a second, one core | Games a second, one core | Score, mean and standard deviation of one game |
 |---|---|---|---|---|
-| Default solitaire | 74 | 69,000 | 920 | 13.1, 9.8 |
-| Two players, default | 123 | 99,000 | 800 | 24.8, 17.9 |
-| Four players, default | 138 | 97,000 | 700 | 40.6, 27.4 |
-| Four players, 2 to 79, hand 9 | 112 | 51,000 | 460 | 87.2, 27.2 |
+| Default solitaire | 74 | 69,000 | 920 | 50.7, 19.6 |
+| Two players, default | 123 | 99,000 | 800 | 75.8, 15.9 |
+| Four players, default | 138 | 97,000 | 700 | 87.6, 7.6 |
+| Four players, 2 to 79, hand 9 | 112 | 51,000 | 460 | 98.1, 4.3 |
 
-These include the cost of the current strategy's own look-ahead and the engine's loss check, which is a search over the hand on every state. On 16 cores that is roughly 10,000 games a second for evaluation, so even a 300,000-game paired comparison takes well under a minute with the heuristic (a learned policy is slower). A game's score is noisy (a standard deviation of 10 to 35 points), which section 8 uses.
+These include the cost of the current strategy's own look-ahead and the engine's loss check, which is a search over the hand on every state. On 16 cores that is roughly 10,000 games a second for evaluation, so even a 300,000-game paired comparison takes well under a minute with the heuristic (a learned policy is slower). A game's score is noisy, with a standard deviation of about 4 to 20 points (less noisy than the earlier scorings, which swung by 10 to 35), which section 8 uses.
 
-Another fact the new scoring exposes: on default solitaire, 555 of 594 lost games ended with cards still in the draw pile, so the "draw pile not emptied" halving applies to almost every loss there. On default two-player tables it applies to about 40% of losses, and on default four-player tables to almost none.
+Another fact the numbers show: on default solitaire, 555 of 594 lost games ended with cards still in the draw pile (about 17 of them), so the cost of draw-pile cards is most of what separates a good loss from a bad one there. On default two-player tables the draw pile holds about 4 cards at the end of a loss, and on default four-player tables almost none.
 
 ## 3. The game, as mathematics
 
@@ -86,17 +86,19 @@ Player `i` does not see `s`. It sees the observation `o_i = (H_i, t, |D|, |H_j| 
 
 For the table the strategy is judged on, maximize the expected team score
 
-`J(pi) = E[ R ]`, with `R = 100` if the game is won, and otherwise `R = 30 * played / N * h`, where `played = N - left` is the share of the deck that was played, `N` is the deck size, `left` is the cards still to play, and `h = 0.5` if the draw pile was not emptied at the end and `h = 1` if it was.
+`J(pi) = E[ R ]`, where `R = 100` if the game is won, and otherwise `R = 91 - H - 2 * D`, with `H` the cards left in the players' hands and `D` the cards left in the draw pile when the game ends.
 
-This is the scoring Ken chose on 15-Nov-2026: a win is the best by a wide margin (a loss is never worth more than 30), fewer cards left always scores better, and a loss that ends with the draw pile not emptied (running out of moves early) is penalized by half. On the default deck a loss with 5 cards left and the draw pile emptied scores about 28.5; the same loss with cards still in the draw pile scores about 14.2.
+This is the scoring Ken chose on 15-Nov-2026: a win is 100; a loss with one card left in the hands is 90 and each further card in the hands costs 1; every card left in the draw pile costs 2, because running out of moves while the draw pile is still full is worse than getting through the deck and stalling at the end. His examples, all checked by tests: 3 cards left in the hands scores 88; 10 cards left scores 81; two players with hands of 7 and 30 cards left (14 in the hands, 16 in the draw pile) score 100 - 10 - 13 - 32 = 45. There is no cliff and no floor: each card costs the same wherever it is, scores can go below zero in a very bad game, and the score is never clipped.
 
-**A game is not just won or lost.** Finishing with fewer cards left is always worth more than finishing with more, so a loss at 2 cards left scores far above a loss at 25, and a game that gets through the draw pile scores above one that does not. When almost every game is lost (default solitaire wins about 1%), the win rate says nothing, and the average score and the average cards left are what learning and the gates are judged on. Reports always show win rate, score and cards left together. The weights are a choice, so two other scorings are also reported (the first draft's flatter one, a win at 100 and a loss up to 50 for the share played, and pure cards left with no win bonus). They are robustness views, not independent evidence, since all are functions of the same few numbers. A graded score can also prefer a line that plays many cards over one that wins more often, so any disagreement between score and win rate is shown, not hidden.
+**A game is not just won or lost.** Finishing with fewer cards left is always worth more than finishing with more, hand card or draw pile card, so a loss at 2 cards left scores far above a loss at 25. When almost every game is lost (default solitaire wins about 1%), the win rate says nothing, and the average score and the average cards left are what learning and the gates are judged on. Reports always show win rate, score and cards left together.
 
-**Per-play form, for learning.** Each card played earns `30 / N`; a win adds a bonus of `70` at the end; and when a lost game ends with the draw pile not emptied, the terminal reward is minus half of what the game earned from plays. Summed over a game this is exactly `R`. Discount is 1 (finite horizon, at most about `N` plays plus turn ends).
+**What this scoring does and does not reward.** A win is worth 10 points more than being one card short, so a one-point rise in win rate moves the average score by only about 0.1 points, and the cards left in lost games dominate the number. That is by design (it measures how close a strategy gets, and is much less noisy than a win-heavy score), and it means a strategy could score well by always stopping one or two cards short without often winning. So win rate is always shown next to the score, any disagreement is reported, and a candidate strategy is never promoted on score alone while its win rate falls. A check on three different strategies on five tables (the current one, a stripped-down one, and a deliberately reckless one) ranks them the same under this scoring and under the earlier ones, so the choice of scoring does not change which strategies look best. Two other scorings are also reported as robustness views (an earlier one with a win at 100 and a loss at 30 times the share played, halved when the draw pile was not emptied, and pure cards left with no win bonus); they are functions of the same few numbers, so they are checks, not independent evidence.
 
-Two checks belong to P0, not to trust. First, the decomposition sums to `R` only if a win always means no cards left: the engine calls a game won when every hand is empty, so a property test over many seeds and all training tables must confirm a win leaves nothing in the draw pile. Second, undo, skip, trade and cheats are off in the training tables (so no play is ever taken back and no action changes the count of cards played in an odd way).
+**Per-play form, for learning.** Let `Phi(s) = -(H + 2D)` for the cards left at a moment in the game. A card played from a hand raises `Phi` by 1 and a card drawn from the pile into a hand raises it by 1, so the dense reward is the change in `Phi` after each step, and at the end the game adds `+100` for a win or `+91` for a loss. Summed over a game this is `R` plus the constant `-Phi(s_0)` for the table, which is the same for every game on that table and changes nothing about the best policy. This is potential-based, so it cannot distort what is optimal.
 
-If further shaping is wanted it must be potential-based (Ng, Harada and Russell): adding `gamma * Phi(s') - Phi(s)` to the reward leaves the optimal policy unchanged, but only for a fixed `Phi` with `Phi = 0` at the end of a game. A potential that moves while training (for example the current planner's value estimate) does not have that guarantee, so any potential is frozen before a stage starts and is taken from a finished earlier stage, never learned online. A bonus that is not of this form can change the best policy and is not used.
+Two checks belong to P0, not to trust. First, a win must always mean no cards left, because `Phi = 0` is assumed at a win: the engine calls a game won when every hand is empty, so a property test over many seeds and all training tables must confirm a win leaves nothing in the draw pile. Second, undo, skip, trade and cheats are off in the training tables (so no play is ever taken back and no action changes the cards left in an odd way).
+
+Any further shaping must also be potential-based (Ng, Harada and Russell): adding `gamma * Phi'(s') - Phi'(s)` to the reward leaves the optimal policy unchanged, but only for a fixed `Phi'` with `Phi' = 0` at the end of a game. A potential that moves while training (for example the current planner's value estimate) does not have that guarantee, so any extra potential is frozen before a stage starts and is taken from a finished earlier stage, never learned online. A bonus that is not of this form can change the best policy and is not used.
 
 ## 4. Design
 
@@ -109,7 +111,7 @@ Every claim in this plan is judged by a fixed evaluation protocol (section 8), a
 | Phase | What | Output | Gate to continue |
 |---|---|---|---|
 | P0 | Evaluation protocol (three scorings), exact solver for small solitaire decks, belief sampler, the public record of played cards, **reactions in the simulator as a pure shared module with the grounded sender rule and a hand-written receiver rule**, a fast simulator, the stage tables of section 4.4 | reference numbers: heuristic, perfect-information oracle, exact optimum on small decks | Reference numbers exist and the simulator matches the TypeScript engine on golden traces |
-| P1 | Search teacher: single-agent search over sampled worlds, on top of the current heuristic as the base policy | How much search adds over the heuristic, per table | Uplift of at least 1 reward point (or half a card fewer left) on stage 2 and stage 3 tables, paired and with an interval that excludes zero (else the ceiling is near and learning is a low-value bet) |
+| P1 | Search teacher: single-agent search over sampled worlds, on top of the current heuristic as the base policy | How much search adds over the heuristic, per table | Uplift of at least 1 score point (about one card fewer left) on stage 2 and stage 3 tables, paired and with an interval that excludes zero (else the ceiling is near and learning is a low-value bet) |
 | P2 | Learned policy by self-play: PPO with action masking, a centralized critic, per-play reward, **a learned receiver of reactions and tuned sender thresholds (section 5.6)** | A network that plays with `o_i` only; its curve against P1 and the heuristic | Matches or beats P1 on held-out games, or beats the heuristic with a clear explanation of what it learned |
 | P3 | Expert iteration: use the network to guide the search and the search to improve the network, repeated | A stronger teacher, and a policy distilled from it | Only if P2 stops short of P1; skipped otherwise |
 | P4 | Distillation to human-readable rules | A rule list with measured fidelity and retained strength | Non-inferior to the teacher within 5% of its measured gain over the heuristic (section 8) |
@@ -234,8 +236,8 @@ The goal is not a policy dump. It is a short guide a person can apply, and that 
 
 - **Three seed sets, never mixed.** *Training* seeds are used by learning. *Validation* seeds are used to choose between methods and checkpoints. A *test* set is used once, at the end, for the numbers that are reported and for acceptance; looking at it for any other purpose retires it and a new one is drawn. Reusing one fixed evaluation set for every decision is the same overfitting the earlier search suffered, and this prevents it.
 - **One primary metric, fixed before the results exist.** The mean reward (section 3.3) on the three stage 3 tables, paired against the current strategy on the same shuffles. Everything else (win rate, cards left, the other two scorings, stages 1 and 2) is secondary and reported with a multiple-comparison correction (Holm) where it is used to claim anything.
-- **Paired comparisons, with sizes chosen from the measured noise.** One game's score has a standard deviation of 10 to 35 points (section 2). For a paired difference with standard deviation `sd`, detecting a difference `d` at 95% confidence and 80% power needs about `n = 7.85 * sd^2 / d^2` games. With `sd` about 25 and `d` = 2 points that is about 1,200 games; to resolve 0.2 points it is about 120,000. The heuristic plays about 10,000 games a second on 16 cores, so validation sets of 20,000 games and a final test set of 300,000 paired games per table are affordable (a learned policy is slower, and its test set is sized to its speed). Win/loss differences use McNemar's test and reward differences a paired bootstrap.
-- **Retention is a non-inferiority claim, not a ratio.** "The rules keep at least 95% of the gain" is restated as: the lower end of the 95% interval for (rules minus teacher) is no worse than a stated margin, set to 5% of the measured gain over the heuristic. With a 2 point gain that margin is 0.1 points, which needs the large test set above (about 300,000 games with `sd` 25).
+- **Paired comparisons, with sizes chosen from the measured noise.** One game's score has a standard deviation of about 4 to 20 points (section 2). For a paired difference with standard deviation `sd`, detecting a difference `d` at 95% confidence and 80% power needs about `n = 7.85 * sd^2 / d^2` games. With `sd` about 15 and `d` = 2 points that is about 440 games; to resolve 0.1 points it is about 180,000, and about 50,000 on the less noisy tables. The heuristic plays about 10,000 games a second on 16 cores, so validation sets of 20,000 games and a final test set of 200,000 paired games per table are affordable (a learned policy is slower, and its test set is sized to its speed). Win/loss differences use McNemar's test and reward differences a paired bootstrap.
+- **Retention is a non-inferiority claim, not a ratio.** "The rules keep at least 95% of the gain" is restated as: the lower end of the 95% interval for (rules minus teacher) is no worse than a stated margin, set to 5% of the measured gain over the heuristic. With a 2 point gain that margin is 0.1 points, which needs the large test set above (about 180,000 games with `sd` 15).
 - **Several training seeds.** A learning method is reported as the mean and spread over at least 5 independent training runs.
 - **Honest negatives.** A method that does not beat the baseline is recorded, as the hill-climbing search was.
 
@@ -268,8 +270,8 @@ Each line is the outcome.
 1. **Stack.** A one-day spike in P0 decides between a Python port with a parity suite (B) and TypeScript actors feeding a Python learner (C), with C preferred if it reaches a quarter of B's speed (section 6.1).
 2. **What the policy may know.** Both Tier A (what you see, including reactions) and Tier B (plus the played-card record), reported separately. Tier B needs a public `playedValues` addition to `Observation`, to what the server sends, and to the solitaire client (outside the day count, section 12).
 3. **Which tables.** Staged: simple no-cheat tables first (smaller card range, bigger hands, undo off), then medium, ending on the real defaults, always evaluated on the real defaults (section 4.4).
-4. **The scoring.** Win 100; a loss scores 30 times the share of the deck played, and is halved if the draw pile was not emptied (section 3.3). Judged on score and cards left as well as win rate, with two other scorings shown as a check.
-5. **The bar for promotion.** On the real-default tables, at least 2 score points and half a card fewer left than the current strategy (paired, interval excludes zero), not worse than 1 point on easier tables, and written rules within 5% of the strong player's gain, on a once-only test set (sections 8 and 10).
+4. **The scoring.** Win 100. A loss with one card left in the hands is 90, each further card in the hands costs 1, and every card left in the draw pile costs 2 (so a loss scores 91 - H - 2D; section 3.3). Chosen by Ken after he judged the first version (win 100, loss 30 times the share played, halved if the draw pile was not emptied) too harsh. Judged on score and cards left as well as win rate, with two other scorings shown as a check.
+5. **The bar for promotion.** On the real-default tables, at least 2 score points (on this scale about two cards fewer left, which also covers the half card Ken asked for) better than the current strategy (paired, interval excludes zero), not worse than 1 point on easier tables, and written rules within 5% of the strong player's gain, on a once-only test set (sections 8 and 10).
 6. **Stop rule.** Build the foundations and the search teacher first (about 10 working days), report, and stop if search adds under 1 score point on the medium and real tables.
 7. **Artifacts in git.** Summaries, the final rules file, the guide and the lock file, and also the best checkpoint (a small network, kept under about 5 MB). Logs and other checkpoints stay on the Mac outside git.
 8. **Human usability check.** Yes, as a usability check and not a pass-or-fail gate (section 7.7).
@@ -333,5 +335,14 @@ An independent review of the first draft was run on 15-Nov-2026 with the most ca
 | 11 | The reward decomposition needs win to mean no cards left; the alternative scorings are not independent; graded reward can prefer risky lines | 3.3 |
 | 12 | Paper claims were imprecise: the ISMCTS exploration term, the Hanabi claim, the AlphaZero formula | 5.2, 5.4, 14 |
 
-At Ken's direction on 15-Nov-2026 the plan's tool also changed: `packages/engine/src/simulate.ts` gained `scoreGame` (the scoring above, with tests) and records the cards left in the draw pile, and `tools/sim.ts` uses it, so `train` and `calibrate` report the new score. The one saved training run in `tools/runs/` used the earlier flatter scoring.
+At Ken's direction on 15-Nov-2026 the plan's tool also changed: `packages/engine/src/simulate.ts` gained `scoreGame` (the scoring above, with tests for each of Ken's examples) and records the cards left in the draw pile, and `tools/sim.ts` uses it, so `train` and `calibrate` report the new score. The one saved training run in `tools/runs/` used an earlier scoring (a win at 100 and a loss at up to 50 for the share played).
+
+Changes made at Ken's direction after the review (15-Nov-2026):
+
+| Change | Where |
+|---|---|
+| Reactions (like, love, really love) were missing from the plan; robots learn to use them through one shared public place, with a grounded meaning | 3.1, 3.2, 5.6, 7, 9, 10, 12, 13 |
+| The scoring is now: win 100; a loss is 91 minus the cards left in the hands minus twice the cards left in the draw pile (a first version, halving a loss when the draw pile was not emptied, was judged too harsh; all measured numbers redone) | 2, 3.3, 8 |
+| Training runs only on simpler no-cheat tables and is always evaluated on the real defaults | 4.4 |
+| Any library at any version may be installed, in an isolated environment | 6.1 |
 

@@ -70,13 +70,14 @@ export function playGame(settings: GameSettings, players: number, seed: number, 
 const cardsLeft = (state: GameState): number => state.drawPile.length + state.players.reduce((sum, player) => sum + player.hand.length, 0);
 const cardsTotal = (settings: GameSettings): number => settings.maxCardValue - settings.minCardValue + 1;
 
-// What a game is worth (decided by Ken, 15-Nov-2026). A win is 100. A loss is worth 30 times the share of the deck that was
-// played, so fewer cards left always scores better, and it is halved when the draw pile was not emptied, so running out of
-// moves early costs more than getting through the deck and stalling at the end.
+// What a game is worth (decided by Ken, 15-Nov-2026). A win is 100. A loss starts at 90 for one card left in the hands, and
+// each further card in the hands costs 1; every card still in the draw pile costs 2, so running out of moves early costs
+// more than getting through the deck and stalling at the end. So a loss scores 91 - hand cards - 2 x draw pile cards:
+// 3 cards left in the hands is 88, 10 is 81, and 14 in the hands with 16 in the draw pile is 45.
 export function scoreGame(record: GameRecord): number {
   if (record.outcome === 'won') return 100;
-  const played = (record.cardsTotal - record.cardsLeft) / record.cardsTotal;
-  return 30 * played * (record.drawLeft > 0 ? 0.5 : 1);
+  const inHands = record.cardsLeft - record.drawLeft;
+  return 91 - inHands - 2 * record.drawLeft;
 }
 
 export interface Summary {
