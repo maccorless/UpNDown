@@ -49,6 +49,14 @@ describe('DEPLOY_TARGET proxy hop defaults', () => {
     expect(await refusedWhenFourVisitorsArriveBehindOneProxy()).toBe(20);
   });
 
+  // Four visitors arrive with a header one entry long. A host with fewer proxies than we trust (the direct platform
+  // address) has a chain shorter than the count, and the left of it is whatever the client typed. Before the fix the
+  // leftmost entry was used, so each visitor could pick their own address and none was ever limited.
+  it('does not let a visitor choose their own address when the chain is shorter than the proxies we trust', async () => {
+    process.env.TRUSTED_PROXY_HOPS = '5';
+    expect(await refusedWhenFourVisitorsArriveBehindOneProxy()).toBe(20);
+  });
+
   it('with no platform set, the address is the connection itself, so every visitor shares it', async () => {
     expect(await refusedWhenFourVisitorsArriveBehindOneProxy()).toBe(20);
   });

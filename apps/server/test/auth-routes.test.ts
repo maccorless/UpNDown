@@ -470,6 +470,22 @@ describe('auth routes', () => {
     });
   });
 
+  // The direct platform address has fewer proxies in front of it than the count we trust. Rotating a made-up
+  // X-Forwarded-For there must not be a way past the limit.
+  describe('rate limit on a short proxy chain', () => {
+    it('is not dodged by sending a different X-Forwarded-For each time', async () => {
+      process.env.TRUSTED_PROXY_HOPS = '5';
+      try {
+        await boot();
+        const codes: number[] = [];
+        for (let i = 0; i < 12; i += 1) codes.push((await get('/auth/google/start', undefined, { 'x-forwarded-for': `6.6.6.${i}` })).status);
+        expect(codes.slice(10)).toEqual([429, 429]);
+      } finally {
+        delete process.env.TRUSTED_PROXY_HOPS;
+      }
+    });
+  });
+
   describe('old address redirect', () => {
     const page = { accept: 'text/html,application/xhtml+xml' };
     it('sends page loads on the legacy host to the canonical host and keeps the invite path', async () => {

@@ -16,6 +16,7 @@ import {
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
 import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
+import { resolveClientIp } from './client-ip.js';
 import { GameManager } from './game-manager.js';
 import { toPlayerView } from './player-view.js';
 
@@ -232,17 +233,8 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   const connectedPlayerIds = new Set<string>();
   const rateBuckets = new Map<string, Map<string, { windowStartMs: number; count: number }>>();
 
-  // Chain is X-Forwarded-For plus the TCP peer. Each trusted proxy appends the address it saw, so the
-  // client is `trustedProxyHops` entries from the right and anything an attacker prepends sits to its left.
-  const clientIpOf = (socket: Socket): string => {
-    const header = socket.handshake.headers['x-forwarded-for'];
-    const forwarded = (Array.isArray(header) ? header.join(',') : header ?? '')
-      .split(',')
-      .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
-    const chain = [...forwarded, socket.handshake.address];
-    return chain[Math.max(0, chain.length - 1 - config.trustedProxyHops)] ?? socket.handshake.address;
-  };
+  const clientIpOf = (socket: Socket): string =>
+    resolveClientIp(socket.handshake.headers['x-forwarded-for'], socket.handshake.address, config.trustedProxyHops);
 
   const passesRateLimit = (
     socketId: string,

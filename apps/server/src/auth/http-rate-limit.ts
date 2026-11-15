@@ -1,16 +1,8 @@
 import type { Request } from 'express';
+import { resolveClientIp } from '../client-ip.js';
 
-// Same rule as the socket limiter in index.ts: the client is `trustedProxyHops` entries from the right of
-// X-Forwarded-For plus the TCP peer, so anything a client prepends sits to its left and is ignored.
 export function clientIpOfRequest(req: Request, trustedProxyHops: number): string {
-  const header = req.headers['x-forwarded-for'];
-  const forwarded = (Array.isArray(header) ? header.join(',') : header ?? '')
-    .split(',')
-    .map((entry) => entry.trim())
-    .filter((entry) => entry.length > 0);
-  const peer = req.socket.remoteAddress ?? 'unknown';
-  const chain = [...forwarded, peer];
-  return chain[Math.max(0, chain.length - 1 - trustedProxyHops)] ?? peer;
+  return resolveClientIp(req.headers['x-forwarded-for'], req.socket.remoteAddress ?? 'unknown', trustedProxyHops);
 }
 
 export function createIpRateLimiter(trustedProxyHops: number, now: () => number = Date.now) {
