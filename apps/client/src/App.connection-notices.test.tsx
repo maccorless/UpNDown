@@ -5,7 +5,7 @@ import type { GameState } from '@upndown/shared-types';
 
 import { App } from './App.js';
 
-type Ack = (response: { ok: boolean; data?: unknown; error?: string }) => void;
+type Ack = (response: { ok: boolean; data?: unknown; error?: string; gone?: boolean }) => void;
 type Listener = (...args: unknown[]) => void;
 
 const mock = vi.hoisted(() => {
@@ -116,12 +116,80 @@ describe('App: dropped connections in a multiplayer game', () => {
   });
 
   it('says plainly that the player was removed while away when the server refuses the rejoin', async () => {
-    await hostGame((_payload, ack) => ack?.({ ok: false, error: 'Player not found in game' }));
+    await hostGame((_payload, ack) => ack?.({ ok: false, error: 'Unable to rejoin game', gone: true }));
     mock.state.id = 'socket-9';
     act(() => mock.serverEmit('connect'));
     expect(await screen.findByText('You were removed from game ABC123 while you were disconnected.')).toBeTruthy();
     expect(screen.queryByTestId('end-game-top')).toBeNull();
     await userEvent.click(screen.getByRole('button', { name: /OK|Close|Back|Got it/i }));
     expect(screen.queryByText(/while you were disconnected/)).toBeNull();
+  });
+
+  // A refusal without `gone` may pass (a rate limit): the board stays and the player is told to reload, not told they were removed.
+  it('does not claim the player was removed when the refusal is temporary', async () => {
+    await hostGame((_payload, ack) => ack?.({ ok: false, error: 'Too many rejoin attempts. Please wait a moment and try again.' }));
+    mock.state.id = 'socket-9';
+    act(() => mock.serverEmit('connect'));
+    expect(await screen.findByText(/Could not rejoin your game yet/)).toBeTruthy();
+    expect(screen.queryByText(/removed from game/)).toBeNull();
+    expect(screen.getByTestId('end-game-top')).toBeTruthy();
+  });
+
+  it('keeps the seat in this browser while a game is being played, and forgets it when the game is left or over', async () => {
+    await hostGame();
+    const saved = JSON.parse(window.localStorage.getItem('upndown.seat') ?? 'null') as Record<string, unknown> | null;
+    expect(saved).toMatchObject({ gameId: 'ABC123', playerId: 'socket-1', rejoinToken: 'tok' });
+    act(() => mock.serverEmit('game:updated', { ...playing(), gamePhase: 'won' }));
+    expect(window.localStorage.getItem('upndown.seat')).toBeNull();
+  });
+
+  it('takes the seat back on its own when the page is opened again after the tab was closed', async () => {
+    window.localStorage.setItem('upndown.seat', JSON.stringify({ gameId: 'ABC123', playerId: 'old-socket', rejoinToken: 'tok-old', savedAtMs: Date.now() }));
+    const asked: unknown[] = [];
+    mock.state.id = 'socket-new';
+    mock.state.onEmit = (event, payload, ack) => {
+      if (event === 'game:rejoin') { asked.push(payload); ack?.({ ok: true, data: { gameState: playing(), playerId: 'socket-new', rejoinToken: 'tok-new' } }); } else ack?.({ ok: false, error: 'unhandled' });
+    };
+    render(<App />);
+    expect(await screen.findByTestId('end-game-top')).toBeTruthy();
+    expect(asked).toEqual([{ gameId: 'ABC123', previousPlayerId: 'old-socket', rejoinToken: 'tok-old' }]);
+  });
+
+  it('drops a saved seat the server no longer has, and says so', async () => {
+    window.localStorage.setItem('upndown.seat', JSON.stringify({ gameId: 'ABC123', playerId: 'old-socket', rejoinToken: 'tok-old', savedAtMs: Date.now() }));
+    mock.state.id = 'socket-new';
+    mock.state.onEmit = (_event, _payload, ack) => ack?.({ ok: false, error: 'Unable to rejoin game', gone: true });
+    render(<App />);
+    expect(await screen.findByText('You were removed from game ABC123 while you were disconnected.')).toBeTruthy();
+    expect(window.localStorage.getItem('upndown.seat')).toBeNull();
+  });
+
+  it('puts a signed-in player back in a game they still hold when they open multiplayer with nothing saved', async () => {
+    const asked: string[] = [];
+    mock.state.onEmit = (event, _payload, ack) => {
+      asked.push(event);
+      if (event === 'game:rejoinMine') ack?.({ ok: true, data: { gameState: playing(), playerId: 'socket-1', rejoinToken: 'tok-mine' } });
+      else if (event === 'game:listJoinable') ack?.({ ok: true, data: { games: [] } });
+      else ack?.({ ok: false, error: 'unhandled' });
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    expect(await screen.findByTestId('end-game-top')).toBeTruthy();
+    expect(asked).toContain('game:rejoinMine');
+  });
+
+  it('shows nothing when there is no seat to take back', async () => {
+    mock.state.onEmit = (event, _payload, ack) => {
+      if (event === 'game:rejoinMine') ack?.({ ok: false, error: 'Unable to rejoin game', gone: true });
+      else if (event === 'game:listJoinable') ack?.({ ok: true, data: { games: [] } });
+      else ack?.({ ok: false, error: 'unhandled' });
+    };
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(screen.getByTestId('mode-multiplayer'));
+    await screen.findByLabelText('Player Name');
+    expect(screen.queryByText(/removed from game/)).toBeNull();
+    expect(screen.queryByTestId('end-game-top')).toBeNull();
   });
 });

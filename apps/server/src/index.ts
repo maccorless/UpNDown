@@ -33,7 +33,9 @@ const runtimeEnvSchema = z.object({
 // Reverse proxies in front of the server per platform (Skiff: ALB + APISIX). Explicit TRUSTED_PROXY_HOPS wins.
 const proxyHopsByTarget = { skiff: 2, railway: 1 } as const;
 
-type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string }) => void;
+// `gone` on a refused rejoin means the seat no longer exists (or the token is wrong): do not try again. Without it the
+// refusal may be temporary (a rate limit), so the client may.
+type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string; gone?: true }) => void;
 type LogLevel = 'info' | 'warn' | 'error';
 
 // Socket.IO passes a non-function last client argument through as `ack`, so check the type at runtime.
@@ -60,6 +62,7 @@ const eventRateLimits: Record<
   | 'game:create'
   | 'game:join'
   | 'game:rejoin'
+  | 'game:rejoinMine'
   | 'game:lookup'
   | 'game:listJoinable'
   | 'game:start'
@@ -78,6 +81,7 @@ const eventRateLimits: Record<
   'game:create':         { limit: 5,  windowMs: 60_000 },
   'game:join':           { limit: 10, windowMs: 10_000 },
   'game:rejoin':         { limit: 5,  windowMs: 30_000 },
+  'game:rejoinMine':     { limit: 5,  windowMs: 30_000 },
   'game:lookup':         { limit: 20, windowMs: 10_000 },
   'game:listJoinable':   { limit: 30, windowMs: 10_000 },
   'game:start':          { limit: 10, windowMs: 30_000 },
@@ -325,6 +329,23 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
   }, 60_000);
   cleanupTimer.unref();
 
+  const finishRejoin = (
+    socket: Socket,
+    gameId: string,
+    previousPlayerId: string,
+    gameState: Parameters<typeof toPlayerView>[0],
+    ack: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }> | undefined
+  ): void => {
+    io.in(previousPlayerId).socketsLeave(gameId);
+    socket.join(gameId);
+    broadcastState(gameId, gameState);
+    log('info', 'game.rejoined', { socketId: socket.id, previousId: previousPlayerId, gameId });
+    reply(ack, {
+      ok: true,
+      data: { gameState: viewOf(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameId, socket.id) }
+    });
+  };
+
   io.on('connection', (socket) => {
     connectedPlayerIds.add(socket.id);
     // The client address is deliberately not logged. It is only used for rate limits, and nothing needs it on disk.
@@ -338,21 +359,36 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         reply(ack, { ok: false, error: message });
         return;
       }
+      let parsed: ReturnType<typeof rejoinGamePayloadSchema.parse>;
       try {
-        const { gameId, previousPlayerId, rejoinToken } = rejoinGamePayloadSchema.parse(payload);
-        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken, userIdOf(socket));
-        io.in(previousPlayerId).socketsLeave(gameId);
-        socket.join(gameId);
-        broadcastState(gameId, gameState);
-        log('info', 'game.rejoined', { socketId: socket.id, previousId: previousPlayerId, gameId });
-        reply(ack, {
-          ok: true,
-          data: { gameState: viewOf(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameId, socket.id) }
-        });
+        parsed = rejoinGamePayloadSchema.parse(payload);
       } catch (err) {
-        const message = normalizeError(err, 'Unable to rejoin game');
-        log('warn', 'game.rejoin_failed', { socketId: socket.id, error: message });
-        reply(ack, { ok: false, error: message });
+        reply(ack, { ok: false, error: normalizeError(err, 'Unable to rejoin game') });
+        return;
+      }
+      try {
+        const { gameId, previousPlayerId, rejoinToken } = parsed;
+        const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken, userIdOf(socket));
+        finishRejoin(socket, gameId, previousPlayerId, gameState, ack);
+      } catch (err) {
+        log('warn', 'game.rejoin_failed', { socketId: socket.id, error: normalizeError(err, 'Unable to rejoin game') });
+        reply(ack, { ok: false, error: 'Unable to rejoin game', gone: true });
+      }
+    });
+
+    socket.on('game:rejoinMine', (_payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
+      if (!passesRateLimit(socket.id, 'game:rejoinMine')) {
+        reply(ack, { ok: false, error: 'Too many rejoin attempts. Please wait a moment and try again.' });
+        return;
+      }
+      const userId = userIdOf(socket);
+      try {
+        if (!userId) throw new Error('Unable to rejoin game');
+        const found = manager.rejoinByAccount(userId, socket.id);
+        finishRejoin(socket, found.gameId, found.previousPlayerId, found.state, ack);
+      } catch {
+        // Not signed in, or no held seat: nothing to log, this is asked on every multiplayer visit.
+        reply(ack, { ok: false, error: 'Unable to rejoin game', gone: true });
       }
     });
 

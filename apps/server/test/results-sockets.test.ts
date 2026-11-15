@@ -14,7 +14,7 @@ const settings: AuthSettings = {
   googleClientId: 'id', googleClientSecret: 'secret', legacyHost: undefined
 };
 
-type Ack = { ok: boolean; data?: { gameState: GameState }; error?: string };
+type Ack = { ok: boolean; data?: { gameState: GameState }; error?: string; gone?: boolean };
 
 describe('results through real sockets', () => {
   let server: ReturnType<typeof createRealtimeServer>;
@@ -117,6 +117,34 @@ describe('results through real sockets', () => {
     await ask(a.socket, 'game:playCard', { gameId, cardId: 'c-2', pileId: 0 });
     await new Promise<void>((resolve) => { setTimeout(resolve, 60); });
     expect(store.results).toHaveLength(0);
+  });
+
+  // A signed-in player whose browser closed takes the seat back by account, on any device; a guest has only the rejoin token.
+  it('lets a signed-in player take back a held seat by account, with their own hand, and nobody else', async () => {
+    const { ann, gameId, annId } = await table();
+    await ask(ann.socket, 'game:start', { gameId });
+    const hand = room(gameId).gameState.players.find((p) => p.id === annId)!.hand.map((c) => c.id);
+    ann.socket.close();
+
+    const back = await open('google-ann');
+    const taken = await ask(back.socket, 'game:rejoinMine', {});
+    expect(taken.ok).toBe(true);
+    const mine = taken.data!.gameState.players.find((p) => p.id === back.socket.id)!;
+    expect(mine.hand.map((c) => c.id)).toEqual(hand);
+    expect(taken.data!.gameState.hostId).toBe(back.socket.id);
+
+    const stranger = await open('google-dan');
+    const refused = await ask(stranger.socket, 'game:rejoinMine', {});
+    expect(refused).toMatchObject({ ok: false, gone: true });
+    const guest = await open();
+    expect(await ask(guest.socket, 'game:rejoinMine', {})).toMatchObject({ ok: false, gone: true });
+  });
+
+  it('answers a refused rejoin with gone, so the client stops trying', async () => {
+    const { cy, gameId } = await table();
+    const fresh = await open();
+    const refused = await ask(fresh.socket, 'game:rejoin', { gameId, previousPlayerId: cy.socket.id, rejoinToken: 'wrong' });
+    expect(refused).toMatchObject({ ok: false, gone: true });
   });
 
   // The seat was taken signed in. Signing out later (here, the session ends) does not change whose game it was.

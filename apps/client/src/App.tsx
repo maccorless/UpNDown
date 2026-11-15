@@ -1,3 +1,4 @@
+import { clearSavedSeat, readSavedSeat, writeSavedSeat } from './saved-seat.js';
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
 import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
@@ -798,6 +799,25 @@ export function App(): JSX.Element {
     void handleJoinGame(deepLinkGameId);
   }, [mode, multiplayerState, connectionState, joinGameId, playerName]);
 
+  // A game being played survives a closed tab: the seat is kept in this browser, and opening the page again takes it back.
+  useEffect(() => {
+    const seat = readSavedSeat();
+    if (!seat) return;
+    activeGameIdRef.current = seat.gameId;
+    previousPlayerIdRef.current = seat.playerId;
+    rejoinTokenRef.current = seat.rejoinToken;
+    setMode('multiplayer');
+  }, []);
+
+  useEffect(() => {
+    if (!multiplayerState) return;
+    if (multiplayerState.gamePhase !== 'playing') {
+      clearSavedSeat();
+    } else if (playerId && rejoinTokenRef.current && multiplayerState.players.some((p) => p.id === playerId)) {
+      writeSavedSeat({ gameId: multiplayerState.gameId, playerId, rejoinToken: rejoinTokenRef.current });
+    }
+  }, [multiplayerState, playerId]);
+
   useEffect(() => {
     if (mode !== 'multiplayer') {
       return;
@@ -812,19 +832,26 @@ export function App(): JSX.Element {
       const oldId = previousPlayerIdRef.current;
       const gameId = activeGameIdRef.current;
 
-      // If we had an active game and our socket ID changed, rejoin
+      type RejoinAck = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; gone?: boolean };
+      const adopt = (data: { gameState: GameState; playerId: string; rejoinToken: string }): void => {
+        setMultiplayerState(data.gameState);
+        setPlayerId(data.playerId);
+        previousPlayerIdRef.current = data.playerId;
+        rejoinTokenRef.current = data.rejoinToken;
+        activeGameIdRef.current = data.gameState.gameId;
+      };
       const rejoinToken = rejoinTokenRef.current;
       if (gameId && oldId && newId && rejoinToken && oldId !== newId) {
-        socket.emit('game:rejoin', { gameId, previousPlayerId: oldId, rejoinToken },
-          (response: { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; error?: string }) => {
-            if (response?.ok && response.data) {
-              setMultiplayerState(response.data.gameState);
-              setPlayerId(response.data.playerId);
-              previousPlayerIdRef.current = response.data.playerId;
-              rejoinTokenRef.current = response.data.rejoinToken;
-            } else { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); } // seat gone: no stale board
-          }
-        );
+        // We had a seat and our socket ID changed (a dropped connection, or a page opened again): take the seat back.
+        socket.emit('game:rejoin', { gameId, previousPlayerId: oldId, rejoinToken }, (response: RejoinAck) => {
+          if (response?.ok && response.data) adopt(response.data);
+          else if (response?.gone) { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); } // seat gone: no stale board
+          else setError('Could not rejoin your game yet. Reload the page to try again.');
+        });
+      } else if (!gameId && newId) {
+        // No seat in memory. A signed-in player may still hold one in a game being played (another device, cleared
+        // storage); the server answers `gone` for everyone else, and nothing is shown.
+        socket.emit('game:rejoinMine', {}, (response: RejoinAck) => { if (response?.ok && response.data) adopt(response.data); });
       }
 
       setPlayerId(newId);
@@ -872,6 +899,7 @@ export function App(): JSX.Element {
     };
 
     const onKicked = (data: { gameId: string }): void => {
+      clearSavedSeat();
       setKickedFromGameId(data.gameId);
       setMultiplayerState(null);
       setPendingLobbyState(null);
@@ -1616,6 +1644,7 @@ export function App(): JSX.Element {
   };
 
   const resetToLanding = (): void => {
+    clearSavedSeat();
     setMode(null);
     setMultiplayerState(null);
     setPendingLobbyState(null);

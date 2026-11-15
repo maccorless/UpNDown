@@ -189,7 +189,7 @@ Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom sta
 
 ### 3.5 Disconnection Handling
 - **Lobby**: Disconnected player is auto-removed from the game; host transfers if needed
-- **Active Game**: Player remains in the game state; reconnection restores them via `game:rejoin`. Others are told after 10 s, and kick or host takeover is offered after 90 s (see Player Kick). A rejoin refused because the seat was removed returns the player to the home screen with a message
+- **Active Game**: Player remains in the game state; reconnection restores them via `game:rejoin`. A refused rejoin carries `gone: true` when the seat no longer exists (a rate-limit refusal does not), and only then is the player told they were removed. The browser keeps the game code, player id and rejoin token in local storage (`upndown.seat`) while a game is being played (cleared when it ends or the player is removed, ignored after 2 hours), and opening the page again takes the seat back on its own. A signed-in player with nothing saved (another device, cleared storage) is put back by account when they open multiplayer: the client sends `game:rejoinMine`, and the server finds a seat in a game being played that was taken with that account. Solitaire never does either Others are told after 10 s, and kick or host takeover is offered after 90 s (see Player Kick). A rejoin refused because the seat was removed returns the player to the home screen with a message
 - Orphaned rooms (no connected players) are reaped after 5 min (lobby) / 30 min (active)
 - **Status**: ✅ **Implemented**
 
@@ -342,6 +342,7 @@ Client  ──Socket.IO event──►  Server
 | `game:create`         | Create a new game room               |
 | `game:join`           | Join an existing game                |
 | `game:rejoin`         | Reconnect with a new socket ID (requires the seat's rejoin token) |
+| `game:rejoinMine`     | Signed-in player takes back a held seat by account (no payload) |
 | `game:lookup`         | Check if a game ID is joinable       |
 | `game:listJoinable`   | List public lobby games              |
 | `game:start`          | Host starts the game                 |

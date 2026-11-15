@@ -179,6 +179,25 @@ export class GameManager {
       throw new Error('Unable to rejoin game');
     }
 
+    return this.reseat(room, gameId, oldPlayerId, newPlayerId, userId);
+  }
+
+  // A signed-in player whose seat in a game being played is held (their browser closed, or this is another device) takes it
+  // back by account: the session proves who they are, as the seat's rejoin token does for a guest.
+  rejoinByAccount(userId: string, newPlayerId: string): { gameId: string; previousPlayerId: string; state: GameState } {
+    for (const [gameId, room] of this.rooms) {
+      if (room.gameState.gamePhase !== 'playing') continue;
+      for (const [previousPlayerId, seatUser] of room.userIdByPlayerId) {
+        if (seatUser !== userId || !room.gameState.players.some((p) => p.id === previousPlayerId)) continue;
+        if (room.gameState.players.some((p) => p.id === newPlayerId)) break;
+        return { gameId, previousPlayerId, state: this.reseat(room, gameId, previousPlayerId, newPlayerId, userId) };
+      }
+    }
+    throw new Error('Unable to rejoin game');
+  }
+
+  private reseat(room: GameRoom, gameId: string, oldPlayerId: string, newPlayerId: string, userId?: string): GameState {
+    const { gameState } = room;
     swapPlayerId(gameState, oldPlayerId, newPlayerId);
     for (const snapshot of room.turnUndoStack) {
       swapPlayerId(snapshot, oldPlayerId, newPlayerId);
