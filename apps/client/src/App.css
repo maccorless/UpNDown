@@ -2738,3 +2738,64 @@ button.mode-card:not(:disabled):active {
   text-align: center;
   color: inherit;
 }
+
+/* ===== Connection notices: a player's connection dropped during a game ===== */
+.connection-notices {
+  grid-area: notices;
+  display: grid;
+  gap: 6px;
+}
+
+/* Empty, it is only a screen-reader live region: out of the layout, so a normal game does not move. */
+.connection-notices:empty {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.connection-line,
+.connection-prompt {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-left-width: 4px;
+  border-radius: 8px;
+  background: var(--soft);
+  color: var(--text);
+}
+
+.connection-prompt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A row for the notices, only while there are any. */
+.gameboard-multi.has-notices {
+  grid-template-areas:
+    "notices notices"
+    "foundation players"
+    "hand hand";
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+@media (max-width: 900px) {
+  .gameboard-multi.has-notices {
+    grid-template-areas:
+      "notices"
+      "foundation"
+      "hand"
+      "players";
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+  }
+}

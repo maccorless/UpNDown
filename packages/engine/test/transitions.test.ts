@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Card, GameSettings } from '@upndown/shared-types';
 import { buildDeck } from '../src/init.js';
 import { EngineError } from '../src/errors.js';
-import { createStartedGameState, endTurn, playCard, useNasCheat } from '../src/transitions.js';
+import { createStartedGameState, endTurn, playCard, settleAfterRemoval, useNasCheat } from '../src/transitions.js';
 
 const settings: GameSettings = {
   minCardValue: 2,
@@ -440,5 +440,46 @@ describe('nas cheat mode', () => {
 
     const cardId = state.players[0]!.hand[0]!.id;
     expect(() => useNasCheat(state, 'p1', cardId)).toThrowError(EngineError);
+  });
+});
+
+// After a kick the removed seat's cards are back in the draw pile. Hands refill from it only when the game refills hands.
+describe('settleAfterRemoval', () => {
+  const live = (autoRefillHand: boolean) => createStartedGameState({
+    gameId: 'ABC123',
+    hostId: 'p1',
+    players: [{ id: 'p1', name: 'A' }, { id: 'p2', name: 'B' }],
+    settings: { ...settings, autoRefillHand },
+    isSolitaire: false,
+    deck: buildDeck(settings)
+  });
+
+  it('tops hands back up from the draw pile when hands refill as cards are played', () => {
+    const state = live(true);
+    state.players[0]!.hand = state.players[0]!.hand.slice(0, 2);
+    const settled = settleAfterRemoval(state);
+    expect(settled.players[0]!.hand).toHaveLength(5);
+    expect(settled.drawPile).toHaveLength(state.drawPile.length - 3);
+    expect(settled.gamePhase).toBe('playing');
+  });
+
+  it('does not call the game won while the draw pile can still fill an empty hand', () => {
+    const state = live(true);
+    for (const player of state.players) player.hand = [];
+    expect(state.drawPile.length).toBeGreaterThan(0);
+    expect(settleAfterRemoval(state).gamePhase).toBe('playing');
+  });
+
+  it('wins when every hand and the draw pile are empty', () => {
+    const state = live(true);
+    for (const player of state.players) player.hand = [];
+    state.drawPile = [];
+    expect(settleAfterRemoval(state).gamePhase).toBe('won');
+  });
+
+  it('leaves the game alone when hands only fill at the end of a turn', () => {
+    const state = live(false);
+    state.players[0]!.hand = state.players[0]!.hand.slice(0, 2);
+    expect(settleAfterRemoval(state)).toBe(state);
   });
 });

@@ -1,5 +1,5 @@
 import { randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
-import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, shuffle, useNasCheat } from '@upndown/engine';
+import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, settleAfterRemoval, shuffle, useNasCheat } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
@@ -12,6 +12,7 @@ import type {
   Player,
   PlayerColor,
   ReactionState,
+  ReconnectionView,
   ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
@@ -32,6 +33,8 @@ interface GameRoom {
   // A room code is not a game: a finished room goes back to the lobby and starts again under the same code. Each start
   // gets a fresh run id, and that is what a recorded result is keyed on.
   runId: string | null;
+  // When each seat in a game being played lost its connection. A seat is connected when it has no entry.
+  disconnectedAtMs: Map<string, number>;
 }
 
 const isFinished = (state: GameState): boolean => state.gamePhase === 'won' || state.gamePhase === 'lost';
@@ -87,11 +90,16 @@ export interface GameManagerHooks {
   onResults?: (rows: GameResultRow[]) => void;
   // Most rooms alive at once. Rooms cost memory and nothing else limits how many a script can open.
   maxRooms?: number;
+  // A player gone this long is shown to the others as reconnecting (default 10 s), and after kickMs may be kicked (90 s).
+  noticeMs?: number;
+  kickMs?: number;
 }
 
 // The public lobby list shows the newest of these.
 const LOBBY_LIST_LIMIT = 50;
 const DEFAULT_MAX_ROOMS = 500;
+const DEFAULT_NOTICE_MS = 10_000;
+const DEFAULT_KICK_MS = 90_000;
 
 export class GameManager {
   constructor(private readonly hooks: GameManagerHooks = {}) {}
@@ -178,6 +186,7 @@ export class GameManager {
 
     room.rejoinTokens.delete(oldPlayerId);
     room.rejoinTokens.set(newPlayerId, randomUUID());
+    room.disconnectedAtMs.delete(oldPlayerId);
 
     // The seat keeps the account it was taken with. A rejoining socket with a different account, or none, is still seated
     // by its token but does not take the credit; a seat taken as a guest may adopt the account that comes back signed in.
@@ -194,6 +203,11 @@ export class GameManager {
 
     room.updatedAtMs = Date.now();
     return gameState;
+  }
+
+  // The stored state of a room, or undefined when it no longer exists.
+  peekState(gameId: string): GameState | undefined {
+    return this.rooms.get(gameId)?.gameState;
   }
 
   getSpecialPlays(gameId: string, playerId: string): number {
@@ -266,7 +280,8 @@ export class GameManager {
       turnUndoStack: [],
       rejoinTokens: new Map([[ownerPlayerId, randomUUID()]]),
       userIdByPlayerId: new Map(userId ? [[ownerPlayerId, userId]] : []),
-      runId: null
+      runId: null,
+      disconnectedAtMs: new Map()
     });
     return state;
   }
@@ -550,6 +565,7 @@ export class GameManager {
 
     const players = gameState.players.filter((player) => player.id !== playerId);
     room.userIdByPlayerId.delete(playerId);
+    room.disconnectedAtMs.delete(playerId);
     if (players.length === 0) {
       this.rooms.delete(gameId);
       this.reactions.delete(gameId);
@@ -586,20 +602,37 @@ export class GameManager {
     return nextState;
   }
 
-  kickPlayer(hostPlayerId: string, payload: KickPlayerPayload): GameState {
+  // The host may kick anyone, except a player who has dropped and has not yet been gone for the kick time (they may come
+  // back). Anyone else may kick only the host, only once the host has been gone that long, and only if they are the next
+  // available player; the kicker then becomes host. Kicking during a game counts as a quit for the kicked player.
+  kickPlayer(requesterId: string, payload: KickPlayerPayload, nowMs: number = Date.now()): GameState {
     const room = this.requireRoom(payload.gameId);
     const { gameState } = room;
+    const kickMs = this.hooks.kickMs ?? DEFAULT_KICK_MS;
+    const goneFor = (id: string): number | null => {
+      const since = room.disconnectedAtMs.get(id);
+      return since === undefined ? null : nowMs - since;
+    };
 
     if (gameState.gamePhase === 'won' || gameState.gamePhase === 'lost') {
       throw new Error('Cannot kick players after the game has ended');
     }
 
-    if (gameState.hostId !== hostPlayerId) {
+    const requesterIsHost = gameState.hostId === requesterId;
+    if (!requesterIsHost && payload.targetPlayerId !== gameState.hostId) {
       throw new Error('Only host can kick players');
     }
 
-    if (payload.targetPlayerId === hostPlayerId) {
+    if (payload.targetPlayerId === requesterId) {
       throw new Error('Cannot kick yourself');
+    }
+
+    const targetGoneFor = goneFor(payload.targetPlayerId);
+    if (targetGoneFor !== null && targetGoneFor < kickMs) {
+      throw new Error('That player may still reconnect');
+    }
+    if (!requesterIsHost && (targetGoneFor === null || this.nextAvailablePlayerId(room) !== requesterId)) {
+      throw new Error('Only host can kick players');
     }
 
     const kickedPlayerIndex = gameState.players.findIndex((p) => p.id === payload.targetPlayerId);
@@ -607,9 +640,21 @@ export class GameManager {
       throw new Error('Player not found in game');
     }
 
+    if (gameState.gamePhase === 'playing' && room.runId) {
+      this.emitResults(buildResultRows({
+        state: gameState,
+        runId: room.runId,
+        outcome: 'abandoned',
+        userIdByPlayerId: room.userIdByPlayerId,
+        nowMs,
+        onlyPlayerId: payload.targetPlayerId
+      }));
+    }
+
     const kickedPlayer = gameState.players[kickedPlayerIndex]!;
     const players = gameState.players.filter((p) => p.id !== payload.targetPlayerId);
     room.userIdByPlayerId.delete(payload.targetPlayerId);
+    room.disconnectedAtMs.delete(payload.targetPlayerId);
 
     // Return kicked player's cards to draw pile in random order
     let drawPile = [...gameState.drawPile];
@@ -639,9 +684,11 @@ export class GameManager {
       ? 0
       : gameState.cardsPlayedThisTurn;
 
+    const newHostId = requesterIsHost ? gameState.hostId : requesterId;
     const nextState: GameState = {
       ...gameState,
-      players,
+      hostId: newHostId,
+      players: players.map((player) => ({ ...player, isHost: player.id === newHostId })),
       drawPile,
       currentPlayerIndex,
       cardsPlayedThisTurn,
@@ -662,10 +709,63 @@ export class GameManager {
       }
     };
 
-    room.gameState = nextState;
+    const settled = settleAfterRemoval(nextState);
+    room.gameState = settled;
     room.turnUndoStack = [];
     room.updatedAtMs = Date.now();
-    return nextState;
+    this.recordIfFinished(room, gameState, settled);
+    return settled;
+  }
+
+  // The next player after the host, in seat order, who is connected: the one who may take over from a lost host.
+  private nextAvailablePlayerId(room: GameRoom): string | null {
+    const { players, hostId } = room.gameState;
+    const hostIndex = players.findIndex((player) => player.id === hostId);
+    for (let offset = 1; offset < players.length; offset += 1) {
+      const candidate = players[(hostIndex + offset) % players.length]!;
+      if (!room.disconnectedAtMs.has(candidate.id)) return candidate.id;
+    }
+    return null;
+  }
+
+  // A connection dropped. In a lobby or a finished game the seat is simply given up (removeDisconnectedPlayer); in a game
+  // being played the seat is held, and this notes when it was lost. Returns the games that now hold such a seat.
+  markDisconnected(playerId: string, nowMs: number = Date.now()): string[] {
+    const held: string[] = [];
+    for (const [gameId, room] of this.rooms) {
+      if (room.gameState.gamePhase === 'playing' && room.gameState.players.some((player) => player.id === playerId)) {
+        room.disconnectedAtMs.set(playerId, nowMs);
+        held.push(gameId);
+      }
+    }
+    return held;
+  }
+
+  // What a viewer is told about players who dropped, or undefined when there is nothing to tell. Never part of the stored game.
+  reconnectionFor(gameId: string, viewerId: string, nowMs: number = Date.now()): ReconnectionView | undefined {
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase !== 'playing') return undefined;
+    const noticeMs = this.hooks.noticeMs ?? DEFAULT_NOTICE_MS;
+    const kickMs = this.hooks.kickMs ?? DEFAULT_KICK_MS;
+    const { players, hostId } = room.gameState;
+
+    const lost: ReconnectionView['lost'] = [];
+    const canKick: string[] = [];
+    for (const player of players) {
+      const since = room.disconnectedAtMs.get(player.id);
+      if (since === undefined || player.id === viewerId || nowMs - since < noticeMs) continue;
+      const long = nowMs - since >= kickMs;
+      lost.push({ playerId: player.id, name: player.name, status: long ? 'lost' : 'reconnecting' });
+      if (long) canKick.push(player.id);
+    }
+    if (lost.length === 0) return undefined;
+
+    const hostLong = lost.some((entry) => entry.playerId === hostId && entry.status === 'lost');
+    return {
+      lost,
+      canKick: viewerId === hostId ? canKick : [],
+      canTakeOver: hostLong && this.nextAvailablePlayerId(room) === viewerId ? hostId : null
+    };
   }
 
   removeDisconnectedPlayer(playerId: string): Array<{ gameId: string; gameState: GameState | null }> {

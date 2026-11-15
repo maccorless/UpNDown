@@ -156,7 +156,7 @@ function normalizeError(err: unknown, fallback: string): string {
   return err instanceof Error ? err.message : fallback;
 }
 
-export function createRealtimeServer(port?: number, authOverrides?: AuthTestOverrides) {
+export function createRealtimeServer(port?: number, authOverrides?: AuthTestOverrides, timing: { noticeMs?: number; kickMs?: number } = {}) {
   const config = loadRuntimeConfig(port);
   const isOriginAllowed = (origin: string | undefined): boolean => {
     if (!origin) {
@@ -233,7 +233,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     }
   });
 
-  const manager = new GameManager({ onResults: (rows) => auth.recordResults(rows) });
+  const manager = new GameManager({ onResults: (rows) => auth.recordResults(rows), ...timing });
   // The account behind a socket, from the session cookie at the handshake. Guests have none.
   const userIdOf = (socket: Socket): string | undefined => (typeof socket.data.userId === 'string' ? socket.data.userId : undefined);
   // A connection is in one game at a time. A seat in a lobby or a finished game is simply left (the client forgot to);
@@ -252,10 +252,25 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     if (remaining) broadcastState(stale, remaining);
   };
 
+  // What a viewer sees: their own hand only, plus who has dropped and what they may do about it.
+  const viewOf = (state: Parameters<typeof toPlayerView>[0], viewerId: string) =>
+    toPlayerView(state, viewerId, manager.reconnectionFor(state.gameId, viewerId));
   const broadcastState = (gameId: string, state: Parameters<typeof toPlayerView>[0]): void => {
     for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
-      io.to(socketId).emit('game:updated', toPlayerView(state, socketId));
+      io.to(socketId).emit('game:updated', viewOf(state, socketId));
     }
+  };
+  // A dropped player appears to the others after the notice time, and may be kicked after the kick time, so the room is
+  // sent a fresh view at each of those moments. A timer that fires after the player came back only sends a harmless update.
+  const reconnectionTimers = new Set<NodeJS.Timeout>();
+  const rebroadcastLater = (gameId: string, delayMs: number): void => {
+    const timer = setTimeout(() => {
+      reconnectionTimers.delete(timer);
+      const state = manager.peekState(gameId);
+      if (state) broadcastState(gameId, state);
+    }, delayMs + 50);
+    timer.unref();
+    reconnectionTimers.add(timer);
   };
   const connectedPlayerIds = new Set<string>();
   const rateBuckets = new Map<string, Map<string, { windowStartMs: number; count: number }>>();
@@ -332,7 +347,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         log('info', 'game.rejoined', { socketId: socket.id, previousId: previousPlayerId, gameId });
         reply(ack, {
           ok: true,
-          data: { gameState: toPlayerView(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameId, socket.id) }
+          data: { gameState: viewOf(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameId, socket.id) }
         });
       } catch (err) {
         const message = normalizeError(err, 'Unable to rejoin game');
@@ -357,7 +372,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         log('info', 'game.created', { socketId: socket.id, gameId: gameState.gameId, hostId: socket.id });
         reply(ack, {
           ok: true,
-          data: { gameState: toPlayerView(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameState.gameId, socket.id) }
+          data: { gameState: viewOf(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameState.gameId, socket.id) }
         });
       } catch (err) {
         const message = normalizeError(err, 'Unable to create game');
@@ -382,7 +397,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         log('info', 'game.joined', { socketId: socket.id, gameId: gameState.gameId });
         reply(ack, {
           ok: true,
-          data: { gameState: toPlayerView(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameState.gameId, socket.id) }
+          data: { gameState: viewOf(gameState, socket.id), playerId: socket.id, rejoinToken: manager.getRejoinToken(gameState.gameId, socket.id) }
         });
       } catch (err) {
         const message = normalizeError(err, 'Unable to join game');
@@ -440,7 +455,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         broadcastState(gameState.gameId, gameState);
         io.to(gameState.gameId).emit('game:reactionsUpdated', {});
         log('info', 'game.started', { socketId: socket.id, gameId: gameState.gameId });
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to start game');
         log('warn', 'game.start_failed', { socketId: socket.id, error: message });
@@ -464,7 +479,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
           io.to(gameState.gameId).emit('game:specialPlay', { pileId: parsed.pileId, playerId: socket.id });
         }
         broadcastState(gameState.gameId, gameState);
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to play card');
         log('warn', 'game.play_failed', { socketId: socket.id, error: message });
@@ -483,7 +498,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const parsed = nasCheatPayloadSchema.parse(payload);
         const gameState = manager.nasCheat(socket.id, parsed);
         broadcastState(gameState.gameId, gameState);
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to use Nas cheat');
         log('warn', 'game.nas_cheat_failed', { socketId: socket.id, error: message });
@@ -508,7 +523,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const reactions = manager.getReactions(gameState.gameId);
         broadcastState(gameState.gameId, gameState);
         io.to(gameState.gameId).emit('game:reactionsUpdated', reactions);
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to end turn');
         log('warn', 'game.end_turn_failed', { socketId: socket.id, error: message });
@@ -525,7 +540,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const parsed = gameIdSchema.parse(payload);
         const gameState = manager.undoLastPlay(socket.id, parsed.gameId);
         broadcastState(gameState.gameId, gameState);
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to undo');
         log('warn', 'game.undo_failed', { socketId: socket.id, error: message });
@@ -545,7 +560,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const gameState = manager.endGame(socket.id, parsed.gameId);
         broadcastState(gameState.gameId, gameState);
         log('info', 'game.ended', { socketId: socket.id, gameId: gameState.gameId });
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to end game');
         log('warn', 'game.end_failed', { socketId: socket.id, error: message });
@@ -564,7 +579,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         const parsed = updateSettingsPayloadSchema.parse(payload);
         const gameState = manager.updateSettings(socket.id, parsed);
         broadcastState(gameState.gameId, gameState);
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to update settings');
         log('warn', 'game.update_settings_failed', { socketId: socket.id, error: message });
@@ -590,7 +605,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
         // Broadcast updated state to remaining players
         broadcastState(gameState.gameId, gameState);
         log('info', 'game.player_kicked', { socketId: socket.id, gameId: parsed.gameId, kickedPlayerId: parsed.targetPlayerId });
-        reply(ack, { ok: true, data: { gameState: toPlayerView(gameState, socket.id) } });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to kick player');
         log('warn', 'game.kick_failed', { socketId: socket.id, error: message });
@@ -616,7 +631,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
           io.to(parsed.gameId).emit('game:reactionsUpdated', reactions);
         }
         log('info', 'game.left', { socketId: socket.id, gameId: parsed.gameId });
-        reply(ack, { ok: true, data: { gameState: gameState ? toPlayerView(gameState, socket.id) : null } });
+        reply(ack, { ok: true, data: { gameState: gameState ? viewOf(gameState, socket.id) : null } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to leave game');
         log('warn', 'game.leave_failed', { socketId: socket.id, error: message });
@@ -669,6 +684,10 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
     socket.on('disconnect', () => {
       connectedPlayerIds.delete(socket.id);
       rateBuckets.delete(socket.id);
+      for (const gameId of manager.markDisconnected(socket.id)) {
+        rebroadcastLater(gameId, timing.noticeMs ?? 10_000);
+        rebroadcastLater(gameId, timing.kickMs ?? 90_000);
+      }
       const updates = manager.removeDisconnectedPlayer(socket.id);
       for (const update of updates) {
         if (update.gameState) {
@@ -681,6 +700,7 @@ export function createRealtimeServer(port?: number, authOverrides?: AuthTestOver
 
   const stop = async (): Promise<void> => {
     clearInterval(cleanupTimer);
+    for (const timer of reconnectionTimers) clearTimeout(timer);
     await auth.stop();
     await new Promise<void>((resolve, reject) => {
       io.close(() => {

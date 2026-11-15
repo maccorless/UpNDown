@@ -421,6 +421,24 @@ export function endTurn(state: GameState, playerId: string): GameState {
   return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
 }
 
+// After a seat is removed mid-game (a kick) its cards went back to the draw pile. When hands refill as cards are played,
+// top them up and see whether the game is now won (only possible with the draw pile empty) or the active player is stuck.
+// Without auto refill, hands fill at the end of a turn, so nothing here may judge them.
+export function settleAfterRemoval(state: GameState): GameState {
+  if (state.gamePhase !== 'playing' || state.isSolitaire || !state.settings.autoRefillHand) {
+    return state;
+  }
+  const next: GameState = {
+    ...state,
+    players: state.players.map(clonePlayer),
+    drawPile: [...state.drawPile]
+  };
+  for (const player of next.players) {
+    drawToHand(player, next.drawPile, next.settings.handSize);
+  }
+  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(next)));
+}
+
 export function useNasCheat(state: GameState, playerId: string, cardId: string): GameState {
   if (state.gamePhase !== 'playing') {
     throw new EngineError('GAME_NOT_PLAYING', 'Cannot use Nas cheat when game is not in playing phase');

@@ -140,7 +140,7 @@ describe('kicking a player whose connection dropped', () => {
   const sockets: Socket[] = [];
   beforeEach(async () => {
     process.env.ALLOWED_ORIGINS = 'https://upndown.cloud';
-    server = createRealtimeServer(0, { settings, store: new MemoryProfileStore(), provider: createFakeProvider() });
+    server = createRealtimeServer(0, { settings, store: new MemoryProfileStore(), provider: createFakeProvider() }, { noticeMs: 30, kickMs: 100 });
     await server.auth.start();
     await new Promise<void>((resolve) => server.httpServer.listen(0, () => resolve()));
     url = `http://127.0.0.1:${(server.httpServer.address() as AddressInfo).port}`;

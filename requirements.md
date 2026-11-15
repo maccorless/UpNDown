@@ -73,8 +73,8 @@ A cooperative multiplayer card game where players work together to play all thei
 
 #### Player Kick (Lobby & Active Game)
 - Host can remove any other player at any time (lobby or active game)
-- Kicked player's cards are returned to the draw pile (shuffled in)
-- A player whose connection drops keeps their seat, and their hand, for the rest of a live game; kicking that seat is how the host frees it. Only the host can kick, never themselves, and not after the game has ended. A kicked player cannot rejoin the seat and records no result
+- Kicked player's cards are returned to the draw pile (shuffled in). When hands refill as cards are played (`autoRefillHand`), hands are topped up from it and the game is re-checked for a win (only possible with the draw pile empty) or a stuck active player
+- A player whose connection drops keeps their seat, and their hand, for the rest of a live game. After 10 seconds every other player is told who is reconnecting. After 90 seconds the host is offered a kick (or to keep waiting), and kicking a player who has been gone less than 90 seconds is refused ("may still reconnect"). If the host is the one gone for 90 seconds, the next available player (the next connected player after the host in seat order) is offered the kick and, on kicking the old host, becomes host. Nobody else may kick the host, and only a host gone 90 seconds may be kicked by a non-host. Not after the game has ended, and never yourself. A connected player can be kicked by the host at once. A kicked player cannot rejoin the seat. A kick during a live game records an `abandoned` game for the kicked player's account (a quit); the others still get the team result
 - Kicked player receives a `game:kicked` notification and is returned to the home screen
 - **Status**: ✅ **Implemented**
 
@@ -189,7 +189,7 @@ Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom sta
 
 ### 3.5 Disconnection Handling
 - **Lobby**: Disconnected player is auto-removed from the game; host transfers if needed
-- **Active Game**: Player remains in the game state; reconnection restores them via `game:rejoin`
+- **Active Game**: Player remains in the game state; reconnection restores them via `game:rejoin`. Others are told after 10 s, and kick or host takeover is offered after 90 s (see Player Kick). A rejoin refused because the seat was removed returns the player to the home screen with a message
 - Orphaned rooms (no connected players) are reaped after 5 min (lobby) / 30 min (active)
 - **Status**: ✅ **Implemented**
 

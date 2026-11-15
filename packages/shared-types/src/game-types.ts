@@ -56,6 +56,18 @@ export interface NasCheatState {
   usedThisTurnByPlayerId: Record<string, boolean>;
 }
 
+// What a player is told about connections that have dropped during a game. Only the server fills this in, per viewer, in
+// the view it sends; it is never part of the stored game. Times are the server's: a blip shorter than the notice time is
+// not reported at all.
+export interface ReconnectionView {
+  // Everyone sees these: players gone for at least the notice time (10 s). `lost` means gone for the kick time (90 s) too.
+  lost: Array<{ playerId: string; name: string; status: 'reconnecting' | 'lost' }>;
+  // For the host only: players gone for at least the kick time, whom they may now kick (or keep waiting for).
+  canKick: string[];
+  // For the next available player only, when the host has been gone for the kick time: the host's id. They may take over.
+  canTakeOver: string | null;
+}
+
 export interface GameState {
   gameId: string;
   hostId: string;
@@ -69,6 +81,7 @@ export interface GameState {
   nasCheat: NasCheatState;
   settings: GameSettings;
   isSolitaire: boolean;
+  reconnection?: ReconnectionView;
 }
 
 export type ReactionType = 'like' | 'love' | 'really_love';

@@ -8,6 +8,7 @@ import { defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchem
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
+import { ConnectionNotices, hasConnectionNotices } from './ConnectionNotices.js';
 import { Landing } from './Landing.js';
 import { NamePrompt } from './auth/NamePrompt.js';
 import { useAccountSync } from './auth/useAccountSync.js';
@@ -201,6 +202,7 @@ interface GameBoardProps {
   onUndo?: (() => void) | undefined;
   canUndo?: boolean | undefined;
   onKickPlayer?: ((targetPlayerId: string) => void) | undefined;
+  onTakeOverHost?: ((hostId: string) => void) | undefined;
   isHost?: boolean | undefined;
 }
 
@@ -235,6 +237,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     onUndo,
     canUndo,
     onKickPlayer,
+    onTakeOverHost,
     isHost: isHostProp
   } = props;
 
@@ -291,10 +294,12 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
   }, [gameState.gamePhase]);
 
   return (
-    <div className={`gameboard ${mode === 'multiplayer' ? 'gameboard-multi' : 'gameboard-solo'}`}>
+    <div className={`gameboard ${mode === 'multiplayer' ? 'gameboard-multi' : 'gameboard-solo'}${mode === 'multiplayer' && hasConnectionNotices(gameState.reconnection, playerId ?? '') ? ' has-notices' : ''}`}>
       {(gameState.gamePhase === 'won' || gameState.gamePhase === 'lost') && !dismissedPhaseSplash ? (
         <EndGameSplash phase={gameState.gamePhase} state={gameState} />
       ) : null}
+
+      {mode === 'multiplayer' ? <ConnectionNotices reconnection={gameState.reconnection} viewerId={playerId ?? ''} players={gameState.players} onKick={(id) => onKickPlayer?.(id)} onTakeOver={(id) => onTakeOverHost?.(id)} /> : null}
 
       <section className="panel foundation-panel" aria-label="foundation piles">
         <div className="foundation-header">
@@ -627,6 +632,7 @@ export function App(): JSX.Element {
   const [showNasCheatIntro, setShowNasCheatIntro] = useState(false);
   const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
   const [kickedFromGameId, setKickedFromGameId] = useState<string | null>(null);
+  const [kickedWhileAway, setKickedWhileAway] = useState(false);
   const [playerName, setPlayerName] = useState(() => readPersistedPlayerName() || randomPresidentName());
   const nameConfirmedRef = useRef(readNameConfirmed(readPersistedPlayerName()));
   const [joinGameId, setJoinGameId] = useState('');
@@ -816,7 +822,7 @@ export function App(): JSX.Element {
               setPlayerId(response.data.playerId);
               previousPlayerIdRef.current = response.data.playerId;
               rejoinTokenRef.current = response.data.rejoinToken;
-            }
+            } else { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); } // seat gone: no stale board
           }
         );
       }
@@ -2210,6 +2216,7 @@ export function App(): JSX.Element {
                   : undefined}
                 canUndo={(multiplayerState?.cardsPlayedThisTurn ?? 0) > 0}
                 onKickPlayer={isHost ? (targetId: string) => { void handleKickPlayer(targetId); } : undefined}
+                onTakeOverHost={(hostId: string) => { void handleKickPlayer(hostId); }}
                 isHost={!!isHost}
                 {...(isNasCheatActiveForMe
                   ? { onNasCheat: () => { void handleMultiplayerNasCheat(); } }
@@ -2411,13 +2418,14 @@ export function App(): JSX.Element {
       {kickedFromGameId ? (
         <Modal className="panel host-ended-modal" dismiss="none" label="kicked from game" onClose={() => undefined}>
           <h2>Kicked From Game</h2>
-          <p>The host removed you from game {kickedFromGameId}.</p>
+          <p>{kickedWhileAway ? `You were removed from game ${kickedFromGameId} while you were disconnected.` : `The host removed you from game ${kickedFromGameId}.`}</p>
           <div className="button-row">
             <button
               type="button"
               className="primary"
               onClick={() => {
                 setKickedFromGameId(null);
+                setKickedWhileAway(false);
                 resetToLanding();
               }}
             >

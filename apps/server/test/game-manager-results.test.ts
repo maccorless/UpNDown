@@ -198,13 +198,14 @@ describe('whose result it is', () => {
     expect(l.rows().map((r) => r.userId)).toEqual(['u1']);
   });
 
-  it('gives a kicked player nothing, and the others their result', () => {
+  // A kick in a live game is a quit for the one kicked (an abandoned row), while the rest still get the team result.
+  it('records a kicked player as having abandoned, and the others their result', () => {
     const l = three();
     l.manager.startGame('p1', l.gameId);
     l.manager.kickPlayer('p1', { gameId: l.gameId, targetPlayerId: 'p2' });
     win(l);
-    expect(l.rows().map((r) => r.userId)).toEqual(['u1']);
-    expect(l.rows()[0]!.playerCount).toBe(2);
+    expect(l.rows().map((r) => [r.userId, r.outcome])).toEqual([['u2', 'abandoned'], ['u1', 'won']]);
+    expect(l.rows()[1]!.playerCount).toBe(2);
   });
 
   it('forgets a player who leaves the lobby, so a new player on that socket id gets no credit', () => {
