@@ -136,6 +136,27 @@ function train(): void {
   console.log(`saved ${path.relative(process.cwd(), file)}`);
 }
 
+// A grid of simpler tables (smaller decks, bigger hands, no cheats), to see where the current strategy is neither beaten every
+// time nor beating the game every time. Those are the tables worth training on.
+function calibrate(): void {
+  const games = Number(arg('games', '300'));
+  const seed = Number(arg('seed', '1'));
+  const rows: string[] = ['players  top card  hand  per turn  refill   won      reward  cards left'];
+  for (const players of [1, 2, 4]) {
+    for (const top of [29, 39, 49, 59, 79, 99]) {
+      for (const hand of [7, 9, 11]) {
+        const base = players === 1 ? defaultSolitaireSettings : defaultMultiplayerSettings;
+        const minCardsPerTurn = 2;
+        const settings: GameSettings = { ...base, maxCardValue: top, handSize: hand, minCardsPerTurn, autoRefillHand: players === 1, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off' }, allowCardLookup: false };
+        if (Math.floor((top - 1) / hand) < players) continue;
+        const score = evaluate({ label: '', settings, players }, DEFAULT_WEIGHTS, games, seed);
+        rows.push(`${String(players).padEnd(9)}${String(top).padEnd(10)}${String(hand).padEnd(6)}${String(minCardsPerTurn).padEnd(10)}${players === 1 ? 'yes   ' : 'no    '}   ${pct(score.winRate).padEnd(8)} ${score.reward.toFixed(1).padEnd(7)} ${score.cardsLeft.toFixed(1)}`);
+      }
+    }
+  }
+  console.log(rows.join('\n'));
+}
+
 function report(): void {
   let files: string[] = [];
   try { files = readdirSync(RUNS).filter((f) => f.endsWith('.json')).sort(); } catch { /* no runs yet */ }
@@ -153,4 +174,5 @@ const command = process.argv[2];
 if (command === 'play') play();
 else if (command === 'train') train();
 else if (command === 'report') report();
-else console.log('Usage: sim <play|train|report> [--setting solo|solo-easy|table2|table4] [--games N] [--rounds N] [--seed N]');
+else if (command === 'calibrate') calibrate();
+else console.log('Usage: sim <play|train|report|calibrate> [--setting solo|solo-easy|table2|table4] [--games N] [--rounds N] [--seed N]');
