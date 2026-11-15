@@ -1,0 +1,16 @@
+[project]
+name = "upndown-training"
+version = "0.1.0"
+description = "Local-only training and evaluation tools for the UpNDown strategy. Never run on a server, never reads player data."
+requires-python = ">=3.12"
+dependencies = [
+  "numpy",
+  "torch",
+  "scikit-learn",
+  "numba",
+  "pytest",
+]
+
+[tool.uv]
+# The lock file pins every package by hash (uv writes the hashes). Training runs under a network sandbox; only `uv sync` touches the network.
+package = false

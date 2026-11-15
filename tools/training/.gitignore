@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+# Run folders hold logs and every checkpoint: they stay on the Mac. Only reviewed artifacts are committed (see runs-committed/).
+runs/

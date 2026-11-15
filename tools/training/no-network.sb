@@ -1,0 +1,11 @@
+(version 1)
+(allow default)
+; Training and evaluation run under this profile. Every internet connection (TCP and UDP, in or out) is refused, and the
+; system name resolver is unreachable, so nothing can phone home or leak through a DNS lookup, whatever a library tries
+; (telemetry, downloads, a subprocess, Node's fetch). Local sockets between the tool's own processes (tsx, worker
+; processes, a learner and its actors on this machine) are still allowed.
+(deny network-outbound (remote tcp))
+(deny network-outbound (remote udp))
+(deny network-inbound (local tcp))
+(deny network-inbound (local udp))
+(deny network-outbound (literal "/private/var/run/mDNSResponder"))
