@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthState } from './auth/useAuth.js';
@@ -22,7 +22,7 @@ async function load() {
   return (await import('./Landing.js')).Landing;
 }
 
-const handlers = () => ({ onSolitaire: vi.fn(), onMultiplayer: vi.fn(), onChangeName: vi.fn(), solitaireSave: null, onResumeSolitaire: vi.fn() });
+const handlers = () => ({ onSolitaire: vi.fn(), onMultiplayer: vi.fn(), onChangeName: vi.fn(), solitaireSaves: [] as Array<{ runId: string; claimId: string; cardsLeft: number; savedAtMs: number }>, onResumeSolitaire: vi.fn(), onDiscardSolitaire: vi.fn(), rejoinSeats: [] as Array<{ seatKey: string; gameId: string; claimId: string }>, onRejoin: vi.fn() });
 
 describe('Landing', () => {
   beforeEach(() => vi.resetModules());
@@ -81,50 +81,67 @@ describe('Landing', () => {
   });
 });
 
-describe('Landing with a solitaire game saved on this device', () => {
+describe('Landing with solitaire games saved on this device', () => {
   beforeEach(() => vi.resetModules());
-  const saved = { cardsLeft: 41, savedAtMs: Date.now() - 2 * 3_600_000 };
+  const saved = { runId: 'run-a', claimId: 'run-a', cardsLeft: 41, savedAtMs: Date.now() - 2 * 3_600_000 };
+  const other = { runId: 'run-b', claimId: 'run-b', cardsLeft: 12, savedAtMs: Date.now() - 5 * 60_000 };
 
-  it('offers to continue it, says how far along it is and where it is kept, and does not start a new game', async () => {
+  // Having a saved game never gets in the way of starting another: that is the point of several tabs.
+  it('always lets a new game be started, and lists each saved game with how far along it is', async () => {
     const Landing = await load();
-    const h = { ...handlers(), solitaireSave: saved };
+    const h = { ...handlers(), solitaireSaves: [other, saved] };
     render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
-    const card = screen.getByTestId('mode-solitaire');
-    expect(card.textContent).toContain('Continue solitaire');
-    expect(card.textContent).toContain('41 cards left. Saved 2 hours ago.');
-    expect(screen.getByText(/Saved on this device only/)).toBeTruthy();
-    await userEvent.click(card);
-    expect(h.onResumeSolitaire).toHaveBeenCalledTimes(1);
-    expect(h.onSolitaire).not.toHaveBeenCalled();
-  });
-
-  // Starting over throws the saved game away for good, so one stray click must not do it.
-  it('starts a new game only after a second, deliberate step, and keeps the save if the player backs out', async () => {
-    const Landing = await load();
-    const h = { ...handlers(), solitaireSave: saved };
-    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
-    await userEvent.click(screen.getByRole('button', { name: 'Start a new solitaire game' }));
-    expect(h.onSolitaire).not.toHaveBeenCalled();
-    expect(screen.getByText(/will be discarded/).textContent).toContain('41 cards left');
-
-    await userEvent.click(screen.getByRole('button', { name: 'Keep my saved game' }));
-    expect(h.onSolitaire).not.toHaveBeenCalled();
-    expect(screen.queryByText(/will be discarded/)).toBeNull();
-
-    await userEvent.click(screen.getByRole('button', { name: 'Start a new solitaire game' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Discard and start new' }));
+    expect(screen.getByTestId('mode-solitaire').textContent).toContain('Play on your own. No sign-in, no waiting.');
+    const notes = screen.getAllByTestId('solitaire-save').map((n) => n.textContent);
+    expect(notes[0]).toContain('12 cards left, 5 minutes ago');
+    expect(notes[1]).toContain('41 cards left, 2 hours ago');
+    await userEvent.click(screen.getByTestId('mode-solitaire'));
     expect(h.onSolitaire).toHaveBeenCalledTimes(1);
     expect(h.onResumeSolitaire).not.toHaveBeenCalled();
   });
 
-  it('looks exactly as before when nothing is saved', async () => {
+  it('continues the game that was chosen', async () => {
     const Landing = await load();
-    const h = handlers();
+    const h = { ...handlers(), solitaireSaves: [other, saved] };
     render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
-    expect(screen.getByTestId('mode-solitaire').textContent).toContain('Play on your own. No sign-in, no waiting.');
-    expect(screen.queryByText(/Saved on this device only/)).toBeNull();
-    await userEvent.click(screen.getByTestId('mode-solitaire'));
-    expect(h.onSolitaire).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getAllByTestId('continue-solitaire')[1]!);
+    expect(h.onResumeSolitaire).toHaveBeenCalledWith('run-a');
+    expect(h.onSolitaire).not.toHaveBeenCalled();
+  });
+
+  // Discarding a saved game throws it away for good, so one stray click must not do it.
+  it('discards a saved game only after a second, deliberate step', async () => {
+    const Landing = await load();
+    const h = { ...handlers(), solitaireSaves: [saved] };
+    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(h.onDiscardSolitaire).not.toHaveBeenCalled();
+    expect(screen.getByText(/will be thrown away/).textContent).toContain('41 cards left');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Keep my saved game' }));
+    expect(h.onDiscardSolitaire).not.toHaveBeenCalled();
+    expect(screen.queryByText(/will be thrown away/)).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Discard' }));
+    expect(h.onDiscardSolitaire).toHaveBeenCalledWith('run-a');
+  });
+
+  it('looks plain when nothing is saved', async () => {
+    const Landing = await load();
+    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...handlers()} />);
+    expect(screen.queryByTestId('solitaire-save')).toBeNull();
+    expect(screen.queryByTestId('rejoin-game')).toBeNull();
+  });
+
+  it('offers to rejoin each game in progress, naming it', async () => {
+    const Landing = await load();
+    const h = { ...handlers(), rejoinSeats: [{ seatKey: 'k1', gameId: 'ABC123', claimId: 'k1' }, { seatKey: 'k2', gameId: 'XYZ789', claimId: 'k2' }] };
+    render(<Landing auth={makeAuth({ status: 'disabled' })} firstVisit={false} {...h} />);
+    const buttons = screen.getAllByTestId('rejoin-game');
+    expect(buttons.map((b) => b.textContent)).toEqual(['Rejoin game ABC123', 'Rejoin game XYZ789']);
+    await userEvent.click(buttons[1]!);
+    expect(h.onRejoin).toHaveBeenCalledWith('k2');
+    expect(h.onMultiplayer).not.toHaveBeenCalled();
   });
 });
-

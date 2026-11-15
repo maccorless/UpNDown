@@ -142,3 +142,50 @@ describe('one game per connection (sockets)', () => {
     expect(server.manager.seatedGameOf(a.id!)).toBe(live);
   });
 });
+
+// One account, one seat per game. Two different accounts are two players, which is how two tabs can each be signed in.
+describe('one seat per account in a game', () => {
+  const lobby = () => {
+    const manager = new GameManager();
+    const created = manager.createGame('host', host('Host'), 'user-host');
+    return { manager, gameId: created.gameId };
+  };
+
+  it('refuses a second seat for an account already in the game, saying why', () => {
+    const { manager, gameId } = lobby();
+    manager.joinGame('tab-1', { gameId, playerName: 'Ann' }, 'user-ann');
+    expect(() => manager.joinGame('tab-2', { gameId, playerName: 'Ann again' }, 'user-ann')).toThrow('already in this game');
+    expect(() => manager.joinGame('tab-3', { gameId, playerName: 'Hosty' }, 'user-host')).toThrow('already in this game');
+    expect(manager.peekState(gameId)!.players).toHaveLength(2);
+  });
+
+  it('lets two different accounts join from two tabs of one browser', () => {
+    const { manager, gameId } = lobby();
+    manager.joinGame('tab-1', { gameId, playerName: 'Ann' }, 'user-ann');
+    expect(manager.joinGame('tab-2', { gameId, playerName: 'Bob' }, 'user-bob').players).toHaveLength(3);
+  });
+
+  it('never matches guests with each other', () => {
+    const { manager, gameId } = lobby();
+    manager.joinGame('g-1', { gameId, playerName: 'One' });
+    expect(manager.joinGame('g-2', { gameId, playerName: 'Two' }).players).toHaveLength(3);
+  });
+
+  it('lets the account into the game again once its seat is gone', () => {
+    const { manager, gameId } = lobby();
+    manager.joinGame('tab-1', { gameId, playerName: 'Ann' }, 'user-ann');
+    manager.leaveGame('tab-1', gameId);
+    expect(manager.joinGame('tab-2', { gameId, playerName: 'Ann' }, 'user-ann').players).toHaveLength(2);
+  });
+
+  it('does not let a guest seat adopt an account that already holds another seat in the game', () => {
+    const { manager, gameId } = lobby();
+    manager.joinGame('guest', { gameId, playerName: 'Guesty' });
+    manager.startGame('host', gameId);
+    const token = manager.getRejoinToken(gameId, 'guest');
+    // The guest comes back signed in as the host's account: that account already has a seat, so it is not credited twice.
+    manager.rejoinPlayer(gameId, 'guest', 'guest-2', token, 'user-host');
+    const held = (manager as unknown as { rooms: Map<string, { userIdByPlayerId: Map<string, string> }> }).rooms.get(gameId)!.userIdByPlayerId;
+    expect([...held.values()].filter((u) => u === 'user-host')).toHaveLength(1);
+  });
+});

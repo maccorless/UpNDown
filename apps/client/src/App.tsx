@@ -1,4 +1,6 @@
-import { clearSavedSeat, readSavedSeat, writeSavedSeat } from './saved-seat.js';
+import { isClaimed } from './claims.js';
+import { readSavedSeat } from './saved-seat.js';
+import { useSavedSeat } from './useSavedSeat.js';
 import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, requiredCardsForTurn, shuffle } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
 import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
@@ -799,24 +801,23 @@ export function App(): JSX.Element {
     void handleJoinGame(deepLinkGameId);
   }, [mode, multiplayerState, connectionState, joinGameId, playerName]);
 
-  // A game being played survives a closed tab: the seat is kept in this browser, and opening the page again takes it back.
-  useEffect(() => {
-    const seat = readSavedSeat();
-    if (!seat) return;
+  // A game being played survives a closed tab: the seat is kept in this browser, and the landing offers to take it back.
+  const savedSeat = useSavedSeat(multiplayerState, playerId, rejoinTokenRef, mode === null);
+  const forgetSeatRef = useRef(savedSeat.forget);
+  forgetSeatRef.current = savedSeat.forget;
+  const handleRejoinSavedSeat = async (seatKey: string): Promise<void> => {
+    const seat = readSavedSeat(seatKey);
+    // Another tab may have opened this seat since the list was drawn.
+    if (!seat || await isClaimed(`seat:${seatKey}`)) { savedSeat.refreshOffers(); return; }
     activeGameIdRef.current = seat.gameId;
     previousPlayerIdRef.current = seat.playerId;
     rejoinTokenRef.current = seat.rejoinToken;
+    savedSeat.adopt(seatKey);
     setMode('multiplayer');
-  }, []);
-
-  useEffect(() => {
-    if (!multiplayerState) return;
-    if (multiplayerState.gamePhase !== 'playing') {
-      clearSavedSeat();
-    } else if (playerId && rejoinTokenRef.current && multiplayerState.players.some((p) => p.id === playerId)) {
-      writeSavedSeat({ gameId: multiplayerState.gameId, playerId, rejoinToken: rejoinTokenRef.current });
-    }
-  }, [multiplayerState, playerId]);
+    setMultiplayerFlow('choose');
+    setShowJoinById(false);
+    setError(null);
+  };
 
   useEffect(() => {
     if (mode !== 'multiplayer') {
@@ -899,7 +900,7 @@ export function App(): JSX.Element {
     };
 
     const onKicked = (data: { gameId: string }): void => {
-      clearSavedSeat();
+      forgetSeatRef.current();
       setKickedFromGameId(data.gameId);
       setMultiplayerState(null);
       setPendingLobbyState(null);
@@ -1220,11 +1221,14 @@ export function App(): JSX.Element {
 
   const handleSolitaireNewGame = (): void => beginSolitaire(newSolitaireGame(solitaireConfig), [], newRunId());
 
-  // Picks up the game saved on this device. The clock stopped while it was away.
-  const handleSolitaireResume = (): void => {
-    const saved = solitaireSave.load();
-    if (saved) beginSolitaire(saved.state, saved.undo, saved.runId ?? newRunId());
-    else handleSolitaireNewGame();
+  // Picks up a game saved on this device (and not open in another tab). The clock stopped while it was away.
+  const handleSolitaireResume = async (runId: string): Promise<void> => {
+    const saved = await solitaireSave.load(runId);
+    if (!saved) return;
+    setMode('solitaire');
+    beginSolitaire(saved.state, saved.undo, saved.runId ?? newRunId());
+    setMultiplayerFlow('choose');
+    setShowJoinById(false);
   };
 
   const handleSolitaireEndGame = (): void => {
@@ -1644,7 +1648,7 @@ export function App(): JSX.Element {
   };
 
   const resetToLanding = (): void => {
-    clearSavedSeat();
+    forgetSeatRef.current();
     setMode(null);
     setMultiplayerState(null);
     setPendingLobbyState(null);
@@ -1926,13 +1930,11 @@ export function App(): JSX.Element {
             setShowJoinById(false);
             setError(null);
           }}
-          solitaireSave={solitaireSave.summary}
-          onResumeSolitaire={() => {
-            setMode('solitaire');
-            handleSolitaireResume();
-            setMultiplayerFlow('choose');
-            setShowJoinById(false);
-          }}
+          solitaireSaves={solitaireSave.saves}
+          rejoinSeats={savedSeat.offers}
+          onRejoin={(seatKey) => { void handleRejoinSavedSeat(seatKey); }}
+          onResumeSolitaire={(runId) => { void handleSolitaireResume(runId); }}
+          onDiscardSolitaire={(runId) => solitaireSave.discard(runId)}
           onMultiplayer={() => {
             setMode('multiplayer');
             setMultiplayerFlow('choose');

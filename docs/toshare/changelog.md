@@ -6,6 +6,9 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-17 | — | Feat: a signed-in account can no longer take two seats in one game; two different accounts in two tabs still can |
+| 2026-11-17 | — | Feat: several tabs in one browser. A new tab always starts a fresh solitaire or multiplayer game, and saved solitaire games and seats no longer overwrite each other. The home page lists every saved solitaire game and every game in progress that no other tab has open, to continue, discard or rejoin. Starting a solitaire game no longer discards a saved one |
+| 2026-11-16 | — | Feat: the home page shows "Rejoin game ABC123" next to Multiplayer when this browser still has a seat in a game being played; the seat is no longer taken back automatically |
 | 2026-11-16 | — | Feat: coming back to a live game after the browser was closed. The seat is kept in the browser and taken back on its own when the page opens again; signed-in players are put back by account (including from another device) when they open multiplayer. A refused rejoin now says whether the seat is gone or the refusal is temporary |
 | 2026-11-15 | — | Fix: privacy page now says the application does not log IP addresses, names Railway and Cloudflare as the parties that may, states how long data and sessions are kept, and covers games recorded as left when a player is removed |
 | 2026-11-15 | — | Feat: dropped connections in a live game. After 10 seconds the others are told who is reconnecting; after 90 seconds the host can kick them or keep waiting; if the host is gone, the next available player can kick the old host and take over as host. A kick in a live game counts as a quit for the kicked player, and hands are topped up and the game re-checked after a kick |

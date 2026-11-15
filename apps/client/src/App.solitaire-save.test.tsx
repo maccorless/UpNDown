@@ -2,14 +2,16 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
-import { SOLITAIRE_SAVE_KEY, readSolitaireSave } from './solitaire-save.js';
+import { SOLITAIRE_SAVE_PREFIX, listSolitaireSaves } from './solitaire-save.js';
+import { fakeLocks } from './test-locks.js';
 
 vi.mock('socket.io-client', () => {
   const socket = { connected: false, id: 'socket-1', on: () => socket, off: () => socket, connect: () => socket, disconnect: () => socket, emit: () => socket };
   return { io: () => socket };
 });
 
-const raw = () => window.localStorage.getItem(SOLITAIRE_SAVE_KEY);
+const savedKeys = (): string[] => Object.keys(window.localStorage).filter((k) => k.startsWith(SOLITAIRE_SAVE_PREFIX)).sort();
+const raw = (): string | null => { const [key] = savedKeys(); return key ? window.localStorage.getItem(key) : null; };
 const handIds = () => screen.getAllByTestId(/hand-card-/).map((el) => el.getAttribute('data-testid')!);
 
 async function startAndPlayOneCard(user: ReturnType<typeof userEvent.setup>) {
@@ -40,10 +42,8 @@ describe('saving and resuming solitaire', () => {
     first.unmount();
 
     render(<App />);
-    const card = await screen.findByTestId('mode-solitaire');
-    expect(card.textContent).toContain('Continue solitaire');
-    expect(card.textContent).toMatch(/\d+ cards left\. Saved just now\./);
-    await user.click(card);
+    expect((await screen.findByTestId('solitaire-save')).textContent).toMatch(/\d+ cards left, just now\./);
+    await user.click(screen.getByTestId('continue-solitaire'));
 
     expect(screen.getByTestId('pile-top-0').textContent).toBe(top);
     expect(handIds()).toEqual(handAfterPlay);
@@ -61,7 +61,7 @@ describe('saving and resuming solitaire', () => {
     first.unmount();
     for (let i = 0; i < 2; i += 1) {
       const view = render(<App />);
-      await screen.findByText('Continue solitaire');
+      await screen.findByTestId('continue-solitaire');
       expect(raw()).toBe(saved);
       view.unmount();
     }
@@ -76,27 +76,64 @@ describe('saving and resuming solitaire', () => {
     expect(raw()).toBeNull();
   });
 
-  it('starts a new game only after confirmation, and then the old save is gone at once, played or not', async () => {
+  // Several games at once: starting another never costs the player the one they left.
+  it('starts a new game straight away and keeps the saved one, which can still be continued', async () => {
     const user = userEvent.setup();
     const first = render(<App />);
     await startAndPlayOneCard(user);
-    expect(readSolitaireSave()!.state.statistics.players['solo-player']!.cardsPlayed).toBeGreaterThan(0);
+    const [oldKey] = savedKeys();
     first.unmount();
 
     render(<App />);
-    await user.click(await screen.findByRole('button', { name: 'Start a new solitaire game' }));
-    expect(raw()).not.toBeNull();
-    expect(screen.queryAllByTestId(/hand-card-/)).toHaveLength(0); // still on the landing: nothing was started yet
-    await user.click(within(screen.getByRole('dialog', { hidden: true })).getByRole('button', { name: 'Discard and start new' }));
+    await screen.findByTestId('continue-solitaire');
+    await user.click(screen.getByTestId('mode-solitaire'));
     await waitFor(() => expect(screen.getAllByTestId(/hand-card-/).length).toBeGreaterThan(0));
-    // The dialog promised the old game would be discarded. It must be, even if the new game is never played.
-    expect(raw()).toBeNull();
-    // And once a card is played in the new game, that is what is saved.
+    expect(savedKeys()).toEqual([oldKey]);
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
-    const now = readSolitaireSave()!;
-    expect(now.state.statistics.players['solo-player']!.cardsPlayed).toBe(1);
-    expect(now.undo).toHaveLength(1);
+    const keys = savedKeys();
+    expect(keys).toHaveLength(2);
+    expect(keys).toContain(oldKey);
+    expect(listSolitaireSaves().every((save) => save.state.statistics.players['solo-player']!.cardsPlayed === 1)).toBe(true);
+  });
+
+  it('discards a saved game only when asked, after confirming', async () => {
+    const user = userEvent.setup();
+    const first = render(<App />);
+    await startAndPlayOneCard(user);
+    first.unmount();
+
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Discard' }));
+    expect(savedKeys()).toHaveLength(1);
+    await user.click(within(screen.getByRole('dialog', { hidden: true })).getByRole('button', { name: 'Discard' }));
+    await waitFor(() => expect(savedKeys()).toHaveLength(0));
+    expect(screen.queryByTestId('solitaire-save')).toBeNull();
+  });
+
+  // The tab that has a game open owns it. A second tab is offered only what is left behind.
+  it('does not offer a game another tab has open, and offers it once that tab is gone', async () => {
+    const locks = fakeLocks();
+    try {
+      const user = userEvent.setup();
+      const first = render(<App />);
+      await startAndPlayOneCard(user);
+      const [key] = savedKeys();
+      const runId = key!.slice(SOLITAIRE_SAVE_PREFIX.length);
+      first.unmount();
+
+      locks.held.add(`solitaire:${runId}`); // another tab has it open
+      const second = render(<App />);
+      await screen.findByTestId('mode-solitaire');
+      await waitFor(() => expect(screen.queryByTestId('solitaire-save')).toBeNull());
+      second.unmount();
+
+      locks.held.delete(`solitaire:${runId}`); // that tab closed
+      render(<App />);
+      expect(await screen.findByTestId('solitaire-save')).toBeTruthy();
+    } finally {
+      locks.remove();
+    }
   });
 
   it('leaves nothing to continue when a game was started and never played', async () => {
@@ -119,7 +156,7 @@ describe('saving and resuming solitaire', () => {
   });
 
   it('treats a damaged save as no save, without breaking the landing', async () => {
-    window.localStorage.setItem(SOLITAIRE_SAVE_KEY, '{"v":1,"state":"garbage"}');
+    window.localStorage.setItem(`${SOLITAIRE_SAVE_PREFIX}bad`, '{"v":1,"state":"garbage"}');
     render(<App />);
     expect((await screen.findByTestId('mode-solitaire')).textContent).toContain('Play on your own');
     expect(raw()).toBeNull();

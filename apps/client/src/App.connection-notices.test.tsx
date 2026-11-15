@@ -1,9 +1,10 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GameState } from '@upndown/shared-types';
 
 import { App } from './App.js';
+import { fakeLocks } from './test-locks.js';
 
 type Ack = (response: { ok: boolean; data?: unknown; error?: string; gone?: boolean }) => void;
 type Listener = (...args: unknown[]) => void;
@@ -61,6 +62,9 @@ function playing(reconnection?: GameState['reconnection']): GameState {
     ...(reconnection ? { reconnection } : {})
   };
 }
+
+const seatKeys = (): string[] => Object.keys(window.localStorage).filter((k) => k.startsWith('upndown.seat.'));
+const seat = (gameId: string, playerId = 'old-socket', rejoinToken = 'tok-old') => JSON.stringify({ gameId, playerId, rejoinToken, savedAtMs: Date.now() });
 
 async function hostGame(rejoin?: Ack extends never ? never : (payload: unknown, ack?: Ack) => void) {
   mock.state.onEmit = (event, payload, ack) => {
@@ -135,33 +139,38 @@ describe('App: dropped connections in a multiplayer game', () => {
     expect(screen.getByTestId('end-game-top')).toBeTruthy();
   });
 
-  it('keeps the seat in this browser while a game is being played, and forgets it when the game is left or over', async () => {
+  it('keeps the seat in this browser while a game is being played, and forgets it when the game is over', async () => {
     await hostGame();
-    const saved = JSON.parse(window.localStorage.getItem('upndown.seat') ?? 'null') as Record<string, unknown> | null;
+    expect(seatKeys()).toHaveLength(1);
+    const saved = JSON.parse(window.localStorage.getItem(seatKeys()[0]!) ?? 'null') as Record<string, unknown> | null;
     expect(saved).toMatchObject({ gameId: 'ABC123', playerId: 'socket-1', rejoinToken: 'tok' });
     act(() => mock.serverEmit('game:updated', { ...playing(), gamePhase: 'won' }));
-    expect(window.localStorage.getItem('upndown.seat')).toBeNull();
+    expect(seatKeys()).toHaveLength(0);
   });
 
-  it('takes the seat back on its own when the page is opened again after the tab was closed', async () => {
-    window.localStorage.setItem('upndown.seat', JSON.stringify({ gameId: 'ABC123', playerId: 'old-socket', rejoinToken: 'tok-old', savedAtMs: Date.now() }));
+  it('offers to take the seat back after the tab was closed, and does so only when asked', async () => {
+    window.localStorage.setItem('upndown.seat.k1', seat('ABC123'));
     const asked: unknown[] = [];
     mock.state.id = 'socket-new';
     mock.state.onEmit = (event, payload, ack) => {
       if (event === 'game:rejoin') { asked.push(payload); ack?.({ ok: true, data: { gameState: playing(), playerId: 'socket-new', rejoinToken: 'tok-new' } }); } else ack?.({ ok: false, error: 'unhandled' });
     };
     render(<App />);
+    expect(asked).toEqual([]);
+    await userEvent.click(await screen.findByRole('button', { name: 'Rejoin game ABC123' }));
     expect(await screen.findByTestId('end-game-top')).toBeTruthy();
     expect(asked).toEqual([{ gameId: 'ABC123', previousPlayerId: 'old-socket', rejoinToken: 'tok-old' }]);
   });
 
   it('drops a saved seat the server no longer has, and says so', async () => {
-    window.localStorage.setItem('upndown.seat', JSON.stringify({ gameId: 'ABC123', playerId: 'old-socket', rejoinToken: 'tok-old', savedAtMs: Date.now() }));
+    window.localStorage.setItem('upndown.seat.k1', seat('ABC123'));
     mock.state.id = 'socket-new';
     mock.state.onEmit = (_event, _payload, ack) => ack?.({ ok: false, error: 'Unable to rejoin game', gone: true });
     render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Rejoin game ABC123' }));
     expect(await screen.findByText('You were removed from game ABC123 while you were disconnected.')).toBeTruthy();
-    expect(window.localStorage.getItem('upndown.seat')).toBeNull();
+    expect(seatKeys()).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /Rejoin game/ })).toBeNull();
   });
 
   it('puts a signed-in player back in a game they still hold when they open multiplayer with nothing saved', async () => {
@@ -191,5 +200,40 @@ describe('App: dropped connections in a multiplayer game', () => {
     await screen.findByLabelText('Player Name');
     expect(screen.queryByText(/removed from game/)).toBeNull();
     expect(screen.queryByTestId('end-game-top')).toBeNull();
+  });
+
+  // Two tabs are two browsers, except that what one leaves behind can be picked up by another.
+  it('offers each unclaimed seat on this device, never one another tab is using, and rejoins the chosen one', async () => {
+    const locks = fakeLocks();
+    try {
+      window.localStorage.setItem('upndown.seat.k1', seat('ABC123', 'old-1', 'tok-1'));
+      window.localStorage.setItem('upndown.seat.k2', seat('XYZ789', 'old-2', 'tok-2'));
+      window.localStorage.setItem('upndown.seat.k3', seat('OPEN12', 'old-3', 'tok-3'));
+      locks.held.add('seat:k3'); // that game is open in another tab
+      const asked: unknown[] = [];
+      mock.state.id = 'socket-new';
+      mock.state.onEmit = (event, payload, ack) => {
+        if (event === 'game:rejoin') { asked.push(payload); ack?.({ ok: true, data: { gameState: { ...playing(), gameId: 'XYZ789' }, playerId: 'socket-new', rejoinToken: 'tok-new' } }); } else ack?.({ ok: false, error: 'unhandled' });
+      };
+      render(<App />);
+      await waitFor(() => expect(screen.getAllByTestId('rejoin-game')).toHaveLength(2));
+      expect(screen.getAllByTestId('rejoin-game').map((b) => b.textContent).sort()).toEqual(['Rejoin game ABC123', 'Rejoin game XYZ789']);
+      await userEvent.click(screen.getByRole('button', { name: 'Rejoin game XYZ789' }));
+      expect(await screen.findByTestId('end-game-top')).toBeTruthy();
+      expect(asked).toEqual([{ gameId: 'XYZ789', previousPlayerId: 'old-2', rejoinToken: 'tok-2' }]);
+      // This tab now holds that seat; the other saved seats are untouched.
+      expect(locks.held.has('seat:k2')).toBe(true);
+      expect(window.localStorage.getItem('upndown.seat.k1')).not.toBeNull();
+    } finally {
+      locks.remove();
+    }
+  });
+
+  it('starts a different game in a new tab even while a seat is saved, and keeps that seat', async () => {
+    window.localStorage.setItem('upndown.seat.k1', seat('ABC123'));
+    const user = await hostGame();
+    expect(user).toBeTruthy();
+    expect(window.localStorage.getItem('upndown.seat.k1')).not.toBeNull();
+    expect(seatKeys()).toHaveLength(2);
   });
 });

@@ -1,11 +1,14 @@
 import type { GameState } from '@upndown/shared-types';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect } from 'react';
+import { holdClaim, isClaimed, useUnclaimed } from './claims.js';
 import {
-  SOLITAIRE_SAVE_KEY, clearSolitaireSave, readSolitaireSave, resumeClock, summarizeSave, writeSolitaireSave,
+  SOLITAIRE_SAVE_PREFIX, clearSolitaireSave, listSolitaireSaves, readSolitaireSave, resumeClock, summarizeSave, writeSolitaireSave,
   type SaveSummary, type SavedSolitaire
 } from './solitaire-save.js';
 
 const cardsPlayedIn = (state: GameState): number => Object.values(state.statistics.players).reduce((sum, p) => sum + p.cardsPlayed, 0);
+
+const summaries = (): SaveSummary[] => listSolitaireSaves().map((save) => summarizeSave(save)).filter((s): s is SaveSummary => s !== null);
 
 interface Args {
   active: boolean;
@@ -14,51 +17,45 @@ interface Args {
   runId: string;
 }
 
-// Keeps the solitaire save point current while a game is being played, and forgets it when the game is over.
+// Keeps this tab's solitaire game saved while it is played, forgets it when it is over, and lists the other games saved on
+// this device that no other tab has open (any number may be started, each with its own save).
 export function useSolitaireSave({ active, state, undoStack, runId }: Args): {
-  summary: SaveSummary | null;
-  load: () => SavedSolitaire | null;
-  discard: () => void;
+  saves: SaveSummary[];
+  load: (runId: string) => Promise<SavedSolitaire | null>;
+  discard: (runId?: string) => void;
 } {
-  const [summary, setSummary] = useState<SaveSummary | null>(() => summarizeSave(readSolitaireSave()));
+  const [saves, refresh] = useUnclaimed(summaries, 'solitaire:', SOLITAIRE_SAVE_PREFIX, !active, active ? runId : undefined);
+
+  // While a game is open in this tab no other tab is offered it.
+  useEffect(() => (active ? holdClaim(`solitaire:${runId}`) : undefined), [active, runId]);
 
   useEffect(() => {
-    // Not while inactive: a page load starts inactive, and that must not wipe the game being resumed.
+    // Not while inactive: a page load starts inactive, and that must not wipe a game waiting to be resumed.
     if (!active) return;
     if (state.gamePhase === 'playing') {
-      // This is also what discards the old save when a new game starts: the new game has no plays yet.
-      // A game nobody has played a card in is not worth keeping: you would only be asked to discard it to get a fresh
-      // deal. Undoing back to the start also counts, or the save would hold a position the player has taken back.
-      if (cardsPlayedIn(state) > 0) {
-        writeSolitaireSave(state, undoStack, Date.now(), runId);
-      } else {
-        clearSolitaireSave();
-        setSummary(null);
-      }
+      // A game nobody has played a card in is not worth keeping: you would only be asked about it later.
+      // Undoing back to the start also counts, or the save would hold a position the player has taken back.
+      if (cardsPlayedIn(state) > 0) writeSolitaireSave(state, undoStack, Date.now(), runId);
+      else clearSolitaireSave(runId);
     } else if (state.gamePhase === 'won' || state.gamePhase === 'lost') {
-      clearSolitaireSave();
-      setSummary(null);
+      clearSolitaireSave(runId);
     }
   }, [active, state, undoStack, runId]);
 
-  // Another tab started, finished or discarded a game.
-  useEffect(() => {
-    const onStorage = (event: StorageEvent): void => {
-      if (event.key === SOLITAIRE_SAVE_KEY || event.key === null) setSummary(summarizeSave(readSolitaireSave()));
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
-  const load = useCallback((): SavedSolitaire | null => {
-    const save = readSolitaireSave();
+  // Refuses a game another tab opened since this list was drawn, so two tabs never play one game.
+  const load = useCallback(async (id: string): Promise<SavedSolitaire | null> => {
+    if (await isClaimed(`solitaire:${id}`)) {
+      refresh();
+      return null;
+    }
+    const save = readSolitaireSave(id);
     return save ? resumeClock(save) : null;
-  }, []);
+  }, [refresh]);
 
-  const discard = useCallback((): void => {
-    clearSolitaireSave();
-    setSummary(null);
-  }, []);
+  const discard = useCallback((id: string = runId): void => {
+    clearSolitaireSave(id);
+    refresh();
+  }, [runId, refresh]);
 
-  return { summary, load, discard };
+  return { saves, load, discard };
 }

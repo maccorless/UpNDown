@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Modal } from './Modal.js';
 import { SignInCard } from './auth/SignInCard.js';
 import { describeAge, type SaveSummary } from './solitaire-save.js';
+import type { SeatOffer } from './useSavedSeat.js';
 import type { AuthState } from './auth/useAuth.js';
 
 // The staged entrance plays once per page load. Coming back to the landing from a game must not replay it.
@@ -24,35 +25,35 @@ interface LandingProps {
   firstVisit: boolean;
   // Starts a new solitaire game.
   onSolitaire: () => void;
-  // A solitaire game saved on this device, if there is one, and how to pick it up.
-  solitaireSave: SaveSummary | null;
-  onResumeSolitaire: () => void;
+  // Solitaire games saved on this device that no other tab has open, and how to pick one up or throw it away.
+  solitaireSaves: SaveSummary[];
+  onResumeSolitaire: (runId: string) => void;
+  onDiscardSolitaire: (runId: string) => void;
   onMultiplayer: () => void;
+  // Games being played that this browser still has a seat in and no other tab has open, and how to go back to one.
+  rejoinSeats: SeatOffer[];
+  onRejoin: (seatKey: string) => void;
   onChangeName: () => void;
 }
 
-export function Landing({ auth, firstVisit, onSolitaire, solitaireSave, onResumeSolitaire, onMultiplayer, onChangeName }: LandingProps): JSX.Element {
+export function Landing({ auth, firstVisit, onSolitaire, solitaireSaves, onResumeSolitaire, onDiscardSolitaire, onMultiplayer, rejoinSeats, onRejoin, onChangeName }: LandingProps): JSX.Element {
   const [enter] = useState(() => {
     const first = !introPlayed;
     introPlayed = true;
     return first;
   });
 
-  const [confirmingNew, setConfirmingNew] = useState(false);
+  const [discarding, setDiscarding] = useState<SaveSummary | null>(null);
 
   return (
     <section className={`landing-hero${enter ? ' landing-enter' : ''}`} aria-label="Choose how to play">
       <p className="hero-tagline">A cooperative card game. Win together or lose together.</p>
 
       <div className="mode-cards">
-        <button type="button" className="mode-card" onClick={solitaireSave ? onResumeSolitaire : onSolitaire} data-testid="mode-solitaire">
+        <button type="button" className="mode-card" onClick={onSolitaire} data-testid="mode-solitaire">
           <Chips values={[1, 34, 67]} direction="up" />
-          <span className="mode-card-title">{solitaireSave ? 'Continue solitaire' : 'Solitaire'}</span>
-          <span className="mode-card-desc">
-            {solitaireSave
-              ? `${solitaireSave.cardsLeft} cards left. Saved ${describeAge(solitaireSave.savedAtMs)}.`
-              : 'Play on your own. No sign-in, no waiting.'}
-          </span>
+          <span className="mode-card-title">Solitaire</span>
+          <span className="mode-card-desc">Play on your own. No sign-in, no waiting.</span>
         </button>
         <button type="button" className="mode-card mode-card-primary" onClick={onMultiplayer} data-testid="mode-multiplayer">
           <Chips values={[100, 66, 33]} direction="down" />
@@ -61,12 +62,21 @@ export function Landing({ auth, firstVisit, onSolitaire, solitaireSave, onResume
         </button>
       </div>
 
-      {solitaireSave ? (
-        <p className="resume-note">
-          Saved on this device only.{' '}
-          <button type="button" className="link-action" onClick={() => setConfirmingNew(true)}>Start a new solitaire game</button>
+      {rejoinSeats.map((seat) => (
+        <p className="resume-note" key={seat.seatKey}>
+          You have a game in progress.{' '}
+          <button type="button" className="link-action" onClick={() => onRejoin(seat.seatKey)} data-testid="rejoin-game">Rejoin game {seat.gameId}</button>
         </p>
-      ) : null}
+      ))}
+
+      {solitaireSaves.map((save) => (
+        <p className="resume-note" key={save.runId} data-testid="solitaire-save">
+          Solitaire game saved on this device: {save.cardsLeft} cards left, {describeAge(save.savedAtMs)}.{' '}
+          <button type="button" className="link-action" onClick={() => onResumeSolitaire(save.runId)} data-testid="continue-solitaire">Continue</button>
+          {' '}
+          <button type="button" className="link-action" onClick={() => setDiscarding(save)}>Discard</button>
+        </p>
+      ))}
 
       <div className="account-strip">
         <SignInCard auth={auth} />
@@ -78,14 +88,14 @@ export function Landing({ auth, firstVisit, onSolitaire, solitaireSave, onResume
         ) : null}
       </div>
 
-      {confirmingNew && solitaireSave ? (
+      {discarding ? (
         // Discarding a saved game is not undoable, so it takes a second, deliberate step. Cancel is where focus starts.
-        <Modal className="panel end-game-confirm-modal" dismiss="esc" label="start a new solitaire game" onClose={() => setConfirmingNew(false)}>
-          <h2>Start a new game?</h2>
-          <p>Your saved game, with {solitaireSave.cardsLeft} cards left, will be discarded.</p>
+        <Modal className="panel end-game-confirm-modal" dismiss="esc" label="discard a saved solitaire game" onClose={() => setDiscarding(null)}>
+          <h2>Discard this game?</h2>
+          <p>Your saved game, with {discarding.cardsLeft} cards left, will be thrown away.</p>
           <div className="button-row">
-            <button type="button" className="secondary" data-autofocus onClick={() => setConfirmingNew(false)}>Keep my saved game</button>
-            <button type="button" className="danger" onClick={() => { setConfirmingNew(false); onSolitaire(); }}>Discard and start new</button>
+            <button type="button" className="secondary" data-autofocus onClick={() => setDiscarding(null)}>Keep my saved game</button>
+            <button type="button" className="danger" onClick={() => { onDiscardSolitaire(discarding.runId); setDiscarding(null); }}>Discard</button>
           </div>
         </Modal>
       ) : null}

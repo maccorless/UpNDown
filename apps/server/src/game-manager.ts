@@ -209,7 +209,9 @@ export class GameManager {
 
     // The seat keeps the account it was taken with. A rejoining socket with a different account, or none, is still seated
     // by its token but does not take the credit; a seat taken as a guest may adopt the account that comes back signed in.
-    const seatUser = room.userIdByPlayerId.get(oldPlayerId) ?? userId;
+    // A guest seat may adopt the account that comes back, unless that account already sits elsewhere in this game.
+    const adopt = userId && !this.accountHoldsSeat(room, userId) ? userId : undefined;
+    const seatUser = room.userIdByPlayerId.get(oldPlayerId) ?? adopt;
     room.userIdByPlayerId.delete(oldPlayerId);
     if (seatUser) room.userIdByPlayerId.set(newPlayerId, seatUser);
 
@@ -233,6 +235,13 @@ export class GameManager {
     const room = this.rooms.get(gameId);
     if (!room) return 0;
     return room.gameState.statistics.players[playerId]?.specialPlays ?? 0;
+  }
+
+  private accountHoldsSeat(room: GameRoom, userId: string): boolean {
+    for (const [playerId, seatUser] of room.userIdByPlayerId) {
+      if (seatUser === userId && room.gameState.players.some((p) => p.id === playerId)) return true;
+    }
+    return false;
   }
 
   // The room this connection is seated in, if any. A connection is in at most one game at a time.
@@ -349,6 +358,11 @@ export class GameManager {
     const elsewhere = this.seatedGameOf(playerId);
     if (elsewhere && elsewhere !== payload.gameId) {
       throw new Error('You are already in a game. Leave it before joining another.');
+    }
+
+    // One account, one seat per game. Two different accounts (say, in two tabs) are two players; guests are never matched.
+    if (userId && this.accountHoldsSeat(room, userId)) {
+      throw new Error('Your account is already in this game (perhaps in another tab).');
     }
 
     if (gameState.players.length >= gameState.settings.maxPlayers) {

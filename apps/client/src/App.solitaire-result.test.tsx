@@ -4,7 +4,7 @@ import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
-import { readSolitaireSave, writeSolitaireSave } from './solitaire-save.js';
+import { listSolitaireSaves, writeSolitaireSave } from './solitaire-save.js';
 
 vi.mock('socket.io-client', () => {
   const socket = { connected: false, id: 'socket-1', on: () => socket, off: () => socket, connect: () => socket, disconnect: () => socket, emit: () => socket };
@@ -47,7 +47,7 @@ const resultCalls = (calls: Call[]) => calls.filter((c) => c.url === '/api/me/so
 async function resumeAndWin(user: ReturnType<typeof userEvent.setup>) {
   writeSolitaireSave(oneCardFromWinning(), [], Date.now(), 'saved-run-1');
   render(<App />);
-  await user.click(await screen.findByText('Continue solitaire'));
+  await user.click(await screen.findByTestId('continue-solitaire'));
   await user.click(await screen.findByTestId('hand-card-c-2'));
   await user.click(screen.getByTestId('pile-0'));
 }
@@ -95,7 +95,7 @@ describe('saving a solitaire result', () => {
     const user = userEvent.setup();
     writeSolitaireSave(oneCardFromWinning(), [], Date.now(), 'saved-run-2');
     render(<App />);
-    await user.click(await screen.findByText('Continue solitaire'));
+    await user.click(await screen.findByTestId('continue-solitaire'));
     await user.click(await screen.findByTestId('end-game-top'));
     await new Promise((resolve) => setTimeout(resolve, 60));
     expect(resultCalls(calls)).toHaveLength(0);
@@ -108,16 +108,16 @@ describe('saving a solitaire result', () => {
     await user.click(await screen.findByTestId('mode-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
-    const id = readSolitaireSave()!.runId;
+    const id = listSolitaireSaves()[0]!.runId;
     expect(id).toMatch(/^[A-Za-z0-9_-]{1,64}$/);
     first.unmount();
 
     render(<App />);
-    await user.click(await screen.findByText('Continue solitaire'));
+    await user.click(await screen.findByTestId('continue-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-1'));
-    await waitFor(() => expect(readSolitaireSave()!.state.statistics.players['solo-player']!.cardsPlayed).toBeGreaterThan(1));
-    expect(readSolitaireSave()!.runId).toBe(id);
+    await waitFor(() => expect(listSolitaireSaves()[0]!.state.statistics.players['solo-player']!.cardsPlayed).toBeGreaterThan(1));
+    expect(listSolitaireSaves()[0]!.runId).toBe(id);
   });
 
   it('gives a new game a new id', async () => {
@@ -127,7 +127,7 @@ describe('saving a solitaire result', () => {
     await user.click(await screen.findByTestId('mode-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
-    const one = readSolitaireSave()!.runId;
+    const one = listSolitaireSaves()[0]!.runId;
     first.unmount();
     window.localStorage.clear();
 
@@ -135,7 +135,7 @@ describe('saving a solitaire result', () => {
     await user.click(await screen.findByTestId('mode-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
-    expect(readSolitaireSave()!.runId).not.toBe(one);
+    expect(listSolitaireSaves()[0]!.runId).not.toBe(one);
   });
 });
 
@@ -152,8 +152,8 @@ describe('solitaire with no connection', () => {
 
     writeSolitaireSave(oneCardFromWinning(), [], Date.now(), 'offline-run');
     render(<App />);
-    expect((await screen.findByText('Continue solitaire')).textContent).toBeTruthy();
-    await user.click(screen.getByText('Continue solitaire'));
+    expect((await screen.findByTestId('continue-solitaire')).textContent).toBeTruthy();
+    await user.click(screen.getByTestId('continue-solitaire'));
     await user.click(await screen.findByTestId('hand-card-c-2'));
     await user.click(screen.getByTestId('pile-0'));
     expect((await screen.findAllByText('Game Won')).length).toBeGreaterThan(0);
@@ -172,7 +172,7 @@ describe('solitaire with no connection', () => {
       await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
       await user.click(screen.getByTestId('pile-0'));
     }
-    expect(readSolitaireSave()).not.toBeNull();
+    expect(listSolitaireSaves()[0] ?? null).not.toBeNull();
     expect(attempted.every((url) => url === '/api/auth/config')).toBe(true);
   });
 
@@ -188,12 +188,12 @@ describe('solitaire with no connection', () => {
     const user = userEvent.setup();
     writeSolitaireSave(oneCardFromWinning(), [], Date.now(), 'dropped-run');
     render(<App />);
-    await user.click(await screen.findByText('Continue solitaire'));
+    await user.click(await screen.findByTestId('continue-solitaire'));
     network.online = false;
     await user.click(await screen.findByTestId('hand-card-c-2'));
     await user.click(screen.getByTestId('pile-0'));
     expect((await screen.findAllByText('Game Won')).length).toBeGreaterThan(0);
     expect(await screen.findByText(/Could not save this game to your history/)).toBeTruthy();
-    expect(readSolitaireSave()).toBeNull(); // a finished game is not offered for resuming
+    expect(listSolitaireSaves()[0] ?? null).toBeNull(); // a finished game is not offered for resuming
   });
 });
