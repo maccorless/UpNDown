@@ -74,6 +74,7 @@ const eventRateLimits: Record<
   | 'game:start'
   | 'game:playCard'
   | 'game:skip'
+  | 'game:hint'
   | 'game:trade'
   | 'game:endTurn'
   | 'game:undoPlay'
@@ -95,6 +96,7 @@ const eventRateLimits: Record<
   'game:start':          { limit: 10, windowMs: 30_000 },
   'game:playCard':       { limit: 60, windowMs: 10_000 },
   'game:skip':           { limit: 10, windowMs: 10_000 },
+  'game:hint':           { limit: 20, windowMs: 10_000 },
   'game:trade':          { limit: 10, windowMs: 10_000 },
   'game:endTurn':        { limit: 30, windowMs: 10_000 },
   'game:undoPlay':       { limit: 30, windowMs: 10_000 },
@@ -598,6 +600,22 @@ export function createRealtimeServer(
       } catch (err) {
         const message = normalizeError(err, 'Unable to skip');
         log('warn', 'game.skip_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    // A hint is for the asker alone: nothing is sent to the others, and nothing about the draw pile or other hands is used.
+    socket.on('game:hint', (payload, ack?: Ack<{ action: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:hint')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = skipPayloadSchema.parse(payload);
+        reply(ack, { ok: true, data: { action: manager.hint(socket.id, parsed) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to give a hint');
+        log('warn', 'game.hint_failed', { socketId: socket.id, error: message });
         reply(ack, { ok: false, error: message });
       }
     });

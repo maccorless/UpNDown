@@ -1,11 +1,12 @@
-import { cheatNoticeText, cheatStatuses, keepCheatCounts, useCheatHotkeys } from './cheats.js';
+import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, useCheatHotkeys, type HintView } from './cheats.js';
 import { CheatsPanel } from './CheatsPanel.js';
 import { SeatChoice } from './SeatChoice.js';
 import { StorageNotice } from './StorageNotice.js';
 import { isClaimed } from './claims.js';
 import { readSavedSeat } from './saved-seat.js';
 import { useSavedSeat } from './useSavedSeat.js';
-import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, recordCheatUse, requiredCardsForTurn, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
+import type { Action } from '@upndown/engine';
+import { buildDeck, createStartedGameState, isValidPlay, chooseAction as chooseActionEngine, observe as observeEngine, playCard as playCardEngine, recordCheatUse, requiredCardsForTurn, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
 import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
@@ -201,6 +202,9 @@ interface GameBoardProps {
   onEndTurn?: () => void;
   // Opens the cheats panel. Present only when the game has a cheat turned on, so the panel is reachable from the keyboard.
   onOpenCheats?: () => void;
+  // A card and a pile to light up for a hint.
+  hintCardId?: string | undefined;
+  hintPileId?: number | undefined;
   playerId?: string | null;
   interactionDisabled?: boolean;
   onSetReaction?: (pileId: number, reactionType: ReactionType | null) => void;
@@ -235,6 +239,8 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     onPlayPile,
     onEndTurn,
     onOpenCheats,
+    hintCardId,
+    hintPileId,
     playerId,
     interactionDisabled,
     onSetReaction,
@@ -372,7 +378,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             return (
               <div
                 key={pile.id}
-                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''}${backwardTen ? ' highlight-special' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}`}
+                className={`pile-unit ${pileTypeClass} ${highlighted ? 'highlight' : ''}${backwardTen ? ' highlight-special' : ''}${isSpecialFlash ? ' backward-ten-flash' : ''}${hintPileId === pile.id ? ' hinted' : ''}`}
               >
                 {isSpecialFlash && (
                   <span className="backward-ten-label">{specialLabel}</span>
@@ -571,7 +577,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             <button
               key={card.id}
               type="button"
-              className={`card ${selectedCardId === card.id ? 'selected' : ''} ${unplayableIds.has(card.id) ? 'card-unplayable' : ''}`}
+              className={`card ${selectedCardId === card.id ? 'selected' : ''} ${unplayableIds.has(card.id) ? 'card-unplayable' : ''}${hintCardId === card.id ? ' hinted' : ''}`}
               onClick={() => {
                 if (inputsDisabled) return;
                 setSelectedCardId(card.id);
@@ -632,6 +638,8 @@ export function App(): JSX.Element {
   // false: closed. 'panel': the cheats panel. 'skip': the panel, straight to the skip confirmation (the Ctrl/Cmd-S key).
   const [cheatsOpen, setCheatsOpen] = useState<false | 'panel' | 'skip'>(false);
   const [cheatNotice, setCheatNotice] = useState<string | null>(null);
+  // The current hint: lights up a card and a pile and says it in words. Gone as soon as the game moves on.
+  const [hint, setHint] = useState<HintView | null>(null);
   const cheatNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [hostEndedModalGameId, setHostEndedModalGameId] = useState<string | null>(null);
   const [kickedFromGameId, setKickedFromGameId] = useState<string | null>(null);
@@ -1388,6 +1396,29 @@ export function App(): JSX.Element {
     setCardLookupOpen(true);
   };
 
+  const handleCheatHint = async (): Promise<void> => {
+    if (mode === 'solitaire') {
+      try {
+        const counted = recordCheatUse(solitaireState, SOLO_PLAYER_ID, 'hint');
+        setSolitaireState(counted);
+        setHint(describeHint(chooseActionEngine(observeEngine(solitaireState, SOLO_PLAYER_ID)), solitaireState, SOLO_PLAYER_ID));
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to give a hint');
+      }
+      return;
+    }
+    if (!multiplayerState) return;
+    // The server works the hint out from what this player can see and counts the use; nothing goes to the other players.
+    const ack = await emitWithAck<{ action: Action }>('game:hint', { gameId: multiplayerState.gameId }, 'cheat');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setHint(describeHint(ack.data.action, multiplayerState, playerId));
+  };
+
   const handleCheatSkip = async (): Promise<void> => {
     if (!multiplayerState) return;
     const ack = await emitWithAck<{ gameState: GameState }>('game:skip', { gameId: multiplayerState.gameId }, 'cheat');
@@ -1760,7 +1791,10 @@ export function App(): JSX.Element {
   const cheatSelectedCardId = mode === 'multiplayer' ? multiplayerSelectedCardId : solitaireSelectedCardId;
   const cheatPlayerId = mode === 'multiplayer' ? playerId : SOLO_PLAYER_ID;
   const cheatStatusList = cheatState && cheatState.gamePhase === 'playing' ? cheatStatuses(cheatState, cheatPlayerId, cheatSelectedCardId) : [];
-  const cheatCan = (kind: 'lookup' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
+  // The hint goes when the game moves on: any change to either game, or leaving it.
+  const hintBoardKey = moveKey(mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null), mode === 'multiplayer' ? playerId : SOLO_PLAYER_ID);
+  useEffect(() => { setHint(null); }, [hintBoardKey]);
+  const cheatCan = (kind: 'lookup' | 'hint' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
   useCheatHotkeys({
     active: cheatStatusList.length > 0,
     ...(cheatCan('lookup') ? { onLookup: openLookup } : {}),
@@ -1973,6 +2007,8 @@ export function App(): JSX.Element {
           onUndo={solitaireUndoStack.length > 0 ? handleSolitaireUndo : undefined}
           canUndo={solitaireUndoStack.length > 0}
           {...(cheatStatusList.length > 0 ? { onOpenCheats: () => setCheatsOpen('panel') } : {})}
+          hintCardId={hint?.cardId}
+          hintPileId={hint?.pileId}
         />
         ) : (
           <section className="panel lobby" aria-label="solitaire ended">
@@ -2238,6 +2274,8 @@ export function App(): JSX.Element {
                 onTakeOverHost={(hostId: string) => { void handleKickPlayer(hostId); }}
                 isHost={!!isHost}
                 {...(cheatStatusList.length > 0 ? { onOpenCheats: () => setCheatsOpen('panel') } : {})}
+                hintCardId={hint?.cardId}
+                hintPileId={hint?.pileId}
               />
             ) : (
               <section className="panel lobby" aria-label="seat lost">
@@ -2416,6 +2454,7 @@ export function App(): JSX.Element {
           busy={pendingAction !== null}
           onClose={() => setCheatsOpen(false)}
           onLookup={openLookup}
+          onHint={() => { void handleCheatHint(); }}
           onSkip={() => { void handleCheatSkip(); }}
           onTrade={() => { void handleCheatTrade(); }}
         />
@@ -2423,6 +2462,7 @@ export function App(): JSX.Element {
 
       {/* Always present, so a screen reader announces a notice when its text appears. Plain div: the end-to-end specs select role=status strictly. */}
       <div className="cheat-notice" aria-live="polite">{cheatNotice}</div>
+      <div className="hint-banner" aria-live="polite" data-testid="hint-banner">{hint?.text ?? ''}</div>
 
       {cardLookupToast ? (
         <div className="card-lookup-toast" role="status" aria-live="polite">

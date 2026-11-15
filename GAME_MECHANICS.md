@@ -7,6 +7,7 @@ Each cheat is off, once (one use per player per game) or unlimited, set per game
 - **Card seeker (`lookup`)**: ask where a card is. Only the asker is told; everyone else is sent `game:cheatUsed` (who and which cheat, nothing about the card). Hotkey Ctrl/Cmd-P.
 - **Skip (`skip`)**: on your turn, before playing a card, pass without the minimum. Not offered in solitaire. No refill. A full round of skips with no card played by anyone ends the game as a loss. Ctrl/Cmd-S, with a confirmation.
 - **Trade (`trade`)**: swap a hand card for the next draw card; the card you give goes back into the draw pile at a random position. Active player only. Ctrl/Cmd-Shift-X.
+- **Hint (`hint`)**: suggests the best play (or to end the turn, skip or trade) from what the asker can see: their own hand, the pile tops, the size of the draw pile and of the other hands, never the cards in the draw pile or other hands. Only the asker sees it, nobody is notified, it is counted in the statistics. Worked out by the server in multiplayer (`game:hint`) and in the browser in solitaire, with no connection.
 - Skip and trade clear the undo history. A lookup or hint is not refunded by undo.
 - The panel opens by double tapping the logo or from the Cheats button; the keys are accelerators only.
 
@@ -284,6 +285,7 @@ All Socket.IO events are rate-limited per socket ID using a sliding-window count
 | `game:playCard`      | 60    | 10 s    |
 | `game:skip`          | 10    | 10 s    |
 | `game:trade`         | 10    | 10 s    |
+| `game:hint`          | 20    | 10 s    |
 | `game:endTurn`       | 30    | 10 s    |
 | `game:undoPlay`      | 30    | 10 s    |
 | `game:endGame`       | 10    | 30 s    |

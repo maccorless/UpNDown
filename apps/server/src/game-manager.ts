@@ -1,5 +1,6 @@
 import { createHash, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
-import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import type { Action } from '@upndown/engine';
+import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type {
   CreateGamePayload,
   GameState,
@@ -573,6 +574,21 @@ export class GameManager {
     room.gameState = restored;
     room.updatedAtMs = Date.now();
     return restored;
+  }
+
+  // A hint for the player asking, worked out from what that player can see (never the draw pile or other hands), and counted
+  // as a use. Only on their own turn. Nothing about it changes the game or is shown to anyone else.
+  hint(playerId: string, payload: SkipPayload): Action {
+    const room = this.requireRoom(payload.gameId);
+    const { gameState } = room;
+    const current = gameState.players[gameState.currentPlayerIndex];
+    if (gameState.gamePhase !== 'playing' || current?.id !== playerId) {
+      throw new Error('Hints are only available on your own turn');
+    }
+    // Throws when hints are off for this game, or the single use is spent.
+    room.gameState = recordCheatUse(gameState, playerId, 'hint');
+    room.updatedAtMs = Date.now();
+    return chooseAction(observe(gameState, playerId));
   }
 
   // Skip and trade change the game for good: each clears the undo history, so undo can never take one back or refund it.

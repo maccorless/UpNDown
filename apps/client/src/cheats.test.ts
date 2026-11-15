@@ -4,7 +4,7 @@ import { render } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { cheatNoticeText, cheatStatuses, keepCheatCounts, useCheatHotkeys } from './cheats.js';
+import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, useCheatHotkeys } from './cheats.js';
 
 const game = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint', CheatLimit>>, over: Partial<GameState> = {}): GameState => ({
   ...createStartedGameState({
@@ -117,5 +117,39 @@ describe('cheat hotkeys', () => {
     render(createElement(Harness, { active: false, onLookup }));
     await user.keyboard('{Control>}p{/Control}');
     expect(onLookup).not.toHaveBeenCalled();
+  });
+});
+
+describe('hints', () => {
+  it('lists hint among the cheats, only on your own turn', () => {
+    const state = game({ hint: 'once' });
+    expect(find(state, 'p1', 'hint')?.available).toBe(true);
+    expect(find(state, 'p2', 'hint')).toMatchObject({ available: false, reason: 'Only on your turn' });
+  });
+
+  it('says a play in words and lights up the card and the pile', () => {
+    const state = game({ hint: 'once' });
+    const mine = state.players[0]!.hand[0]!;
+    const view = describeHint({ type: 'play', cardId: mine.id, pileId: 0 }, state, 'p1');
+    expect(view).toMatchObject({ cardId: mine.id, pileId: 0 });
+    expect(view.text).toBe(`Hint: play ${mine.value} on the up pile showing ${state.foundationPiles[0]!.topCard.value}.`);
+    expect(describeHint({ type: 'play', cardId: mine.id, pileId: 2 }, state, 'p1').text).toContain('down pile');
+  });
+
+  it('says the other advice in words, and has nothing to light up for it', () => {
+    const state = game({ hint: 'once' });
+    expect(describeHint({ type: 'endTurn' }, state, 'p1')).toEqual({ text: 'Hint: you have played enough. End your turn.' });
+    expect(describeHint({ type: 'skip' }, state, 'p1').text).toContain('Skip it');
+    expect(describeHint({ type: 'none' }, state, 'p1').text).toBe('Hint: no play is possible.');
+    const dead = state.players[0]!.hand[0]!;
+    expect(describeHint({ type: 'trade', cardId: dead.id }, state, 'p1')).toMatchObject({ cardId: dead.id });
+  });
+
+  it('keeps the same key while only a count changes, and a new one when the game moves', () => {
+    const state = game({ hint: 'unlimited' });
+    const counted: GameState = { ...state, statistics: { ...state.statistics, players: { ...state.statistics.players, p1: { ...state.statistics.players.p1!, hintsUsed: 3 } } } };
+    expect(moveKey(counted, 'p1')).toBe(moveKey(state, 'p1'));
+    expect(moveKey({ ...state, cardsPlayedThisTurn: 1 }, 'p1')).not.toBe(moveKey(state, 'p1'));
+    expect(moveKey(null, 'p1')).toBe('');
   });
 });

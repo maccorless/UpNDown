@@ -298,7 +298,7 @@ End-game statistics modal shows:
 20. Game ID invite link with one-click copy
 21. Player kick (lobby and active game) with card return to draw pile
 22. Trade cheat (swap a hand card for the next draw card; replaces the name-gated Nas swap)
-23. Card seeker cheat (Ctrl/Cmd-P; the answer is private; others are notified), skip cheat (Ctrl/Cmd-S), cheats panel and notices
+23. Hint cheat (a strategy in the engine that sees only what a player can see; the suggested card and pile are lit up with the advice in words), card seeker cheat (Ctrl/Cmd-P; the answer is private; others are notified), skip cheat (Ctrl/Cmd-S), cheats panel and notices
 24. Rate limiting on all Socket.IO events
 25. TTL-based orphan room reaping
 26. In-memory state storage, with saving of games in progress to Postgres where one is connected
@@ -354,6 +354,7 @@ Client  ──Socket.IO event──►  Server
 | `game:undoPlay`       | Undo the last card play              |
 | `game:skip`           | Skip your turn (cheat; before playing a card) |
 | `game:trade`          | Trade a hand card for the next draw card (cheat) |
+| `game:hint`           | Ask for a hint (cheat; the answer is private and counted) |
 | `game:endGame`        | Host ends an active game             |
 | `game:updateSettings` | Host updates lobby settings          |
 | `game:leave`          | Leave the current game               |

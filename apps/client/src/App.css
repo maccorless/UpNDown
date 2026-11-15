@@ -2886,3 +2886,32 @@ button.mode-card:not(:disabled):active {
   display: grid;
   gap: 8px;
 }
+
+/* A hint lights up the card to play and the pile to play it on; the words are in the banner, so color is not the only signal. */
+.card.hinted {
+  outline: 3px dashed #ffd23f;
+  outline-offset: 2px;
+}
+
+.pile-unit.hinted {
+  outline: 3px dashed #ffd23f;
+  outline-offset: 2px;
+}
+
+.hint-banner {
+  position: fixed;
+  left: 50%;
+  top: 12px;
+  transform: translateX(-50%);
+  max-width: min(92vw, 32rem);
+  z-index: 49;
+  pointer-events: none;
+}
+
+.hint-banner:not(:empty) {
+  padding: 8px 14px;
+  border-radius: 10px;
+  background: rgba(13, 27, 42, 0.96);
+  color: #f1f5f9;
+  border: 1px solid #ffd23f;
+}

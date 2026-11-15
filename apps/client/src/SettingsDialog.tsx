@@ -7,6 +7,7 @@ const LIMIT_LABELS: Record<CheatLimit, string> = { off: 'Off', once: 'Once per g
 const LIMIT_OPTIONS = (['off', 'once', 'unlimited'] as const).map((value) => ({ value, label: value === 'once' ? 'Once' : LIMIT_LABELS[value] }));
 const CHEAT_ROWS: Array<{ kind: CheatKind; label: string; hint: string }> = [
   { kind: 'lookup', label: 'Card seeker', hint: 'Find where a card is (Ctrl/Cmd-P). Only the asker sees the answer; the others are told one was used.' },
+  { kind: 'hint', label: 'Hint', hint: 'Suggests the best play from what you can see. Only you see it; it is counted in the statistics.' },
   { kind: 'skip', label: 'Skip turn', hint: 'Pass your turn without the minimum (Ctrl/Cmd-S, after a confirmation). Before you are stuck, not after.' },
   { kind: 'trade', label: 'Trade a card', hint: 'Swap a hand card for the next draw card (Ctrl/Cmd-Shift-X). The card you give goes back in at random.' }
 ];

@@ -40,5 +40,6 @@ describe('cheat codes in settings', () => {
     expect(screen.getByText('Card seeker').nextSibling?.textContent).toBe('Once per game');
     expect(screen.getByText('Skip turn').nextSibling?.textContent).toBe('Unlimited');
     expect(screen.getByText('Trade a card').nextSibling?.textContent).toBe('Off');
+    expect(screen.getByText('Hint').nextSibling?.textContent).toBe('Off');
   });
 });

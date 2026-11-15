@@ -186,4 +186,36 @@ describe('App: cheats in a multiplayer game', () => {
     await user.type(await screen.findByPlaceholderText('e.g. 34'), '34{Enter}');
     expect(await screen.findByText(/In Hand \(Ann\)/)).toBeTruthy();
   });
+
+  it('asks the server for a hint, lights up the card and the pile, and says it in words', async () => {
+    const asked: unknown[] = [];
+    const state = playing({ lookup: 'off', skip: 'off', trade: 'off', hint: 'once' });
+    const user = await hostGame(state, (event, payload, ack) => {
+      if (event !== 'game:hint') return false;
+      asked.push(payload);
+      ack?.({ ok: true, data: { action: { type: 'play', cardId: 'c-21', pileId: 0 } } });
+      return true;
+    });
+    await user.click(screen.getByTestId('open-cheats'));
+    await user.click(screen.getByTestId('cheat-hint'));
+    await waitFor(() => expect(screen.getByTestId('hint-banner').textContent).toBe('Hint: play 21 on the up pile showing 1.'));
+    expect(asked).toEqual([{ gameId: 'ABC123' }]);
+    expect(screen.getByTestId('hand-card-c-21').className).toContain('hinted');
+    expect(screen.getByTestId('pile-0').closest('.pile-unit')!.className).toContain('hinted');
+  });
+
+  it('takes the hint away when the game moves on', async () => {
+    const state = playing({ lookup: 'off', skip: 'off', trade: 'off', hint: 'unlimited' });
+    const user = await hostGame(state, (event, _payload, ack) => {
+      if (event !== 'game:hint') return false;
+      ack?.({ ok: true, data: { action: { type: 'play', cardId: 'c-21', pileId: 0 } } });
+      return true;
+    });
+    await user.click(screen.getByTestId('open-cheats'));
+    await user.click(screen.getByTestId('cheat-hint'));
+    await waitFor(() => expect(screen.getByTestId('hint-banner').textContent).toContain('Hint: play 21'));
+    act(() => mock.serverEmit('game:updated', { ...state, cardsPlayedThisTurn: 1 }));
+    expect(screen.getByTestId('hint-banner').textContent).toBe('');
+  });
 });
+

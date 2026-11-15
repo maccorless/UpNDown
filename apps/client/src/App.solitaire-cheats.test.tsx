@@ -9,9 +9,9 @@ vi.mock('socket.io-client', () => {
   return { io: () => socket };
 });
 
-const withCheats = (lookup: 'off' | 'once' | 'unlimited', trade: 'off' | 'once' | 'unlimited') => {
+const withCheats = (lookup: 'off' | 'once' | 'unlimited', trade: 'off' | 'once' | 'unlimited', hint: 'off' | 'once' | 'unlimited' = 'off') => {
   window.localStorage.setItem('upndown.settings.v1', JSON.stringify({
-    solitaire: { ...defaultSolitaireSettings, cheatLimits: { lookup, skip: 'unlimited', trade, hint: 'off' } },
+    solitaire: { ...defaultSolitaireSettings, cheatLimits: { lookup, skip: 'unlimited', trade, hint } },
     multiplayer: defaultMultiplayerSettings
   }));
 };
@@ -94,4 +94,22 @@ describe('cheats in solitaire', () => {
     await user.click(screen.getByTestId('open-cheats'));
     expect((screen.getByTestId('cheat-lookup') as HTMLButtonElement).disabled).toBe(true);
   });
+
+  // The strategy runs in the browser from the cards the player can see: no request is made.
+  it('gives a hint with no connection at all, lights up a card, and counts it against a single use', async () => {
+    withCheats('off', 'off', 'once');
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTestId('mode-solitaire'));
+    const requestsBefore = vi.mocked(fetch).mock.calls.length; // the page asked about sign-in when it loaded
+    await user.click(screen.getByTestId('open-cheats'));
+    await user.click(screen.getByTestId('cheat-hint'));
+    expect(screen.getByTestId('hint-banner').textContent).toMatch(/^Hint: play \d+ on the (up|down) pile showing \d+\.$/);
+    expect(document.querySelectorAll('.card.hinted')).toHaveLength(1);
+    expect(document.querySelectorAll('.pile-unit.hinted')).toHaveLength(1);
+    expect(vi.mocked(fetch).mock.calls.length).toBe(requestsBefore);
+    await user.click(screen.getByTestId('open-cheats'));
+    expect((screen.getByTestId('cheat-hint') as HTMLButtonElement).disabled).toBe(true);
+  });
 });
+

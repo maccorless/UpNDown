@@ -1,3 +1,4 @@
+import type { Action } from '@upndown/engine';
 import { cheatLimitOf, type CheatKind, type CheatUsedEvent, type GameState, type PlayerStatistics } from '@upndown/shared-types';
 import { useEffect } from 'react';
 
@@ -25,19 +26,19 @@ const usedOf = (state: GameState, playerId: string | null, kind: CheatKind): num
 };
 
 // The cheats this game offers this player, and whether each can be used this moment. Cheats the game has turned off are not
-// listed at all. Skip needs a table (there is no turn to skip alone), and hints are not in the panel yet.
+// listed at all. Skip needs a table (there is no turn to skip alone).
 export function cheatStatuses(state: GameState, playerId: string | null, selectedCardId: string | null): CheatStatus[] {
   const mine = !!playerId && state.players[state.currentPlayerIndex]?.id === playerId;
   const playing = state.gamePhase === 'playing';
   const out: CheatStatus[] = [];
-  for (const kind of ['lookup', 'skip', 'trade'] as const) {
+  for (const kind of ['lookup', 'hint', 'skip', 'trade'] as const) {
     const limit = cheatLimitOf(state.settings, kind);
     if (limit === 'off' || (kind === 'skip' && state.isSolitaire)) continue;
     const used = usedOf(state, playerId, kind);
     let reason: string | undefined;
     if (!playing) reason = 'The game is not being played';
     else if (limit === 'once' && used >= 1) reason = 'Already used';
-    else if (kind === 'skip' && !mine) reason = 'Only on your turn';
+    else if ((kind === 'skip' || kind === 'hint') && !mine) reason = 'Only on your turn';
     else if (kind === 'skip' && state.cardsPlayedThisTurn > 0) reason = 'Only before you play a card this turn';
     else if (kind === 'trade' && !state.isSolitaire && !mine) reason = 'Only on your turn';
     else if (kind === 'trade' && state.drawPile.length === 0) reason = 'The draw pile is empty';
@@ -116,4 +117,38 @@ export function describeCheats(stats: PlayerStatistics): string {
   add(stats.lookupsUsed, 'card lookup', 'card lookups');
   add(stats.hintsUsed, 'hint', 'hints');
   return parts.length > 0 ? parts.join(', ') : 'None';
+}
+
+export interface HintView {
+  cardId?: string;
+  pileId?: number;
+  text: string;
+}
+
+// A hint in words, and which card and pile to light up. `action` comes from the strategy (engine) or, in multiplayer, from
+// the server, which worked it out from the same facts a player can see.
+export function describeHint(action: Action, state: GameState, playerId: string | null): HintView {
+  const me = state.players.find((player) => player.id === playerId);
+  if (action.type === 'play') {
+    const card = me?.hand.find((c) => c.id === action.cardId);
+    const pile = state.foundationPiles.find((p) => p.id === action.pileId);
+    if (card && pile) {
+      return { cardId: card.id, pileId: pile.id, text: `Hint: play ${card.value} on the ${pile.type === 'ascending' ? 'up' : 'down'} pile showing ${pile.topCard.value}.` };
+    }
+  }
+  if (action.type === 'trade') {
+    const card = me?.hand.find((c) => c.id === action.cardId);
+    if (card) return { cardId: card.id, text: `Hint: trade the ${card.value}, nothing will take it.` };
+  }
+  if (action.type === 'endTurn') return { text: 'Hint: you have played enough. End your turn.' };
+  if (action.type === 'skip') return { text: 'Hint: you cannot make the minimum this turn. Skip it, before you are stuck.' };
+  return { text: 'Hint: no play is possible.' };
+}
+
+// Changes whenever the game moves on (a card played, a turn passed, the hand changed), and not when only a count changes, so
+// a hint stays up while it is being read and goes when it is no longer true.
+export function moveKey(state: GameState | null, playerId: string | null): string {
+  if (!state) return '';
+  const hand = state.players.find((player) => player.id === playerId)?.hand.map((card) => card.id).join(',') ?? '';
+  return [state.gameId, state.gamePhase, state.currentPlayerIndex, state.cardsPlayedThisTurn, state.statistics.turns, state.foundationPiles.map((pile) => pile.topCard.id).join(','), hand].join('|');
 }

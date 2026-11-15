@@ -4,7 +4,7 @@ import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRealtimeServer } from '../src/index.js';
 
-type Ack = { ok: boolean; data?: { gameState: GameState; result?: { status: string; holderName?: string } }; error?: string };
+type Ack = { ok: boolean; data?: { gameState: GameState; result?: { status: string; holderName?: string }; action?: { type: string; cardId?: string; pileId?: number } }; error?: string };
 
 // The cheats over the real socket protocol: who is told, what they are told, and what cannot be taken back.
 describe('cheats over sockets', () => {
@@ -34,7 +34,7 @@ describe('cheats over sockets', () => {
   };
   const settle = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 60); });
 
-  async function table(limits: { lookup?: 'off' | 'once' | 'unlimited'; skip?: 'off' | 'once' | 'unlimited'; trade?: 'off' | 'once' | 'unlimited' }, allowUndo = false) {
+  async function table(limits: { lookup?: 'off' | 'once' | 'unlimited'; skip?: 'off' | 'once' | 'unlimited'; trade?: 'off' | 'once' | 'unlimited'; hint?: 'off' | 'once' | 'unlimited' }, allowUndo = false) {
     const [host, guest] = [await open(), await open()];
     const created = await ask(host, 'game:create', {
       playerName: 'Host', isSolitaire: false,
@@ -118,4 +118,37 @@ describe('cheats over sockets', () => {
     expect((await ask(guest, 'game:cardLookup', { gameId, cardValue: 50 })).ok).toBe(true);
     expect((await ask(guest, 'game:cardLookup', { gameId, cardValue: 51 })).ok).toBe(true);
   });
+
+  // A hint is worked out for the asker from what they can see, counted as a use, and told to nobody else.
+  it('gives a hint on the player\'s own turn, counts it, refuses a second under "once", and tells nobody', async () => {
+    const { host, guest, gameId, hostSeen, guestSeen } = await table({ hint: 'once' });
+    expect((await ask(guest, 'game:hint', { gameId })).ok).toBe(false); // not the guest's turn
+    const hint = await ask(host, 'game:hint', { gameId });
+    expect(hint.ok).toBe(true);
+    expect(['play', 'endTurn', 'skip', 'trade', 'none']).toContain(hint.data!.action!.type);
+    expect(server.manager.peekState(gameId)!.statistics.players[host.id!]!.hintsUsed).toBe(1);
+    expect((await ask(host, 'game:hint', { gameId })).ok).toBe(false);
+    await settle();
+    expect(hostSeen).toEqual([]);
+    expect(guestSeen).toEqual([]);
+  });
+
+  it('refuses hints when the game does not allow them', async () => {
+    const { host, gameId } = await table({});
+    const refused = await ask(host, 'game:hint', { gameId });
+    expect(refused.ok).toBe(false);
+    expect(refused.error).toContain('not enabled');
+  });
+
+  it('suggests a legal play at the start of a game', async () => {
+    const { host, gameId, hostView } = await table({ hint: 'unlimited' });
+    const hint = await ask(host, 'game:hint', { gameId });
+    const action = hint.data!.action!;
+    expect(action.type).toBe('play');
+    const mine = hostView.players.find((p) => p.name === 'Host')!.hand.map((c) => c.id);
+    expect(mine).toContain(action.cardId);
+    const played = await ask(host, 'game:playCard', { gameId, cardId: action.cardId, pileId: action.pileId });
+    expect(played.ok).toBe(true);
+  });
 });
+
