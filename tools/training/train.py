@@ -24,6 +24,11 @@ STAGES['mix123'] = STAGES['stage1'] + STAGES['stage2'] + STAGES['stage3'] * 3
 REWARD_SCALE = 0.1
 
 
+def sync(dev):
+    if dev == 'mps':
+        torch.mps.synchronize()
+
+
 def device():
     return 'mps' if torch.backends.mps.is_available() else 'cpu'
 
@@ -125,8 +130,12 @@ def main():
         stage_steps = 0
         t0 = time.time()
         returns_log = {}
+        collect_s = update_s = 0.0
         while stage_steps < budget:
-            recs, acts, logps, vals = [], [], [], []
+            # Collect: features are built once here and kept on the GPU for the update (no rebuilding per minibatch).
+            feats = {k: [] for k in ('card', 'pair', 'pile', 'glob', 'record', 'critic', 'mask')}
+            acts, logps, vals, rewards, dones = [], [], [], [], []
+            t_start = time.perf_counter()
             for _ in range(args.horizon):
                 rec = actors.current
                 b = ft.to_tensors(rec, dev)
@@ -137,52 +146,58 @@ def main():
                     a = (logits + g).argmax(1)
                     logp = torch.log_softmax(logits, 1).gather(1, a[:, None]).squeeze(1)
                     v = critic(critic_in)
-                recs.append(rec.copy()); acts.append(a); logps.append(logp); vals.append(v)
+                for k, x in zip(feats, (card, pair, pile, glob, record, critic_in, b['mask'])):
+                    feats[k].append(x)
+                acts.append(a); logps.append(logp); vals.append(v)
                 new = actors.step(a.cpu().numpy())
-                # tally finished games of this iteration
+                rewards.append(new['reward'].copy()); dones.append(new['done'].copy())
                 fin = new[new['seed'] >= 0]
                 for tb, sc in zip(fin['table'], score_of(fin)):
                     returns_log.setdefault(int(tb), []).append(float(sc))
-                recs[-1] = (recs[-1], new['reward'].copy(), new['done'].copy())
             rec = actors.current
             b = ft.to_tensors(rec, dev)
             *_, critic_in = ft.build(b)
             with torch.no_grad():
                 last_v = critic(critic_in)
-            rew = torch.from_numpy(np.stack([r[1] for r in recs])).to(dev) * REWARD_SCALE
-            done = torch.from_numpy(np.stack([r[2] for r in recs]).astype(np.float32)).to(dev)
+            sync(dev); t_collected = time.perf_counter()
+            rew = torch.from_numpy(np.stack(rewards)).to(dev) * REWARD_SCALE
+            done = torch.from_numpy(np.stack(dones).astype(np.float32)).to(dev)
             val, logp_old, act_t = torch.stack(vals), torch.stack(logps), torch.stack(acts)
             adv, ret = gae(rew, done, val, last_v)
-            flat = np.concatenate([r[0] for r in recs])
             T = args.horizon
+            F = {k: torch.cat(v) for k, v in feats.items()}   # time-major, the same order as adv.flatten()
+            del feats
             adv_f, ret_f, logp_f, act_f = adv.flatten(), ret.flatten(), logp_old.flatten(), act_t.flatten()
             adv_f = (adv_f - adv_f.mean()) / (adv_f.std() + 1e-8)
             M = T * N
-            stats = np.zeros(4)
+            stats = torch.zeros(4, device=dev)
             for _ in range(args.epochs):
                 perm = torch.randperm(M, device=dev)
                 for i in range(0, M, args.minibatch):
                     idx = perm[i:i + args.minibatch]
-                    bb = ft.to_tensors(flat[idx.cpu().numpy()], dev)
-                    card, pair, pile, glob, record, critic_in = ft.build(bb)
-                    logits = policy(card, pair, pile, glob, record, bb['mask'])
+                    logits = policy(F['card'][idx], F['pair'][idx], F['pile'][idx], F['glob'][idx], F['record'][idx], F['mask'][idx])
                     logp_all = torch.log_softmax(logits, 1)
                     logp_new = logp_all.gather(1, act_f[idx][:, None]).squeeze(1)
                     ratio = torch.exp(logp_new - logp_f[idx])
                     pg = -torch.min(ratio * adv_f[idx], torch.clamp(ratio, 0.8, 1.2) * adv_f[idx]).mean()
                     entropy = -(logp_all.exp() * logp_all.clamp_min(-30)).sum(1).mean()
-                    vloss = 0.5 * ((critic(critic_in) - ret_f[idx]) ** 2).mean()
+                    vloss = 0.5 * ((critic(F['critic'][idx]) - ret_f[idx]) ** 2).mean()
                     loss = pg + 0.5 * vloss - args.ent * entropy
                     opt.zero_grad(); loss.backward()
                     torch.nn.utils.clip_grad_norm_(list(policy.parameters()) + list(critic.parameters()), 0.5)
                     opt.step()
-                    stats += [pg.item(), vloss.item(), entropy.item(), 1]
+                    stats += torch.stack([pg.detach(), vloss.detach(), entropy.detach(), torch.ones((), device=dev)])
+            del F
+            stats = stats.cpu().numpy()
+            sync(dev); t_end = time.perf_counter()
+            collect_s += t_collected - t_start; update_s += t_end - t_collected
             stage_steps += M; total_steps += M
             if (total_steps // M) % 10 == 0:
                 fps = stage_steps / (time.time() - t0)
                 means = ' '.join(f'{STAGES_BY_INDEX(tables, k)}:{np.mean(v):.1f}' for k, v in sorted(returns_log.items()) if v)
-                say(f'steps {total_steps / 1e6:6.1f}M  {fps / 1e3:5.0f}k/s  pg {stats[0] / stats[3]:+.3f} v {stats[1] / stats[3]:.3f} ent {stats[2] / stats[3]:.2f}  train score {means}')
+                say(f'steps {total_steps / 1e6:6.1f}M  {fps / 1e3:5.0f}k/s  pg {stats[0] / stats[3]:+.3f} v {stats[1] / stats[3]:.3f} ent {stats[2] / stats[3]:.2f}  train score {means}  [collect {collect_s:.0f}s update {update_s:.0f}s]')
                 returns_log = {}
+                collect_s = update_s = 0.0
             if total_steps >= next_eval:
                 next_eval += args.eval_every
                 report_eval(say, policy, tables, args, tier_b, dev)

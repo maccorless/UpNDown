@@ -19,9 +19,11 @@ def to_tensors(rec, device):
     return {k: t(k) for k in ('hand', 'tops', 'globals', 'others', 'react', 'played', 'otherHands', 'drawSet', 'mask')}
 
 
-def multi_hot(values, present_min=1):
+def multi_hot(values):
     """values: [..., n] card values (0 = empty) -> [..., 100] counts, with the empty column cleared."""
-    out = F.one_hot(values.long().clamp(0, DECK - 1), DECK).float().sum(-2)
+    idx = values.long().clamp(0, DECK - 1)
+    out = torch.zeros(*values.shape[:-1], DECK, device=values.device)
+    out.scatter_add_(-1, idx, torch.ones(idx.shape, device=values.device))
     out[..., 0] = 0
     return out
 
