@@ -49,10 +49,10 @@ def act(policy, rec, dev, greedy=False):
     return (logits + g).argmax(1).cpu().numpy()
 
 
-def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', workers=4, act_fn=None):
+def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', workers=4, act_fn=None, lag=0):
     """Greedy play of the first `games` seeds of a seed set on one table. Returns per-seed scores in seed order, and outcomes."""
     per = -(-games // workers)
-    actors = Actors(ENGINE, [table], per, workers, set_, record=tier_b, reactions=reactions)
+    actors = Actors(ENGINE, [table], per, workers, set_, record=tier_b, reactions=reactions, lag=lag)
     scores, wins, left = {}, {}, {}
     try:
         while len(scores) < games:

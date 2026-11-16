@@ -21,7 +21,7 @@ RECORD = np.dtype([
 class Actors:
     """Several actor processes, each playing `games` games in lockstep. step(actions) answers every game and returns the next records."""
 
-    def __init__(self, engine_dir, tables, games, workers, set_='train', record=False, reactions=False):
+    def __init__(self, engine_dir, tables, games, workers, set_='train', record=False, reactions=False, lag=0):
         self.games, self.workers = games, workers
         self.procs = []
         for w in range(workers):
@@ -31,6 +31,8 @@ class Actors:
                 cmd.append('--record')
             if reactions:
                 cmd.append('--reactions')
+            if lag:
+                cmd += ['--lag', str(lag)]
             self.procs.append(subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=engine_dir))
         self.current = self._read_all()
 

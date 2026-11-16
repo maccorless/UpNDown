@@ -35,10 +35,12 @@ const workers = Number(arg('workers', '1'));
 const set = arg('set', 'train') as 'train' | 'validation' | 'test';
 const record = process.argv.includes('--record');
 const reactions = process.argv.includes('--reactions');
+// --lag k: the reactions a player sees are the ones shown k plays ago (people do not update instantly).
+const lag = Number(arg('lag', '0'));
 const stride = workers * E;
 const seedPool = seedsFor(set, 1_000_000);
 
-interface Slot { state: GameState; table: number; seedIndex: number; canon: number[]; cursor: number }
+interface Slot { state: GameState; table: number; seedIndex: number; canon: number[]; cursor: number; history: number[][] }
 const phi = (s: GameState): number => -(s.players.reduce((n, p) => n + p.hand.length, 0) + 2 * s.drawPile.length);
 
 function start(tableIndex: number, seedIndex: number): GameState {
@@ -55,7 +57,7 @@ function start(tableIndex: number, seedIndex: number): GameState {
 const slots: Slot[] = Array.from({ length: E }, (_, e) => {
   const seedIndex = worker * E + e;
   const table = e % tables.length;
-  return { state: start(table, seedIndex), table, seedIndex, canon: [0, 1, 2, 3], cursor: seedIndex };
+  return { state: start(table, seedIndex), table, seedIndex, canon: [0, 1, 2, 3], cursor: seedIndex, history: [] };
 });
 const out = Buffer.alloc(E * RECORD_BYTES);
 const finished: Array<{ seed: number; outcome: number; left: number; draw: number; table: number } | null> = new Array(E).fill(null);
@@ -102,10 +104,14 @@ function writeRecord(e: number): void {
   if (reactions && t.players > 1) {
     const board = honestBoard(s, DEFAULT_SENDER);
     const level = { like: 1, love: 2, really_love: 3 } as const;
+    const now = new Array<number>(OTHERS * 4).fill(0);
     others.forEach((idx, k) => {
       const mine = board[s.players[idx]!.id];
-      slot.canon.forEach((pileId, c) => { const r = mine?.[pileId]; if (r) set8(k * 4 + c, level[r]); });
+      slot.canon.forEach((pileId, c) => { const r = mine?.[pileId]; if (r) now[k * 4 + c] = level[r]; });
     });
+    slot.history.push(now);
+    if (slot.history.length > lag + 1) slot.history.shift();
+    slot.history[0]!.forEach((v, i) => set8(i, v));
   }
   at += OTHERS * 4;
   if (record) for (const v of playedValues(s)) set8(v, 1);
@@ -138,6 +144,7 @@ function apply(e: number, action: number): void {
   const left = after.drawPile.length + after.players.reduce((n, p) => n + p.hand.length, 0);
   finished[e] = { seed: slot.seedIndex, outcome: after.gamePhase === 'won' ? 1 : 2, left, draw: after.drawPile.length, table: slot.table };
   lastReward[e] = reward; lastDone[e] = 1;
+  slot.history = [];
   slot.cursor += stride;
   slot.seedIndex = slot.cursor;
   slot.state = start(slot.table, slot.seedIndex);
