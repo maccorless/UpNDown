@@ -13,7 +13,7 @@ GLOBALS = ['players', 'handSize', 'lo', 'hi', 'perTurn', 'refill', 'drawCount', 
 RECORD = np.dtype([
     ('seed', '<i4'), ('outcome', 'u1'), ('left', '<i2'), ('draw', '<i2'), ('table', 'u1'), ('reward', '<f4'), ('done', 'u1'),
     ('hand', 'i1', (HAND,)), ('tops', 'i1', (4,)), ('globals', 'i1', (len(GLOBALS),)), ('others', 'i1', (OTHERS,)),
-    ('react', 'i1', (OTHERS, 4)), ('played', 'i1', (DECK,)), ('otherHands', 'i1', (OTHERS, HAND)), ('drawSet', 'i1', (DECK,)),
+    ('react', 'i1', (OTHERS, 4)), ('seatKind', 'i1', (OTHERS,)), ('played', 'i1', (DECK,)), ('otherHands', 'i1', (OTHERS, HAND)), ('drawSet', 'i1', (DECK,)),
     ('mask', 'u1', (ACTIONS,)),
 ])
 
@@ -21,7 +21,7 @@ RECORD = np.dtype([
 class Actors:
     """Several actor processes, each playing `games` games in lockstep. step(actions) answers every game and returns the next records."""
 
-    def __init__(self, engine_dir, tables, games, workers, set_='train', record=False, reactions=False, lag=0):
+    def __init__(self, engine_dir, tables, games, workers, set_='train', record=False, reactions=False, lag=0, seat_mix=None):
         self.games, self.workers = games, workers
         self.procs = []
         for w in range(workers):
@@ -33,6 +33,8 @@ class Actors:
                 cmd.append('--reactions')
             if lag:
                 cmd += ['--lag', str(lag)]
+            if seat_mix is not None:
+                cmd += ['--seat-mix', str(seat_mix)]
             self.procs.append(subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd=engine_dir))
         self.current = self._read_all()
 

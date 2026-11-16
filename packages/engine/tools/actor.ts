@@ -17,11 +17,11 @@ import type { FoundationPile, GameState } from '@upndown/shared-types';
 export const HAND = 11, OTHERS = 5, DECK = 100, ACTIONS = HAND * 4 + 1, END = HAND * 4;
 // Header: seed index of the game that finished (-1 if none), outcome (0 none, 1 won, 2 lost), cards left, draw pile left, table index
 // of the finished game, reward for the last action, done flag; then the position: hand, canonical pile tops, globals, other hand sizes
-// (from the player's left), reactions of those seats on the four canonical piles, played-card record by value (Tier B, else zeros),
+// (from the player's left), reactions of those seats on the four canonical piles, which of those seats are human-like (1) or robots (0), played-card record by value (Tier B, else zeros),
 // the other seats' hands by seat (privileged, for the critic), the draw pile as a set by value (privileged), and the action mask.
 export const GLOBALS = ['players', 'handSize', 'lo', 'hi', 'perTurn', 'refill', 'drawCount', 'playedThisTurn', 'required', 'solitaire', 'tierB', 'reactionsOn'] as const;
 const HEADER = 4 + 1 + 2 + 2 + 1 + 4 + 1;
-const OBS = HAND + 4 + GLOBALS.length + OTHERS + OTHERS * 4 + DECK + OTHERS * HAND + DECK;
+const OBS = HAND + 4 + GLOBALS.length + OTHERS + OTHERS * 4 + OTHERS + DECK + OTHERS * HAND + DECK;
 export const RECORD_BYTES = HEADER + OBS + ACTIONS;
 
 function arg(name: string, fallback: string): string {
@@ -37,10 +37,13 @@ const record = process.argv.includes('--record');
 const reactions = process.argv.includes('--reactions');
 // --lag k: the reactions a player sees are the ones shown k plays ago (people do not update instantly).
 const lag = Number(arg('lag', '0'));
+// --seat-mix p: each seat of a new game is a robot (instant, exact reactions) with probability p, otherwise human-like: reactions 1 or 3 plays old, or never shown.
+const seatMix = process.argv.includes('--seat-mix') ? Number(arg('seat-mix', '1')) : null;
+const HUMAN_LAGS = [1, 3, -1];
 const stride = workers * E;
 const seedPool = seedsFor(set, 1_000_000);
 
-interface Slot { state: GameState; table: number; seedIndex: number; canon: number[]; cursor: number; history: number[][] }
+interface Slot { state: GameState; table: number; seedIndex: number; canon: number[]; cursor: number; history: number[][][]; lags: number[] }
 const phi = (s: GameState): number => -(s.players.reduce((n, p) => n + p.hand.length, 0) + 2 * s.drawPile.length);
 
 function start(tableIndex: number, seedIndex: number): GameState {
@@ -54,10 +57,18 @@ function start(tableIndex: number, seedIndex: number): GameState {
   });
 }
 
+// Per seat: 0 for exact and instant (or the fixed --lag), a positive number of plays for a stale view, -1 for never shown.
+function seatLags(tableIndex: number, seedIndex: number): number[] {
+  const players = tables[tableIndex]!.players;
+  if (seatMix === null) return new Array<number>(players).fill(lag);
+  const pick = seededRandom((seedPool[seedIndex % seedPool.length]! ^ 0x5bd1e995) >>> 0);
+  return Array.from({ length: players }, () => (pick() < seatMix ? 0 : HUMAN_LAGS[Math.floor(pick() * HUMAN_LAGS.length)]!));
+}
+
 const slots: Slot[] = Array.from({ length: E }, (_, e) => {
   const seedIndex = worker * E + e;
   const table = e % tables.length;
-  return { state: start(table, seedIndex), table, seedIndex, canon: [0, 1, 2, 3], cursor: seedIndex, history: [] };
+  return { state: start(table, seedIndex), table, seedIndex, canon: [0, 1, 2, 3], cursor: seedIndex, history: [], lags: seatLags(table, seedIndex) };
 });
 const out = Buffer.alloc(E * RECORD_BYTES);
 const finished: Array<{ seed: number; outcome: number; left: number; draw: number; table: number } | null> = new Array(E).fill(null);
@@ -104,16 +115,20 @@ function writeRecord(e: number): void {
   if (reactions && t.players > 1) {
     const board = honestBoard(s, DEFAULT_SENDER);
     const level = { like: 1, love: 2, really_love: 3 } as const;
-    const now = new Array<number>(OTHERS * 4).fill(0);
-    others.forEach((idx, k) => {
-      const mine = board[s.players[idx]!.id];
-      slot.canon.forEach((pileId, c) => { const r = mine?.[pileId]; if (r) now[k * 4 + c] = level[r]; });
-    });
+    // the board as it stands, by seat and real pile id
+    const now = s.players.map((p) => [0, 1, 2, 3].map((pileId) => { const r = board[p.id]?.[pileId]; return r ? level[r] : 0; }));
     slot.history.push(now);
-    if (slot.history.length > lag + 1) slot.history.shift();
-    slot.history[0]!.forEach((v, i) => set8(i, v));
+    if (slot.history.length > 4) slot.history.shift();
+    others.forEach((idx, k) => {
+      const l = slot.lags[idx]!;
+      if (l < 0) return;
+      const seen = slot.history[Math.max(0, slot.history.length - 1 - l)]![idx]!;
+      slot.canon.forEach((pileId, c) => set8(k * 4 + c, seen[pileId]!));
+    });
   }
   at += OTHERS * 4;
+  others.forEach((idx, k) => set8(k, slot.lags[idx] !== 0 ? 1 : 0));
+  at += OTHERS;
   if (record) for (const v of playedValues(s)) set8(v, 1);
   at += DECK;
   others.forEach((idx, k) => s.players[idx]!.hand.slice(0, HAND).forEach((c, i) => set8(k * HAND + i, c.value)));
@@ -148,6 +163,7 @@ function apply(e: number, action: number): void {
   slot.cursor += stride;
   slot.seedIndex = slot.cursor;
   slot.state = start(slot.table, slot.seedIndex);
+  slot.lags = seatLags(slot.table, slot.seedIndex);
 }
 
 for (let e = 0; e < E; e += 1) writeRecord(e);

@@ -13,7 +13,7 @@ def phi0(g):
     return -(players * hand + 2 * (cards - players * hand))
 
 def main():
-    actors = Actors(ENGINE, TABLES, GAMES, 1, 'validation', record=True, reactions=True)
+    actors = Actors(ENGINE, TABLES, GAMES, 1, 'validation', record=True, reactions=True, seat_mix=0.5)
     rng = np.random.default_rng(0)
     totals = {}   # (seed) -> running reward
     starts = {}   # seed -> phi0 of the game
@@ -52,6 +52,13 @@ def main():
         act = noise.argmax(1)
         actors.step(act)
     actors.close()
+    # seat kinds: padding seats are 0; with every seat a robot nothing is human-like; with none a robot, every real other seat is
+    for mix, expect in ((1.0, 'none'), (0.0, 'all')):
+        a = Actors(ENGINE, ['s3-4p-99-h7'], 32, 1, 'validation', record=True, reactions=True, seat_mix=mix)
+        kinds = a.current['seatKind']
+        a.close()
+        assert (kinds[:, 3:] == 0).all(), 'padding seats must be 0'
+        assert (kinds[:, :3] == (0 if expect == 'none' else 1)).all(), f'seat kinds wrong for mix {mix}'
     print(f'{checked} finished games checked, {bad} reward mismatches')
     sys.exit(1 if bad or checked < 200 else 0)
 
