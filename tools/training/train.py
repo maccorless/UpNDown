@@ -24,6 +24,10 @@ STAGES['mix123'] = STAGES['stage1'] + STAGES['stage2'] + STAGES['stage3'] * 3
 REWARD_SCALE = 0.1
 
 
+def amp_ctx(dev, on):
+    return torch.autocast(device_type=dev, dtype=torch.float16) if on and dev != 'cpu' else torch.autocast(device_type='cpu', enabled=False)
+
+
 def sync(dev):
     if dev == 'mps':
         torch.mps.synchronize()
@@ -99,6 +103,9 @@ def main():
     ap.add_argument('--ent', type=float, default=0.01)
     ap.add_argument('--seed', type=int, default=1)
     ap.add_argument('--resume', default='')
+    ap.add_argument('--width', type=int, default=64, help='width of the policy network')
+    ap.add_argument('--amp', action='store_true', help='half precision for the network arithmetic (faster on the GPU)')
+    ap.add_argument('--lr-final', type=float, default=None, help='decay the learning rate linearly to this by the end of the last stage')
     ap.add_argument('--eval-games', type=int, default=400)
     ap.add_argument('--eval-every', type=float, default=10e6)
     args = ap.parse_args()
@@ -107,7 +114,7 @@ def main():
     tier_b = args.tier == 'B'
     run_dir = os.path.join(HERE, 'runs', args.name)
     os.makedirs(run_dir, exist_ok=True)
-    policy = Policy().to(dev)
+    policy = Policy(args.width).to(dev)
     probe = ft.build(ft.to_tensors(Actors(ENGINE, ['s1-solo-79-h9'], 4, 1, 'train').current, 'cpu'))  # input size of the critic
     critic = Critic(probe[5].shape[1]).to(dev)
     if args.resume:
@@ -123,6 +130,7 @@ def main():
     total_steps = 0
     next_eval = args.eval_every
     stages = [(s.split(':')[0], float(s.split(':')[1])) for s in args.stages.split(',')]
+    total_budget = sum(b for _, b in stages)
     for stage, budget in stages:
         tables = STAGES[stage]
         say(f'--- stage {stage}: {tables}, {budget:.0f} steps')
@@ -141,7 +149,7 @@ def main():
                 rec = actors.current
                 b = ft.to_tensors(rec, dev)
                 card, pair, pile, glob, record, critic_in = ft.build(b)
-                with torch.no_grad():
+                with torch.no_grad(), amp_ctx(dev, args.amp):
                     logits = policy(card, pair, pile, glob, record, b['mask'])
                     g = -torch.log(-torch.log(torch.rand_like(logits).clamp_min(1e-9)))
                     a = (logits + g).argmax(1)
@@ -176,13 +184,16 @@ def main():
                 perm = torch.randperm(M, device=dev)
                 for i in range(0, M, args.minibatch):
                     idx = perm[i:i + args.minibatch]
-                    logits = policy(F['card'][idx], F['pair'][idx], F['pile'][idx], F['glob'][idx], F['record'][idx], F['mask'][idx])
+                    with amp_ctx(dev, args.amp):
+                        logits = policy(F['card'][idx], F['pair'][idx], F['pile'][idx], F['glob'][idx], F['record'][idx], F['mask'][idx])
+                        value = critic(F['critic'][idx])
+                    logits, value = logits.float(), value.float()
                     logp_all = torch.log_softmax(logits, 1)
                     logp_new = logp_all.gather(1, act_f[idx][:, None]).squeeze(1)
                     ratio = torch.exp(logp_new - logp_f[idx])
                     pg = -torch.min(ratio * adv_f[idx], torch.clamp(ratio, 0.8, 1.2) * adv_f[idx]).mean()
                     entropy = -(logp_all.exp() * logp_all.clamp_min(-30)).sum(1).mean()
-                    vloss = 0.5 * ((critic(F['critic'][idx]) - ret_f[idx]) ** 2).mean()
+                    vloss = 0.5 * ((value - ret_f[idx]) ** 2).mean()
                     loss = pg + 0.5 * vloss - args.ent * entropy
                     opt.zero_grad(); loss.backward()
                     torch.nn.utils.clip_grad_norm_(list(policy.parameters()) + list(critic.parameters()), 0.5)
@@ -193,6 +204,10 @@ def main():
             sync(dev); t_end = time.perf_counter()
             collect_s += t_collected - t_start; update_s += t_end - t_collected
             stage_steps += M; total_steps += M
+            if args.lr_final is not None:
+                frac = min(1.0, total_steps / total_budget)
+                for grp in opt.param_groups:
+                    grp['lr'] = args.lr + (args.lr_final - args.lr) * frac
             if (total_steps // M) % 10 == 0:
                 fps = stage_steps / (time.time() - t0)
                 means = ' '.join(f'{STAGES_BY_INDEX(tables, k)}:{np.mean(v):.1f}' for k, v in sorted(returns_log.items()) if v)

@@ -39,7 +39,7 @@ class Policy(nn.Module):
         logit = self.head(torch.cat([h, card_ctx.unsqueeze(2).expand(-1, -1, 4, -1), gg], -1)).squeeze(-1)  # [B,11,4]
         hand_ctx = torch.relu(self.hand_pool((card_ctx * card[..., 0:1]).max(1).values))
         end = self.end(torch.cat([g, hand_ctx], -1))                                      # [B,1]
-        logits = torch.cat([logit.flatten(1), end], -1)
+        logits = torch.cat([logit.flatten(1), end], -1).float()
         return logits.masked_fill(mask < 0.5, -1e9)
 
 
