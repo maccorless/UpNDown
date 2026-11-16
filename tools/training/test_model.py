@@ -49,3 +49,16 @@ err3 = (logits3[:, :44] - want3).abs()[bh['mask'][:, :44] > 0.5].max().item()
 print('max difference after shuffling the hand', err3)
 assert err3 < 1e-4
 print('ok')
+
+# the legal-pairs-only network gives the same scores as scoring every pair (the earlier version, kept in the scratchpad copy)
+import importlib.util
+spec = importlib.util.spec_from_file_location('model_dense', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'model_dense_reference.py'))
+dense_mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(dense_mod)
+ref = dense_mod.Policy()
+ref.load_state_dict(pol.state_dict())
+out_ref = ref(card, pair, pile, glob, record, b['mask'])
+out_new = pol(card, pair, pile, glob, record, b['mask'])
+legal = b['mask'] > 0.5
+print('max difference from the all-pairs network', (out_ref - out_new).abs()[legal].max().item())
+assert (out_ref - out_new).abs()[legal].max() < 1e-4
+print('equivalent')

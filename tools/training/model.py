@@ -27,16 +27,19 @@ class Policy(nn.Module):
         self.hand_pool = nn.Linear(w, w)
 
     def forward(self, card, pair, pile, glob, record, mask):
+        """Only the legal (card, pile) pairs go through the pair networks: a hand has about ten of the 44 possible pairs, so this costs a quarter
+        of scoring them all, with the same numbers (test_model.py compares it with the all-pairs version)."""
         B = card.shape[0]
         g = torch.relu(self.glob(torch.cat([glob, self.record(record)], -1)))            # [B,w]
         w = g.shape[-1]
-        c = card.unsqueeze(2).expand(-1, -1, 4, -1)                                       # [B,11,4,Fc]
-        p = pile.unsqueeze(1).expand(-1, HAND, -1, -1)                                    # [B,11,4,Fp]
-        gg = g.view(B, 1, 1, w).expand(-1, HAND, 4, -1)
-        h = torch.relu(self.pair(torch.cat([pair, c, p, gg], -1)))                        # [B,11,4,w]
-        valid = pair[..., 0:1]
-        card_ctx = (h * valid).max(2).values                                              # [B,11,w] best over piles, symmetric in piles
-        logit = self.head(torch.cat([h, card_ctx.unsqueeze(2).expand(-1, -1, 4, -1), gg], -1)).squeeze(-1)  # [B,11,4]
+        bi, si, pi = (pair[..., 0] > 0.5).nonzero(as_tuple=True)                          # legal pairs
+        h = torch.relu(self.pair(torch.cat([pair[bi, si, pi], card[bi, si], pile[bi, pi], g[bi]], -1)))   # [Nv,w]
+        dense = g.new_zeros(B, HAND, 4, w)
+        dense[bi, si, pi] = h
+        card_ctx = dense.max(2).values                                                    # [B,11,w] best over piles, symmetric in piles
+        score = self.head(torch.cat([h, card_ctx[bi, si], g[bi]], -1)).squeeze(-1)        # [Nv]
+        logit = g.new_zeros(B, HAND, 4)
+        logit[bi, si, pi] = score
         hand_ctx = torch.relu(self.hand_pool((card_ctx * card[..., 0:1]).max(1).values))
         end = self.end(torch.cat([g, hand_ctx], -1))                                      # [B,1]
         logits = torch.cat([logit.flatten(1), end], -1).float()
