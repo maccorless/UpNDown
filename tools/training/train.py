@@ -44,7 +44,7 @@ def act(policy, rec, dev, greedy=False):
     return (logits + g).argmax(1).cpu().numpy()
 
 
-def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', workers=4):
+def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', workers=4, act_fn=None):
     """Greedy play of the first `games` seeds of a seed set on one table. Returns per-seed scores in seed order, and outcomes."""
     per = -(-games // workers)
     actors = Actors(ENGINE, [table], per, workers, set_, record=tier_b, reactions=reactions)
@@ -59,7 +59,7 @@ def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', wo
                     scores[int(seed)], wins[int(seed)], left[int(seed)] = float(sc), bool(o == 1), int(l)
             if len(scores) >= games:
                 break
-            actors.step(act(policy, rec, dev, greedy=True))
+            actors.step(act_fn(rec) if act_fn else act(policy, rec, dev, greedy=True))
     finally:
         actors.close()
     order = sorted(scores)
