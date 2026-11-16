@@ -4,6 +4,11 @@ For every real position the search deals the hidden cards at random several time
 shuffle of the cards not yet drawn), plays each candidate move out to the end with the network, and keeps the network's own move unless another beats it by a margin
 of standard errors. Every game runs in the numba port of the rules (checked against the TypeScript engine by parity.py).
 """
+import os
+# Cap PyTorch's GPU memory cache. Its default ceiling (about 1.7 x the recommended working set, ~80 GB on this 64 GB Mac) is above physical memory, so the cache grows until
+# the machine swaps and every run slows to a crawl. These must be set before the first GPU allocation.
+os.environ.setdefault('PYTORCH_MPS_HIGH_WATERMARK_RATIO', '0.35')
+os.environ.setdefault('PYTORCH_MPS_LOW_WATERMARK_RATIO', '0.25')
 import argparse, json, os, time
 import numpy as np
 import torch

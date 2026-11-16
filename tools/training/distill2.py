@@ -3,6 +3,11 @@
  2. Whether to stop after the minimum is met: a small decision tree on features of the position, fitted to the network's choice between ending the turn and playing on.
 Positions come from play of the student itself (DAgger): the network labels them, the labels pile up, the student is refitted.
 """
+import os
+# Cap PyTorch's GPU memory cache. Its default ceiling (about 1.7 x the recommended working set, ~80 GB on this 64 GB Mac) is above physical memory, so the cache grows until
+# the machine swaps and every run slows to a crawl. These must be set before the first GPU allocation.
+os.environ.setdefault('PYTORCH_MPS_HIGH_WATERMARK_RATIO', '0.35')
+os.environ.setdefault('PYTORCH_MPS_LOW_WATERMARK_RATIO', '0.25')
 import argparse, os, pickle
 import numpy as np
 import torch

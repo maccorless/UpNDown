@@ -5,6 +5,11 @@
 Stages are `name:steps` separated by commas, or a comma list of table ids joined with `+` (see STAGES). The same network carries on from
 one stage to the next. The actors (TypeScript) hold the rules; this file never decides what is legal.
 """
+import os
+# Cap PyTorch's GPU memory cache. Its default ceiling (about 1.7 x the recommended working set, ~80 GB on this 64 GB Mac) is above physical memory, so the cache grows until
+# the machine swaps and every run slows to a crawl. These must be set before the first GPU allocation.
+os.environ.setdefault('PYTORCH_MPS_HIGH_WATERMARK_RATIO', '0.35')
+os.environ.setdefault('PYTORCH_MPS_LOW_WATERMARK_RATIO', '0.25')
 import argparse, json, os, time
 import numpy as np
 import torch
@@ -26,6 +31,10 @@ REWARD_SCALE = 0.1
 
 def amp_ctx(dev, on):
     return torch.autocast(device_type=dev, dtype=torch.float16) if on and dev != 'cpu' else torch.autocast(device_type='cpu', enabled=False)
+
+
+def gpu_gb():
+    return torch.mps.driver_allocated_memory() / 1e9 if torch.backends.mps.is_available() else 0.0
 
 
 def sync(dev):
@@ -201,6 +210,8 @@ def main():
                     stats += torch.stack([pg.detach(), vloss.detach(), entropy.detach(), torch.ones((), device=dev)])
             del F
             stats = stats.cpu().numpy()
+            if dev == 'mps':
+                torch.mps.empty_cache()
             sync(dev); t_end = time.perf_counter()
             collect_s += t_collected - t_start; update_s += t_end - t_collected
             stage_steps += M; total_steps += M
@@ -211,7 +222,7 @@ def main():
             if (total_steps // M) % 10 == 0:
                 fps = stage_steps / (time.time() - t0)
                 means = ' '.join(f'{STAGES_BY_INDEX(tables, k)}:{np.mean(v):.1f}' for k, v in sorted(returns_log.items()) if v)
-                say(f'steps {total_steps / 1e6:6.1f}M  {fps / 1e3:5.0f}k/s  pg {stats[0] / stats[3]:+.3f} v {stats[1] / stats[3]:.3f} ent {stats[2] / stats[3]:.2f}  train score {means}  [collect {collect_s:.0f}s update {update_s:.0f}s]')
+                say(f'steps {total_steps / 1e6:6.1f}M  {fps / 1e3:5.0f}k/s  pg {stats[0] / stats[3]:+.3f} v {stats[1] / stats[3]:.3f} ent {stats[2] / stats[3]:.2f}  train score {means}  [collect {collect_s:.0f}s update {update_s:.0f}s  gpu {gpu_gb():.1f}GB]')
                 returns_log = {}
                 collect_s = update_s = 0.0
             if total_steps >= next_eval:

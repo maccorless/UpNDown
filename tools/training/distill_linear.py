@@ -1,5 +1,10 @@
 """A linear score over candidate features, trained to pick the network's move (a conditional logit). Easy to print as a rule: play the move with the highest
 score. Reports how often it agrees with the network and how it plays."""
+import os
+# Cap PyTorch's GPU memory cache. Its default ceiling (about 1.7 x the recommended working set, ~80 GB on this 64 GB Mac) is above physical memory, so the cache grows until
+# the machine swaps and every run slows to a crawl. These must be set before the first GPU allocation.
+os.environ.setdefault('PYTORCH_MPS_HIGH_WATERMARK_RATIO', '0.35')
+os.environ.setdefault('PYTORCH_MPS_LOW_WATERMARK_RATIO', '0.25')
 import argparse
 import numpy as np
 import torch
