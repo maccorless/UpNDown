@@ -43,8 +43,9 @@ const phi = (s: GameState): number => -(s.players.reduce((n, p) => n + p.hand.le
 
 function start(tableIndex: number, seedIndex: number): GameState {
   const t = tables[tableIndex]!;
-  const seed = seedPool[seedIndex];
-  if (seed === undefined) throw new Error('Ran out of seeds');
+  // Training reuses its deals once it has been through all of them (the policy plays them differently each time); a fixed evaluation set must never wrap.
+  if (seedIndex >= seedPool.length && set !== 'train') throw new Error('Ran out of seeds');
+  const seed = seedPool[seedIndex % seedPool.length]!;
   return createStartedGameState({
     gameId: 'ACTOR', hostId: 'p1', players: Array.from({ length: t.players }, (_, i) => ({ id: `p${i + 1}`, name: `P${i + 1}` })),
     settings: t.settings, isSolitaire: t.players === 1, deck: shuffleWith(buildDeck(t.settings), seededRandom(seed))
