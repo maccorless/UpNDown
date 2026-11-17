@@ -27,6 +27,7 @@ import { newRunId } from './solitaire-result.js';
 import { useSolitaireResult } from './useSolitaireResult.js';
 import { useLocalHistory } from './profile/useLocalHistory.js';
 import { useGuestMultiplayerRecord } from './profile/useGuestMultiplayerRecord.js';
+import { ProfileLayer } from './profile/ProfileLayer.js';
 import { useSolitaireSave } from './useSolitaireSave.js';
 import { useAuth } from './auth/useAuth.js';
 import './App.css';
@@ -646,6 +647,7 @@ export function App(): JSX.Element {
   const solitaireSave = useSolitaireSave({ active: solitaireActive, state: solitaireState, undoStack: solitaireUndoStack, runId: solitaireRunId });
   // Solitaire needs no server. Only a signed-in player's finished game is sent, to be saved to their history.
   const localHistory = useLocalHistory();
+  const [profileOpen, setProfileOpen] = useState(false);
   const solitaireResult = useSolitaireResult({ active: solitaireActive, state: solitaireState, runId: solitaireRunId, signedIn: auth.status === 'signedIn', guest: auth.status === 'guest' || auth.status === 'disabled', userId: auth.userId, history: localHistory });
 
   const [multiplayerState, setMultiplayerState] = useState<GameState | null>(null);
@@ -1971,7 +1973,7 @@ export function App(): JSX.Element {
       <section className="app-header">
         <h1 onDoubleClick={() => { if (cheatStatusList.length > 0) setCheatsOpen('panel'); }}><span className="word-up">Up</span>N<span className="word-down">Down</span></h1>
         <div className="header-actions">
-          <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} />
+          <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} onOpenProfile={() => setProfileOpen(true)} />
           {mode === null ? (
             <a
               className="secondary link-button"
@@ -2427,6 +2429,8 @@ export function App(): JSX.Element {
           title={`Server connection: ${connectionState}`}
         />
       ) : null}
+
+      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={{}} onClose={() => setProfileOpen(false)} />
 
       {(mode || isSettingsOpen) ? (
         <SettingsDialog

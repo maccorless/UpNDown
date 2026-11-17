@@ -9,7 +9,7 @@ const anchorPositioning = typeof CSS !== 'undefined' && CSS.supports('position-a
 
 // `locked` is true while seated in a game: signing out would drop the player from it. The item stays
 // focusable (aria-disabled, not disabled) so the reason is reachable by keyboard and touch.
-export function ProfileMenu({ auth, locked, currentName }: { auth: AuthState; locked: boolean; currentName?: string }): JSX.Element | null {
+export function ProfileMenu({ auth, locked, currentName, onOpenProfile }: { auth: AuthState; locked: boolean; currentName?: string; onOpenProfile?: () => void }): JSX.Element | null {
   const menuId = useId();
   const hintId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -17,6 +17,7 @@ export function ProfileMenu({ auth, locked, currentName }: { auth: AuthState; lo
   const triggerRef = useRef<HTMLButtonElement>(null);
   const openedByPointer = useRef(false);
   const signedIn = auth.status === 'signedIn';
+  const ready = auth.status !== 'loading';
   // The name being typed in the landing field shows at once; an empty field falls back to the saved name.
   const label = cleanPlayerName(currentName ?? '') || auth.playerName;
 
@@ -40,12 +41,13 @@ export function ProfileMenu({ auth, locked, currentName }: { auth: AuthState; lo
     };
     menu.addEventListener('toggle', onToggle);
     return () => menu.removeEventListener('toggle', onToggle);
-  }, [signedIn]);
+  }, [ready]);
 
-  if (!signedIn) return null;
+  // Nothing until sign-in is known, so the menu never flashes the wrong state. A guest gets a menu too: their profile lives on the device.
+  if (!ready) return null;
 
   return (
-    <div className="profile-menu" data-locked={locked ? 'true' : undefined}>
+    <div className="profile-menu" data-locked={locked && signedIn ? 'true' : undefined}>
       <button
         ref={triggerRef}
         id={`${menuId}-trigger`}
@@ -61,7 +63,8 @@ export function ProfileMenu({ auth, locked, currentName }: { auth: AuthState; lo
           <circle cx="12" cy="8" r="4" />
           <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8z" />
         </svg>
-        <span className="profile-name">{label ? shortPlayerName(label) : 'Signed in'}</span>
+        <span className="profile-name">{signedIn ? (label ? shortPlayerName(label) : 'Signed in') : 'Profile'}</span>
+        {!signedIn ? <span className="profile-chip">This device only</span> : null}
       </button>
       <div ref={menuRef} id={menuId} className="profile-menu-list" {...({ popover: 'auto' } as object)}>
         {/* Nested, not on the popover: Chromium drops focusgroup keyboard behaviour otherwise. One item, so no arrow-key fallback. */}
@@ -70,18 +73,41 @@ export function ProfileMenu({ auth, locked, currentName }: { auth: AuthState; lo
             ref={itemRef}
             type="button"
             role={nativeFocusgroup ? undefined : 'menuitem'}
-            aria-disabled={locked ? 'true' : undefined}
-            aria-describedby={locked ? hintId : undefined}
             onClick={() => {
-              if (locked) return;
               menuRef.current?.hidePopover?.();
-              void auth.signOut();
+              onOpenProfile?.();
             }}
           >
-            Sign out
+            Profile
           </button>
+          {signedIn ? (
+            <button
+              type="button"
+              role={nativeFocusgroup ? undefined : 'menuitem'}
+              aria-disabled={locked ? 'true' : undefined}
+              aria-describedby={locked ? hintId : undefined}
+              onClick={() => {
+                if (locked) return;
+                menuRef.current?.hidePopover?.();
+                void auth.signOut();
+              }}
+            >
+              Sign out
+            </button>
+          ) : auth.status === 'guest' ? (
+            <button
+              type="button"
+              role={nativeFocusgroup ? undefined : 'menuitem'}
+              onClick={() => {
+                menuRef.current?.hidePopover?.();
+                auth.signIn();
+              }}
+            >
+              Sign in with Google
+            </button>
+          ) : null}
         </div>
-        {locked ? <p id={hintId} className="profile-menu-hint">Leave the game to sign out.</p> : null}
+        {locked && signedIn ? <p id={hintId} className="profile-menu-hint">Leave the game to sign out.</p> : null}
       </div>
     </div>
   );

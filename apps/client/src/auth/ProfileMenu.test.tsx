@@ -19,9 +19,36 @@ const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
 });
 
 describe('ProfileMenu', () => {
-  it.each(['loading', 'disabled', 'guest'] as const)('renders nothing when status is %s', (status) => {
-    const { container } = render(<ProfileMenu auth={makeAuth({ status })} locked={false} />);
+  it('renders nothing until sign-in is known, so it never flashes the wrong state', () => {
+    const { container } = render(<ProfileMenu auth={makeAuth({ status: 'loading' })} locked={false} />);
     expect(container.innerHTML).toBe('');
+  });
+
+  describe('for a guest, whose profile lives on this device', () => {
+    it('offers the profile and signing in, never signing out, and says the profile is on this device only', () => {
+      const onOpenProfile = vi.fn();
+      const auth = makeAuth({ status: 'guest' });
+      render(<ProfileMenu auth={auth} locked={false} onOpenProfile={onOpenProfile} />);
+      expect(screen.getByText('This device only')).toBeTruthy();
+      expect(screen.queryByRole('menuitem', { name: 'Sign out' })).toBeNull();
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Profile' }));
+      expect(onOpenProfile).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Sign in with Google' }));
+      expect(auth.signIn).toHaveBeenCalledTimes(1);
+    });
+
+    it('offers only the profile when sign-in is not available here (auth off), since there is nothing to sign in to', () => {
+      render(<ProfileMenu auth={makeAuth({ status: 'disabled' })} locked={false} />);
+      expect(screen.getByRole('menuitem', { name: 'Profile' })).toBeTruthy();
+      expect(screen.queryByRole('menuitem', { name: 'Sign in with Google' })).toBeNull();
+    });
+
+    it('stays usable while seated in a game, because reading a profile changes nothing in the game', () => {
+      const onOpenProfile = vi.fn();
+      render(<ProfileMenu auth={makeAuth({ status: 'guest' })} locked onOpenProfile={onOpenProfile} />);
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Profile' }));
+      expect(onOpenProfile).toHaveBeenCalled();
+    });
   });
 
   it('labels the menu button with the player name, or "Signed in" when the account has none', () => {
