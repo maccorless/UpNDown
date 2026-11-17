@@ -26,6 +26,7 @@ import { readNameConfirmed, writeNameConfirmed } from './player-name-confirmed.j
 import { newRunId } from './solitaire-result.js';
 import { useSolitaireResult } from './useSolitaireResult.js';
 import { useLocalHistory } from './profile/useLocalHistory.js';
+import { useGuestMultiplayerRecord } from './profile/useGuestMultiplayerRecord.js';
 import { useSolitaireSave } from './useSolitaireSave.js';
 import { useAuth } from './auth/useAuth.js';
 import './App.css';
@@ -676,6 +677,7 @@ export function App(): JSX.Element {
   const [loadingJoinableGames, setLoadingJoinableGames] = useState(false);
   const [isPageVisible, setIsPageVisible] = useState(() => document.visibilityState === 'visible');
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const guestRecord = useGuestMultiplayerRecord({ state: multiplayerState, playerId, guest: auth.status === 'guest' || auth.status === 'disabled', history: localHistory });
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pendingLobbyState, setPendingLobbyState] = useState<GameState | null>(null);
@@ -1676,6 +1678,8 @@ export function App(): JSX.Element {
   const executeEndGame = async (): Promise<void> => {
     if (!multiplayerState) return;
     setShowEndGameConfirm(false);
+    // Ending the game resets the room, so the game as it stands is kept to record from if the server agrees.
+    const before = multiplayerState;
 
     const ack = await emitWithAck<{ gameState: GameState }>(
       'game:endGame',
@@ -1687,6 +1691,7 @@ export function App(): JSX.Element {
       setError(ack.error);
       return;
     }
+    guestRecord.recordAbandoned(before);
 
     setError(null);
     setMultiplayerSelectedCardId(null);
