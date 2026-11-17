@@ -8,9 +8,10 @@ describe('the toast', () => {
   beforeEach(() => { vi.useFakeTimers(); });
   afterEach(() => { vi.useRealTimers(); });
 
-  it('sits in a polite live region and shows one toast at a time', () => {
-    render(<BadgeToasts toasts={toasts} onDismiss={() => undefined} />);
-    expect(screen.getByRole('status').getAttribute('aria-live')).toBe('polite');
+  it('sits in a polite live region (without taking the page\'s one status role) and shows one toast at a time', () => {
+    const { container } = render(<BadgeToasts toasts={toasts} onDismiss={() => undefined} />);
+    expect(container.querySelector('[aria-live="polite"]')).toBeTruthy();
+    expect(screen.queryByRole('status')).toBeNull();
     expect(screen.getByText('First Steps')).toBeTruthy();
     expect(screen.queryByText('Duet, Bronze')).toBeNull();
   });
@@ -38,6 +39,6 @@ describe('the toast', () => {
 
   it('renders an empty live region when there is nothing to say (so a screen reader has it before the first toast)', () => {
     const { container } = render(<BadgeToasts toasts={[]} onDismiss={() => undefined} />);
-    expect(container.querySelector('[role="status"]')?.textContent).toBe('');
+    expect(container.querySelector('[aria-live="polite"]')?.textContent).toBe('');
   });
 });

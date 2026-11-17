@@ -300,3 +300,22 @@ Tests encode why: same rows in different order produce the same output (the gues
 ## 17. Amendments needed to `login-and-profiles.md` (when this is approved)
 
 Sections 2 (guest history), 3 (claiming), 4 (offline queue), 9.2 (outbox), 9.3 (computed in TypeScript, not SQL), 10 (new endpoints), 11 (Profile entry for guests and the tabbed page), 16 (phase 6 replaced by section 16 above).
+
+## 18. Built, and where the build differs from the design (17-Nov-2026)
+
+Judgment calls made during the build, for the owner to confirm:
+
+1. **Speedrunner counts any table size**, not solitaire only. Measured with the engine's own strategy, the default solitaire deck is almost never won (0%), so a solitaire-only badge could not be earned. Standard difficulty (hand 7, 2 a turn, cards up to 99) and no cheats still apply. See `docs/plans/2026-11-17-achievement-tuning-report.md`.
+2. **Time thresholds are guesses.** Speedrunner times (10, 7, 5 minutes) and the Marathon length (an hour) have no data behind them: the simulator has no human pacing. Thresholds may only go down after release.
+3. **Up to five new badges are announced one by one; more than five become one "N new badges" toast.** The design said a backfill is one summary; the first game of a new player earns four or five, which deserves its own toasts.
+4. **The "sign in to keep this" nudge** is one extra line on the first toast, at most once a week per device, for guests only where sign-in exists.
+5. **Guest cross-tab safety is not a lock.** Each tab remembers the games it added and puts them back if another tab's write overwrote them. Upgrade to Web Locks or IndexedDB if a lost game is ever seen.
+6. **The builder lives in `@upndown/profile`, not `shared-types`**, because it needs the engine. The row type and its checks are in `shared-types`.
+7. **Batches are 150 rows or 80 KB**, not 250 rows: a row is about 460 bytes and the global JSON parser stops at 100 KB.
+8. **Late rejoin shortcut:** a guest who rejoins after other players left records the smaller finished table (their own counters are exact).
+9. **Guests get no abandoned row** when kicked or when the robots-only 90 second rule ends the game. Accounts do.
+10. **Not built:** the Account page and `DELETE /api/me` (the design's phase 6 asked for them; the plan did not carry them). Account deletion is still by email, as the privacy page says.
+11. **Sign-out note:** the menu says "Signing out keeps your history in your account. This device will start a new guest profile." whenever this device has ever moved games to an account, not in a separate confirmation dialog.
+12. **Existing bug fixed on the way:** signed-in solitaire results sent only the old card-swap count, so every stored solitaire row has zero skips, trades, lookups and hints. New games report them; old rows cannot be repaired.
+13. **The toast region is `aria-live="polite"` without `role="status"`.** The design said `role="status"`, but the app already has one status element for game announcements (and its end-to-end tests find it by that role), so a second one broke them.
+14. **Unseen badges are cleared by looking.** Opening the Achievements tab marks everything shown there as seen, so the "N new" count on the tab disappears once you have looked.

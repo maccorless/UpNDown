@@ -14,8 +14,10 @@ export function BadgeToasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss:
     return () => clearTimeout(timer);
   }, [current, onDismiss]);
 
+  // A live region, but not role="status": the app already has one status element for game announcements, and tests and
+  // assistive tech find that one by its role.
   return (
-    <div className="badge-toasts" role="status" aria-live="polite">
+    <div className="badge-toasts" aria-live="polite" aria-atomic="true">
       {current ? (
         <button type="button" className="badge-toast" onClick={() => onDismiss(current.id)}>
           <strong>{current.title}</strong>

@@ -108,7 +108,7 @@ This special move is crucial for strategic play and recovery from difficult situ
 - Players can undo plays back to the beginning of their current turn, one at a time
 - Cannot undo after clicking "End Turn" (stack clears on end-turn)
 - Undo is server-authoritative in multiplayer (snapshots are recorded only for plays the engine accepts, capped at 100); client-side in solitaire
-- Statistics are automatically rolled back
+- Statistics are rolled back with the play, except what cannot be taken back: cheats used, pile marks placed, and the undo itself (each player's `undosUsed` goes up by one for the player who undid). One engine function, `carryAfterUndo`, does this for the server and for solitaire.
 
 **Minimum cards per turn**:
 - **Normal stage** (draw pile has cards): `minCardsPerTurn` (default 2)
@@ -322,10 +322,12 @@ Limits are per socket. `game:lookup` and `game:join` are also limited per client
 - **Total Movement**: Net progress of the piles: each play adds how far it moved the pile in its own direction, so a backward 10 subtracts 10. The team total equals the sum of how far each pile ended from its start.
 - **Special Plays**: Count of backward-10 moves
 - **Cheats Used**: skips, trades, card lookups and hints, counted per player and shown on the end screen (the old Nas swap count is read as trades)
+- **Undos** (`undosUsed`) and **pile marks placed** (`marksPlaced`): counted per player and not refunded by an undo. They feed the profile badges, not the end screen. A mark is counted when it is placed or changed to a reaction, not when it is cleared.
 
 **Aggregate** (in `GameStatistics`):
 - `turns`: Total turns completed
 - `startedAtMs` / `endedAtMs`: Wall-clock timestamps
+- `finishedById`: the player whose card play won the game. Set only by a winning play (never by ending a turn or a removal), and left unset for a loss. It follows the seat if the player reconnects under a new id.
 
 ---
 

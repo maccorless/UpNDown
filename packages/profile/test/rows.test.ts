@@ -34,7 +34,8 @@ describe('resultRowFromState', () => {
     const as = (playerId: string) => resultRowFromState({ state: won, runId: 'r', outcome: 'won', playerId, nowMs: 5 }).playedLastCard;
     expect(as('p2')).toBe(true);
     expect(as('p1')).toBe(false);
-    const { finishedById: _gone, ...rest } = won.statistics;
+    const rest = { ...won.statistics };
+    delete rest.finishedById;
     expect(resultRowFromState({ state: { ...won, statistics: rest }, runId: 'r', outcome: 'won', playerId: 'p1', nowMs: 5 }).playedLastCard).toBeNull();
   });
 
