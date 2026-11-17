@@ -134,7 +134,7 @@ body {
 }
 
 .gameboard-multi {
-  grid-template-columns: minmax(0, 1fr) 190px;
+  grid-template-columns: minmax(0, 1fr) clamp(220px, 25vw, 360px);
   grid-template-rows: minmax(0, 1fr) auto;
   grid-template-areas:
     "foundation players"
@@ -254,12 +254,14 @@ body {
 
 .players-panel-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
 
 .game-id-pill {
   margin-left: auto;
+  white-space: nowrap;
   cursor: pointer;
   letter-spacing: 0.5px;
   transition: background 0.15s, color 0.15s;
@@ -275,9 +277,10 @@ body {
 /* Turn sequence strip — inside the players panel */
 .turn-sequence {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 4px 10px;
   padding: 4px 8px;
 }
 
@@ -985,14 +988,17 @@ input::placeholder {
 .players-list {
   display: grid;
   gap: 6px;
-  overflow: auto;
+  overflow-x: hidden;
+  overflow-y: auto;
   min-height: 0;
 }
 
 .player-line {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 2px 8px;
   border: 1px solid rgba(169, 180, 194, 0.22);
   border-radius: 8px;
   padding: 6px 8px;
@@ -1037,10 +1043,18 @@ section[aria-label="welcome"] h2 {
   border-color: var(--good);
 }
 
+.player-line > span:first-child {
+  flex: 1 1 8rem;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .player-line-right {
   display: flex;
   align-items: center;
   gap: 4px;
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .kick-btn {
@@ -1224,6 +1238,15 @@ section[aria-label="welcome"] h2 {
   .coffee-button-image {
     width: min(217px, 72vw);
     height: auto;
+  }
+}
+
+/* Side by side, the players panel fills the height of the board beside it (the list scrolls if there are more players than room), instead of the one-line strip used when it is stacked below. */
+@media (min-width: 901px) and (max-height: 760px) {
+  .gameboard-multi > .players-panel {
+    max-height: none;
+    align-self: stretch;
+    min-height: 0;
   }
 }
 
