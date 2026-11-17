@@ -1,9 +1,11 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import { accountNameSchema, randomPresidentName, solitaireResultPayloadSchema, storedSettingsSchema } from '@upndown/shared-types';
+import { computeStats, evaluateAchievements, isValidTimeZone } from '@upndown/profile';
+import { accountNameSchema, randomPresidentName, resultRowSchema, solitaireResultPayloadSchema, storedSettingsSchema, type ResultRow } from '@upndown/shared-types';
 import { z } from 'zod';
 import { buildSolitaireRow } from '../profile/result-rows.js';
-import type { ProfileStore } from '../profile/store.js';
+import { toResultRow, toStoredRow } from '../profile/rows.js';
+import type { ImportOutcome, ProfileStore } from '../profile/store.js';
 import { createIpRateLimiter } from './http-rate-limit.js';
 import type { AuthSettings } from './config.js';
 import type { Provider } from './providers.js';
@@ -15,6 +17,13 @@ import {
 
 const SESSION_LOOKUP_TIMEOUT_MS = 1500;
 const MAX_SOLITAIRE_RESULTS = 5000;
+// Every row an account may hold, whatever its source. Past it an import stops adding rows.
+const MAX_ACCOUNT_RESULTS = 10_000;
+const IMPORT_MAX_ROWS = 250;
+// The global JSON parser stops at 100 KB; this is the route's own, smaller, bound.
+const IMPORT_MAX_BYTES = 90_000;
+const HISTORY_PAGE = 50;
+const DAY_MS = 24 * 3_600_000;
 
 type Log = (level: 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
@@ -206,7 +215,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
     }
     refreshSessionCookie(req, res, session, current.settings);
     const parsed = storedSettingsSchema.safeParse(stored);
-    res.json({ playerName, nameConfirmed: (await current.store.getNameConfirmed(session.userId)) === true, settings: parsed.success ? parsed.data : { playerName } });
+    res.json({ userId: session.userId, playerName, nameConfirmed: (await current.store.getNameConfirmed(session.userId)) === true, settings: parsed.success ? parsed.data : { playerName } });
   }));
 
   // The whole document, last write wins. A body without a name keeps the stored one, so an account is never nameless.
@@ -319,6 +328,104 @@ export function createAuthRouter(options: AuthRouterOptions): {
     } else {
       res.status(500).json({});
     }
+  }));
+
+  // A signed-in GET of the player's own profile data. Null means the reply was already sent (guest, throttled).
+  const profileSession = async (req: Request, res: Response, current: AuthServices, name: string): Promise<SessionInfo | null> => {
+    const session = await resolveSession(req.headers.cookie, current, true);
+    if (!session) {
+      res.status(401).json({});
+      return null;
+    }
+    if (!limiter.allowUser(session.userId, name, 60, 60_000)) {
+      res.status(429).json({});
+      return null;
+    }
+    refreshSessionCookie(req, res, session, current.settings);
+    return session;
+  };
+  // The time zone the player's device is in. Absent means UTC; a name the platform does not know is refused, not guessed.
+  const timeZoneOf = (req: Request): string | null => {
+    const tz = typeof req.query.tz === 'string' && req.query.tz !== '' ? req.query.tz : 'UTC';
+    return isValidTimeZone(tz) ? tz : null;
+  };
+  const rowsOf = async (current: AuthServices, userId: string): Promise<ResultRow[]> => (await current.store.listResults(userId)).map(toResultRow);
+
+  router.get('/api/me/stats', withServices('api.stats', 120, 60_000, async (req, res, current) => {
+    const tz = timeZoneOf(req);
+    if (!tz) { res.status(400).json({ error: 'invalid time zone' }); return; }
+    const session = await profileSession(req, res, current, 'api.stats');
+    if (!session) return;
+    res.json({ stats: computeStats(await rowsOf(current, session.userId), { tz, now: Date.now() }) });
+  }));
+
+  router.get('/api/me/achievements', withServices('api.achievements', 120, 60_000, async (req, res, current) => {
+    const tz = timeZoneOf(req);
+    if (!tz) { res.status(400).json({ error: 'invalid time zone' }); return; }
+    const session = await profileSession(req, res, current, 'api.achievements');
+    if (!session) return;
+    res.json({ badges: evaluateAchievements(await rowsOf(current, session.userId), { tz, now: Date.now(), signedIn: true }) });
+  }));
+
+  // History, newest first. The cursor is "<endedAtMs>:<gameId>" from the previous page's `next`.
+  router.get('/api/me/games', withServices('api.games', 120, 60_000, async (req, res, current) => {
+    const raw = typeof req.query.cursor === 'string' ? req.query.cursor : null;
+    const match = raw === null ? null : /^(\d{1,15}):([A-Za-z0-9_-]{1,64})$/.exec(raw);
+    if (raw !== null && !match) { res.status(400).json({ error: 'invalid cursor' }); return; }
+    const session = await profileSession(req, res, current, 'api.games');
+    if (!session) return;
+    const cursor = match ? { endedAtMs: Number(match[1]), gameId: match[2]! } : null;
+    const page = await current.store.listResultsPage(session.userId, cursor, HISTORY_PAGE + 1);
+    const rows = page.slice(0, HISTORY_PAGE).map(toResultRow);
+    const last = rows[rows.length - 1];
+    res.json({ rows, next: page.length > HISTORY_PAGE && last ? `${last.endedAtMs}:${last.gameId}` : null });
+  }));
+
+  // A guest's finished games, added to the account the guest has just signed in to. Every row is checked as a solitaire result
+  // is; a row that fails is reported, not stored, and the rest still go in. The game id makes a retry harmless.
+  router.post('/api/me/history-import', withServices('api.import', 120, 60_000, async (req, res, current) => {
+    if (!req.is('application/json') || req.headers.origin !== current.settings.publicBaseUrl) {
+      res.status(403).json({});
+      return;
+    }
+    const session = await resolveSession(req.headers.cookie, current, true);
+    if (!session) {
+      res.status(401).json({});
+      return;
+    }
+    if (!limiter.allowUser(session.userId, 'api.import', 30, 60_000)) {
+      res.status(429).json({});
+      return;
+    }
+    if (JSON.stringify(req.body ?? null).length > IMPORT_MAX_BYTES) {
+      res.status(413).json({});
+      return;
+    }
+    const body = z.object({ rows: z.array(z.unknown()).max(IMPORT_MAX_ROWS) }).safeParse(req.body);
+    if (!body.success) {
+      res.status(400).json({ error: 'invalid import' });
+      return;
+    }
+    const now = Date.now();
+    const results: Array<ImportOutcome | null> = [];
+    const accepted: Array<{ at: number; row: ReturnType<typeof toStoredRow> }> = [];
+    for (const [index, raw] of body.data.rows.entries()) {
+      const parsed = resultRowSchema.safeParse(raw);
+      const id = parsed.success ? parsed.data.gameId : String((raw as { gameId?: unknown } | null)?.gameId ?? '').slice(0, 64);
+      // A game finished long ago may be sent late, but not from the future, and not from before the window.
+      if (!parsed.success || parsed.data.endedAtMs > now + 5 * 60_000 || parsed.data.endedAtMs < now - 730 * DAY_MS) {
+        results.push({ gameId: id, status: 'rejected', reason: 'invalid' });
+        continue;
+      }
+      results.push(null);
+      accepted.push({ at: index, row: toStoredRow(session.userId, parsed.data) });
+    }
+    const stored = accepted.length > 0 ? await current.store.importResults(session.userId, accepted.map((a) => a.row), MAX_ACCOUNT_RESULTS) : [];
+    accepted.forEach((a, i) => { results[a.at] = stored[i] ?? { gameId: a.row.gameId, status: 'rejected', reason: 'failed' }; });
+    refreshSessionCookie(req, res, session, current.settings);
+    const final = results as ImportOutcome[];
+    log('info', 'history.imported', { rows: final.length, inserted: final.filter((r) => r.status === 'inserted').length, duplicate: final.filter((r) => r.status === 'duplicate').length, rejected: final.filter((r) => r.status === 'rejected').length });
+    res.json({ results: final });
   }));
 
   router.post('/api/auth/logout', withServices('api.logout', 20, 60_000, async (req, res, current) => {

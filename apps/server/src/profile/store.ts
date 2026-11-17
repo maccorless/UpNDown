@@ -38,6 +38,11 @@ export interface GameResultRow {
 // `duplicate` is the same game written twice. `user_missing` is an account deleted after joining: permanent, never retried.
 export type RecordOutcome = 'inserted' | 'duplicate' | 'user_missing' | 'failed';
 
+// What happened to one row of an import. `rejected` rows were refused (the account is full, or the row was not acceptable).
+export interface ImportOutcome { gameId: string; status: 'inserted' | 'duplicate' | 'rejected'; reason?: string }
+
+export interface ResultCursor { endedAtMs: number; gameId: string }
+
 export interface StoredSession {
   userId: string;
   createdAt: Date;
@@ -63,12 +68,53 @@ export interface ProfileStore {
   revokeSession(tokenHash: Buffer): Promise<void>;
   deleteExpiredSessions(now: Date): Promise<number>;
   // One row at a time, so one bad row never costs the others theirs. Never throws for a row: the outcome says what happened.
+  // Every row a user has, oldest to newest is not promised: callers sort. Bounded by the caps the routes enforce.
+  listResults(userId: string): Promise<GameResultRow[]>;
+  // Newest first, `limit` rows after the cursor (or from the start when null).
+  listResultsPage(userId: string, cursor: ResultCursor | null, limit: number): Promise<GameResultRow[]>;
+  countAllResults(userId: string): Promise<number>;
+  // Adds a guest's rows to an account in one transaction under a per-user lock. Once the account holds `cap` rows every new row
+  // is rejected as `history full`, while a row the account already has still answers `duplicate`.
+  importResults(userId: string, rows: GameResultRow[], cap: number): Promise<ImportOutcome[]>;
   recordResults(rows: GameResultRow[]): Promise<Array<{ userId: string; outcome: RecordOutcome; code?: string }>>;
   countResults(userId: string, mode: 'solitaire' | 'multiplayer'): Promise<number>;
 }
 
 const UNIQUE_VIOLATION = '23505';
 const FOREIGN_KEY_VIOLATION = '23503';
+
+const INSERT_RESULT = `insert into game_results (user_id, game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count,
+             cards_total, cards_left, my_cards_played, my_total_movement, my_special_plays, my_nas_cheats, hand_size,
+             min_cards_per_turn, max_card, settings, my_skips, my_trades, my_lookups, my_hints, robot_count, my_undos, my_reactions,
+             played_last_card)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, $22, $23, $24, $25, $26, $27)
+           on conflict (user_id, game_id) do nothing`;
+
+const insertValues = (row: GameResultRow): unknown[] => [row.userId, row.gameId, row.mode, row.outcome, row.startedAt, row.endedAt, row.durationMs, row.turns, row.playerCount,
+  row.cardsTotal, row.cardsLeft, row.myCardsPlayed, row.myTotalMovement, row.mySpecialPlays, row.myNasCheats, row.handSize,
+  row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings), row.mySkips, row.myTrades, row.myLookups, row.myHints, row.robotCount, row.myUndos, row.myReactions, row.playedLastCard];
+
+const RESULT_COLUMNS = `game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count, cards_total, cards_left, my_cards_played,
+  my_total_movement, my_special_plays, my_nas_cheats, my_skips, my_trades, my_lookups, my_hints, robot_count, my_undos, my_reactions,
+  played_last_card, hand_size, min_cards_per_turn, max_card, settings`;
+
+interface ResultRecord {
+  game_id: string; mode: 'solitaire' | 'multiplayer'; outcome: 'won' | 'lost' | 'abandoned'; started_at: Date; ended_at: Date; duration_ms: number;
+  turns: number; player_count: number; cards_total: number; cards_left: number; my_cards_played: number; my_total_movement: number;
+  my_special_plays: number; my_nas_cheats: number; my_skips: number; my_trades: number; my_lookups: number; my_hints: number;
+  robot_count: number | null; my_undos: number | null; my_reactions: number | null; played_last_card: boolean | null;
+  hand_size: number; min_cards_per_turn: number; max_card: number; settings: Record<string, unknown>;
+}
+
+// The user id is the one the query asked for, so it is not selected: callers add it.
+const storedRowFrom = (r: ResultRecord): GameResultRow => ({
+  userId: '', gameId: r.game_id, mode: r.mode, outcome: r.outcome, startedAt: r.started_at, endedAt: r.ended_at, durationMs: r.duration_ms,
+  turns: r.turns, playerCount: r.player_count, cardsTotal: r.cards_total, cardsLeft: r.cards_left, myCardsPlayed: r.my_cards_played,
+  myTotalMovement: r.my_total_movement, mySpecialPlays: r.my_special_plays, myNasCheats: r.my_nas_cheats, mySkips: r.my_skips,
+  myTrades: r.my_trades, myLookups: r.my_lookups, myHints: r.my_hints, robotCount: r.robot_count, myUndos: r.my_undos,
+  myReactions: r.my_reactions, playedLastCard: r.played_last_card, handSize: r.hand_size, minCardsPerTurn: r.min_cards_per_turn,
+  maxCard: r.max_card, settings: r.settings
+});
 
 export class PgProfileStore implements ProfileStore {
   constructor(private readonly pool: Pool) {}
@@ -164,17 +210,7 @@ export class PgProfileStore implements ProfileStore {
     const results: Array<{ userId: string; outcome: RecordOutcome; code?: string }> = [];
     for (const row of rows) {
       try {
-        const inserted = await this.pool.query(
-          `insert into game_results (user_id, game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count,
-             cards_total, cards_left, my_cards_played, my_total_movement, my_special_plays, my_nas_cheats, hand_size,
-             min_cards_per_turn, max_card, settings, my_skips, my_trades, my_lookups, my_hints, robot_count, my_undos, my_reactions,
-             played_last_card)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, $22, $23, $24, $25, $26, $27)
-           on conflict (user_id, game_id) do nothing`,
-          [row.userId, row.gameId, row.mode, row.outcome, row.startedAt, row.endedAt, row.durationMs, row.turns, row.playerCount,
-            row.cardsTotal, row.cardsLeft, row.myCardsPlayed, row.myTotalMovement, row.mySpecialPlays, row.myNasCheats, row.handSize,
-            row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings), row.mySkips, row.myTrades, row.myLookups, row.myHints, row.robotCount, row.myUndos, row.myReactions, row.playedLastCard]
-        );
+        const inserted = await this.pool.query(INSERT_RESULT, insertValues(row));
         results.push({ userId: row.userId, outcome: (inserted.rowCount ?? 0) > 0 ? 'inserted' : 'duplicate' });
       } catch (err) {
         const code = (err as { code?: string }).code;
@@ -183,6 +219,49 @@ export class PgProfileStore implements ProfileStore {
       }
     }
     return results;
+  }
+
+  async listResults(userId: string): Promise<GameResultRow[]> {
+    return (await this.pool.query<ResultRecord>(`select ${RESULT_COLUMNS} from game_results where user_id = $1`, [userId])).rows.map((r) => ({ ...storedRowFrom(r), userId }));
+  }
+
+  async listResultsPage(userId: string, cursor: ResultCursor | null, limit: number): Promise<GameResultRow[]> {
+    const result = cursor
+      ? await this.pool.query<ResultRecord>(`select ${RESULT_COLUMNS} from game_results where user_id = $1 and (ended_at, game_id) < ($2, $3) order by ended_at desc, game_id desc limit $4`, [userId, new Date(cursor.endedAtMs), cursor.gameId, limit])
+      : await this.pool.query<ResultRecord>(`select ${RESULT_COLUMNS} from game_results where user_id = $1 order by ended_at desc, game_id desc limit $2`, [userId, limit]);
+    return result.rows.map((r) => ({ ...storedRowFrom(r), userId }));
+  }
+
+  async countAllResults(userId: string): Promise<number> {
+    const row = (await this.pool.query<{ n: number }>('select count(*)::int as n from game_results where user_id = $1', [userId])).rows[0];
+    return row?.n ?? 0;
+  }
+
+  async importResults(userId: string, rows: GameResultRow[], cap: number): Promise<ImportOutcome[]> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('begin');
+      // One import at a time per user, so two at once cannot both slip under the cap.
+      await client.query('select pg_advisory_xact_lock(hashtext($1))', [userId]);
+      let held = (await client.query<{ n: number }>('select count(*)::int as n from game_results where user_id = $1', [userId])).rows[0]?.n ?? 0;
+      const outcomes: ImportOutcome[] = [];
+      for (const row of rows) {
+        const exists = async (): Promise<boolean> => ((await client.query('select 1 from game_results where user_id = $1 and game_id = $2', [userId, row.gameId])).rowCount ?? 0) > 0;
+        if (held >= cap) {
+          outcomes.push((await exists()) ? { gameId: row.gameId, status: 'duplicate' } : { gameId: row.gameId, status: 'rejected', reason: 'history full' });
+          continue;
+        }
+        const inserted = await client.query(INSERT_RESULT, insertValues({ ...row, userId }));
+        if ((inserted.rowCount ?? 0) > 0) { held += 1; outcomes.push({ gameId: row.gameId, status: 'inserted' }); } else outcomes.push({ gameId: row.gameId, status: 'duplicate' });
+      }
+      await client.query('commit');
+      return outcomes;
+    } catch (err) {
+      await client.query('rollback').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   }
 
   async countResults(userId: string, mode: 'solitaire' | 'multiplayer'): Promise<number> {

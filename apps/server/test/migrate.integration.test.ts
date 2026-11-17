@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { PgProfileStore } from '../src/profile/store.js';
 import { migrate } from '../src/db/migrate.js';
 import { MIGRATIONS } from '../src/db/migrations.js';
 
@@ -63,7 +64,7 @@ describe.skipIf(!url)('migrations against Postgres', () => {
     try {
       await migrate(p, [MIGRATIONS[0]!]);
       const { rows } = await p.query<{ id: string }>('insert into users default values returning id');
-      expect(await migrate(p)).toEqual(['002_name_confirmed', '003_cheats_in_results', '004_live_games']);
+      expect(await migrate(p)).toEqual(['002_name_confirmed', '003_cheats_in_results', '004_live_games', '005_profile_facts']);
       const after = await p.query('select name_confirmed from users where id = $1', [rows[0]!.id]);
       expect(after.rows[0].name_confirmed).toBe(false);
     } finally {
@@ -80,6 +81,14 @@ describe.skipIf(!url)('migrations against Postgres', () => {
      values ($1, $2, 'multiplayer', $3, now(), now(), 1000, 5, 2, 98, 0, 20, 100, 1, 0, 7, 2, 99, '{}')`,
     [userId, gameId, outcome]
   );
+
+  // The old container names its columns and never mentions the new ones, so its rows must stay valid and read as "not recorded".
+  it('keeps a row written without the profile facts, and reads those facts as unknown rather than zero', async () => {
+    const id = await addUser();
+    await addResult(id, 'old-row');
+    const [row] = await new PgProfileStore(pool).listResults(id);
+    expect(row).toMatchObject({ gameId: 'old-row', robotCount: null, myUndos: null, myReactions: null, playedLastCard: null });
+  });
 
   // The privacy page promises deletion removes everything. The cascade is what keeps that true.
   it('deleting a user removes their identities, sessions and results', async () => {

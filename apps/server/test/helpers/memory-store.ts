@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { GameResultRow, ProfileStore, RecordOutcome, StoredSession } from '../../src/profile/store.js';
+import type { GameResultRow, ImportOutcome, ProfileStore, RecordOutcome, ResultCursor, StoredSession } from '../../src/profile/store.js';
 
 // In-memory ProfileStore for route tests. test/profile-store.contract.test.ts holds it to the same rules as Postgres.
 export class MemoryProfileStore implements ProfileStore {
@@ -31,6 +31,33 @@ export class MemoryProfileStore implements ProfileStore {
 
   readonly confirmed = new Set<string>();
   readonly results: GameResultRow[] = [];
+
+  async listResults(userId: string): Promise<GameResultRow[]> {
+    return this.results.filter((r) => r.userId === userId).map((r) => ({ ...r }));
+  }
+
+  async listResultsPage(userId: string, cursor: ResultCursor | null, limit: number): Promise<GameResultRow[]> {
+    const newestFirst = (await this.listResults(userId)).sort((a, b) => b.endedAt.getTime() - a.endedAt.getTime() || (a.gameId < b.gameId ? 1 : a.gameId > b.gameId ? -1 : 0));
+    const after = cursor
+      ? newestFirst.filter((r) => r.endedAt.getTime() < cursor.endedAtMs || (r.endedAt.getTime() === cursor.endedAtMs && r.gameId < cursor.gameId))
+      : newestFirst;
+    return after.slice(0, limit);
+  }
+
+  async countAllResults(userId: string): Promise<number> {
+    return this.results.filter((r) => r.userId === userId).length;
+  }
+
+  async importResults(userId: string, rows: GameResultRow[], cap: number): Promise<ImportOutcome[]> {
+    const outcomes: ImportOutcome[] = [];
+    for (const row of rows) {
+      const exists = this.results.some((r) => r.userId === userId && r.gameId === row.gameId);
+      if (exists) outcomes.push({ gameId: row.gameId, status: 'duplicate' });
+      else if (this.results.filter((r) => r.userId === userId).length >= cap) outcomes.push({ gameId: row.gameId, status: 'rejected', reason: 'history full' });
+      else { this.results.push({ ...row, userId }); outcomes.push({ gameId: row.gameId, status: 'inserted' }); }
+    }
+    return outcomes;
+  }
 
   async countResults(userId: string, mode: 'solitaire' | 'multiplayer'): Promise<number> {
     return this.results.filter((r) => r.userId === userId && r.mode === mode).length;
