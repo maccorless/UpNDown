@@ -10,9 +10,9 @@
 // Action codes: card slot * 4 + canonical pile (0 and 1 are the ascending piles, lowest top first; 2 and 3 are the descending piles,
 // highest top first), or 44 to end the turn. The slot is the card's place in the hand array sent in this record.
 import {
-  buildDeck, createStartedGameState, DEFAULT_SENDER, endTurn, honestBoard, isValidPlay, playCard, playedValues, seededRandom, seedsFor, shuffleWith, tableById
+  buildNetInput, buildDeck, createStartedGameState, DEFAULT_SENDER, endTurn, honestBoard, playCard, seededRandom, seedsFor, shuffleWith, tableById
 } from '../src/index.js';
-import type { FoundationPile, GameState } from '@upndown/shared-types';
+import type { GameState } from '@upndown/shared-types';
 
 export const HAND = 11, OTHERS = 5, DECK = 100, ACTIONS = HAND * 4 + 1, END = HAND * 4;
 // Header: seed index of the game that finished (-1 if none), outcome (0 none, 1 won, 2 lost), cards left, draw pile left, table index
@@ -78,16 +78,9 @@ const finished: Array<{ seed: number; outcome: number; left: number; draw: numbe
 const lastReward = new Float32Array(E);
 const lastDone = new Uint8Array(E);
 
-function canonicalPiles(piles: readonly FoundationPile[]): number[] {
-  const asc = piles.filter((p) => p.type === 'ascending').sort((a, b) => a.topCard.value - b.topCard.value || a.id - b.id).map((p) => p.id);
-  const desc = piles.filter((p) => p.type === 'descending').sort((a, b) => b.topCard.value - a.topCard.value || a.id - b.id).map((p) => p.id);
-  return [...asc, ...desc];
-}
-
 function writeRecord(e: number): void {
   const slot = slots[e]!;
   const s = slot.state;
-  const t = tables[slot.table]!;
   const base = e * RECORD_BYTES;
   const f = finished[e];
   out.writeInt32LE(f ? f.seed : -1, base);
@@ -97,52 +90,32 @@ function writeRecord(e: number): void {
   out.writeUInt8(f ? f.table : 0, base + 9);
   out.writeFloatLE(lastReward[e]!, base + 10);
   out.writeUInt8(lastDone[e]!, base + 14);
-  let at = base + HEADER;
-  out.fill(0, at, base + RECORD_BYTES);
-  const me = s.players[s.currentPlayerIndex]!;
-  const set8 = (index: number, v: number): void => { out.writeInt8(v, at + index); };
-  me.hand.slice(0, HAND).forEach((c, i) => set8(i, c.value));
-  at += HAND;
-  slot.canon = canonicalPiles(s.foundationPiles);
-  slot.canon.forEach((id, i) => set8(i, s.foundationPiles.find((p) => p.id === id)!.topCard.value));
-  at += 4;
-  const draw = s.drawPile.length;
-  const required = draw === 0 ? 1 : t.settings.minCardsPerTurn;
-  [t.players, t.settings.handSize, t.settings.minCardValue, t.settings.maxCardValue, t.settings.minCardsPerTurn, t.settings.autoRefillHand ? 1 : 0,
-    draw, s.cardsPlayedThisTurn, required, t.players === 1 ? 1 : 0, record ? 1 : 0, reactions ? 1 : 0].forEach((v, i) => set8(i, v));
-  at += GLOBALS.length;
-  const others: number[] = [];
-  for (let k = 1; k < t.players; k += 1) others.push((s.currentPlayerIndex + k) % t.players);
-  others.forEach((idx, k) => set8(k, s.players[idx]!.hand.length));
-  at += OTHERS;
-  if (reactions && t.players > 1) {
-    const board = honestBoard(s, sender);
+  out.fill(0, base + HEADER, base + RECORD_BYTES);
+  // The reactions each other seat is shown: the honest board as it stands, by seat and real pile id, seen through that seat's lag (-1 = never shown).
+  let board: number[][] | null = null;
+  if (reactions && s.players.length > 1) {
+    const honest = honestBoard(s, sender);
     const level = { like: 1, love: 2, really_love: 3 } as const;
-    // the board as it stands, by seat and real pile id
-    const now = s.players.map((p) => [0, 1, 2, 3].map((pileId) => { const r = board[p.id]?.[pileId]; return r ? level[r] : 0; }));
-    slot.history.push(now);
+    board = s.players.map((p) => [0, 1, 2, 3].map((pileId) => { const r = honest[p.id]?.[pileId]; return r ? level[r] : 0; }));
+    slot.history.push(board);
     if (slot.history.length > 4) slot.history.shift();
-    others.forEach((idx, k) => {
-      const l = slot.lags[idx]!;
-      if (l < 0) return;
-      const seen = slot.history[Math.max(0, slot.history.length - 1 - l)]![idx]!;
-      slot.canon.forEach((pileId, c) => set8(k * 4 + c, seen[pileId]!));
-    });
   }
-  at += OTHERS * 4;
-  others.forEach((idx, k) => set8(k, slot.lags[idx] !== 0 ? 1 : 0));
-  at += OTHERS;
-  if (record) for (const v of playedValues(s)) set8(v, 1);
-  at += DECK;
-  others.forEach((idx, k) => s.players[idx]!.hand.slice(0, HAND).forEach((c, i) => set8(k * HAND + i, c.value)));
+  const input = buildNetInput(s, {
+    tierB: record, reactionsOn: reactions,
+    reactionsOf: (idx) => (slot.lags[idx]! < 0 ? null : slot.history[Math.max(0, slot.history.length - 1 - slot.lags[idx]!)]![idx]!),
+    seatKindOf: (idx) => (slot.lags[idx] !== 0 ? 1 : 0)
+  });
+  slot.canon = input.canon;
+  let at = base + HEADER;
+  const put = (values: readonly number[]): void => { values.forEach((v, i) => out.writeInt8(v, at + i)); at += values.length; };
+  put(input.hand); put(input.tops); put(input.globals); put(input.others); put(input.react); put(input.seatKind); put(input.played);
+  // Privileged fields for the critic only: the other seats' hands and the draw pile as a set.
+  const cur = s.currentPlayerIndex, players = s.players.length;
+  for (let k = 1; k < players; k += 1) s.players[(cur + k) % players]!.hand.slice(0, HAND).forEach((c, i) => out.writeInt8(c.value, at + (k - 1) * HAND + i));
   at += OTHERS * HAND;
-  for (const c of s.drawPile) set8(c.value, 1);
+  for (const c of s.drawPile) out.writeInt8(1, at + c.value);
   at += DECK;
-  const maskAt = base + HEADER + OBS;
-  me.hand.slice(0, HAND).forEach((c, i) => slot.canon.forEach((pileId, p) => {
-    if (isValidPlay(c, s.foundationPiles.find((x) => x.id === pileId)!)) out[maskAt + i * 4 + p] = 1;
-  }));
-  if (t.players > 1 && s.cardsPlayedThisTurn >= required) out[maskAt + END] = 1;
+  input.mask.forEach((v, i) => { if (v) out[at + i] = 1; });
 }
 
 function apply(e: number, action: number): void {

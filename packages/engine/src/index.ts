@@ -11,3 +11,5 @@ export * from './belief.js';
 export * from './reactions.js';
 export * from './solver.js';
 export * from './search.js';
+export * from './netinput.js';
+export * from './network.js';
