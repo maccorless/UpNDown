@@ -11,27 +11,35 @@ function arg(name: string, fallback: string): string {
 }
 const table = tableById(arg('table', 's3-4p-99-h7'));
 const games = Number(arg('games', '3000'));
+// --sender like,love,reallyLove as shares of the deck; reallyLove 0 means only a backward 10 is really love.
+const senderArg = arg('sender', '');
+const sender = senderArg ? (() => { const [like, love, reallyLove] = senderArg.split(',').map(Number); return { like: like!, love: love!, reallyLove: reallyLove! }; })() : DEFAULT_SENDER;
 const span = table.settings.maxCardValue - table.settings.minCardValue + 1;
 
 // `pairBound`: also play on when a move of at most this many steps sets up a backward 10 from your own hand (the card is exactly 10 under it, or 10 over for a down pile), so the pair
 // sets the pile back by 10 minus the step.
-interface Rule { name: string; tiny: (share: number, mark: number) => number; pairBound?: number }
+interface Rule { name: string; avoid?: 'tiny-ok' | 'none-at-3' | 'none-at-2-3' | 'hard-3'; tiny: (share: number, mark: number) => number; pairBound?: number }
 const marks = (none: number, like: number, love: number, really: number) => (_s: number, m: number): number => [none, like, love, really][m]!;
 const rules: Rule[] = [
-  { name: 'fixed 3 (the written strategy)', tiny: () => 3 },
-  { name: 'marks: none 3, like 6, love 2, really love 0', tiny: marks(3, 6, 2, 0) },
-  { name: 'marks: none 3, like 6, love 3, really love 0', tiny: marks(3, 6, 3, 0) },
-  { name: 'marks: none 3, like 8, love 3, really love 0', tiny: marks(3, 8, 3, 0) },
-  { name: 'marks: none 4, like 6, love 3, really love 0', tiny: marks(4, 6, 3, 0) },
-  { name: 'marks: none 3, like 6, love 4, really love 0', tiny: marks(3, 6, 4, 0) },
-  { name: 'marks: none 3, like 6, love 3, really love 1', tiny: marks(3, 6, 3, 1) },
-  { name: 'marks 3/6/3/0, stage early +1 late -1', tiny: (s, m) => marks(3, 6, 3, 0)(s, m) + (m === 3 ? 0 : s > 0.6 ? 1 : s < 0.3 ? -1 : 0) }
+  { name: 'fixed 3, receiver as now', tiny: () => 3 },
+  { name: 'stop 4/6/3/0, strict on really love', tiny: marks(4, 6, 3, 0), avoid: 'strict-3' },
+  { name: 'stop 4/5/2/0, strict on really love', tiny: marks(4, 5, 2, 0), avoid: 'strict-3' },
+  { name: 'stop 4/4/2/0, strict on really love', tiny: marks(4, 4, 2, 0), avoid: 'strict-3' },
+  { name: 'stop 4/5/1/0, strict on love and really love', tiny: marks(4, 5, 1, 0), avoid: 'strict-2-3' },
+  { name: 'stop 4/5/2/0, strict on love and really love', tiny: marks(4, 5, 2, 0), avoid: 'strict-2-3' }
 ];
 
 // The written strategy's choice of what to play, with the rule above deciding whether to go on once the minimum is met.
 const policyFor = (rule: Rule): Policy => (obs: Observation): Action => {
   if (!obs.myTurn) return { type: 'none' };
-  const plays = rankPlays(obs, DEFAULT_WEIGHTS, obs.reactions ? receiverBias(obs) : undefined);
+  const bias = !obs.reactions ? undefined : (pileId: number, gap: number, backwardTen: boolean): number => {
+    if (backwardTen) return 0;
+    const level = highestAsk(obs, pileId);
+    const tinyOk = rule.avoid === undefined || rule.avoid === 'tiny-ok' || (rule.avoid === 'strict-3' && level < 3) || (rule.avoid === 'strict-2-3' && level < 2);
+    if (rule.avoid === 'hard-3' && level === 3) return -1000;
+    return tinyOk ? receiverBias(obs)(pileId, gap, backwardTen) : -3 * level;
+  };
+  const plays = rankPlays(obs, DEFAULT_WEIGHTS, bias);
   const best = plays[0];
   const needed = Math.max(0, obs.required - obs.cardsPlayedThisTurn);
   if (!best) return obs.isSolitaire || needed > 0 ? { type: 'none' } : { type: 'endTurn' };
@@ -52,10 +60,10 @@ const policyFor = (rule: Rule): Policy => (obs: Observation): Action => {
 };
 
 const seeds = seedsFor('validation', games);
-const base = playSet(table, policyFor(rules[0]!), seeds, DEFAULT_SENDER);
+const base = playSet(table, policyFor(rules[0]!), seeds, sender);
 console.log(`${table.id}, ${games} validation games, honest reactions. Score (win rate); difference from the fixed 3 with a 95% interval.`);
 for (const rule of rules) {
-  const records = rule === rules[0] ? base : playSet(table, policyFor(rule), seeds, DEFAULT_SENDER);
+  const records = rule === rules[0] ? base : playSet(table, policyFor(rule), seeds, sender);
   const s = summarize(records);
   const c = compare(records, base);
   const diff = rule === rules[0] ? '' : `  ${c.score.mean >= 0 ? '+' : ''}${c.score.mean.toFixed(2)} (${c.score.low.toFixed(2)} to ${c.score.high.toFixed(2)})`;
