@@ -40,6 +40,9 @@ const lag = Number(arg('lag', '0'));
 // --seat-mix p: each seat of a new game is a robot (instant, exact reactions) with probability p, otherwise human-like: reactions 1 or 3 plays old, or never shown.
 const seatMix = process.argv.includes('--seat-mix') ? Number(arg('seat-mix', '1')) : null;
 const HUMAN_LAGS = [1, 3, -1];
+// --sender like,love,reallyLove: the thresholds (as shares of the deck) the honest senders use; default is the engine's.
+const senderArg = arg('sender', '');
+const sender = senderArg ? (() => { const [like, love, reallyLove] = senderArg.split(',').map(Number); return { like: like!, love: love!, reallyLove: reallyLove! }; })() : DEFAULT_SENDER;
 const stride = workers * E;
 const seedPool = seedsFor(set, 1_000_000);
 
@@ -113,7 +116,7 @@ function writeRecord(e: number): void {
   others.forEach((idx, k) => set8(k, s.players[idx]!.hand.length));
   at += OTHERS;
   if (reactions && t.players > 1) {
-    const board = honestBoard(s, DEFAULT_SENDER);
+    const board = honestBoard(s, sender);
     const level = { like: 1, love: 2, really_love: 3 } as const;
     // the board as it stands, by seat and real pile id
     const now = s.players.map((p) => [0, 1, 2, 3].map((pileId) => { const r = board[p.id]?.[pileId]; return r ? level[r] : 0; }));

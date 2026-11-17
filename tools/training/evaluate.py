@@ -22,6 +22,7 @@ ap.add_argument('--games', type=int, default=1000); ap.add_argument('--set', def
 ap.add_argument('--tier', default=None); ap.add_argument('--reactions', action='store_true')
 ap.add_argument('--lag', type=int, default=0, help='reactions shown are this many plays old')
 ap.add_argument('--seat-mix', type=float, default=None, help='share of other seats that are robots (exact instant reactions); the rest are human-like')
+ap.add_argument('--sender', default=None, help='like,love,reallyLove thresholds as shares of the deck, e.g. 0.10,0.05,0.02')
 ap.add_argument('--against-reactions', action='store_true', help='compare with the strategy using the hand-written receiver')
 args = ap.parse_args()
 dev = tr.device()
@@ -29,7 +30,7 @@ ck = torch.load(args.checkpoint, map_location=dev)
 tier_b = (args.tier or ck['args']['tier']) == 'B'
 reactions = args.reactions or ck['args'].get('reactions', False)
 policy = Policy(ck['args'].get('width', 64)).to(dev); policy.load_state_dict(ck['policy']); policy.eval()
-s, w, l = tr.evaluate(policy, args.table, args.games, tier_b, reactions, dev, args.set, lag=args.lag, seat_mix=args.seat_mix)
+s, w, l = tr.evaluate(policy, args.table, args.games, tier_b, reactions, dev, args.set, lag=args.lag, seat_mix=args.seat_mix, sender=args.sender)
 dump = os.path.join(tr.HERE, 'runs', f'strategy-{args.table}-{args.set}-{args.games}{"-r" if args.against_reactions else ""}.json')
 if not os.path.exists(dump):
     cmd = ['npm', 'run', '--silent', 'sim', '--', 'eval', '--table', args.table, '--set', args.set, '--games', str(args.games), '--dump', dump] + (['--reactions'] if args.against_reactions else [])
