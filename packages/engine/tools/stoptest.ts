@@ -18,7 +18,7 @@ const span = table.settings.maxCardValue - table.settings.minCardValue + 1;
 
 // `pairBound`: also play on when a move of at most this many steps sets up a backward 10 from your own hand (the card is exactly 10 under it, or 10 over for a down pile), so the pair
 // sets the pile back by 10 minus the step.
-interface Rule { name: string; avoid?: 'tiny-ok' | 'none-at-3' | 'none-at-2-3' | 'hard-3'; tiny: (share: number, mark: number) => number; pairBound?: number }
+interface Rule { name: string; avoid?: 'tiny-ok' | 'strict-3' | 'strict-2-3' | 'hard-3'; tiny: (share: number, mark: number) => number; pairBound?: number }
 const marks = (none: number, like: number, love: number, really: number) => (_s: number, m: number): number => [none, like, love, really][m]!;
 const rules: Rule[] = [
   { name: 'fixed 3, receiver as now', tiny: () => 3 },
