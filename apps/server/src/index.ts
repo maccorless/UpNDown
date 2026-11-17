@@ -293,7 +293,7 @@ export function createRealtimeServer(
 
   // What a viewer sees: their own hand only, plus who has dropped and what they may do about it.
   const viewOf = (state: Parameters<typeof toPlayerView>[0], viewerId: string) =>
-    toPlayerView(state, viewerId, manager.reconnectionFor(state.gameId, viewerId));
+    toPlayerView(state, viewerId, manager.reconnectionFor(state.gameId, viewerId), manager.runIdOf(state.gameId));
   const broadcastState = (gameId: string, state: Parameters<typeof toPlayerView>[0]): void => {
     for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
       io.to(socketId).emit('game:updated', viewOf(state, socketId));

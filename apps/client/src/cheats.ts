@@ -1,4 +1,4 @@
-import { buildNetInput, chooseAction, explainMove, loadNetwork, NET_END, networkLogits, observe, type Action, type Network, type NetworkWeights } from '@upndown/engine';
+import { buildNetInput, carryAfterUndo, chooseAction, explainMove, loadNetwork, NET_END, networkLogits, observe, type Action, type Network, type NetworkWeights } from '@upndown/engine';
 import { cheatLimitOf, type CheatKind, type CheatUsedEvent, type GameState, type PlayerStatistics } from '@upndown/shared-types';
 import { useEffect } from 'react';
 
@@ -90,20 +90,9 @@ export function useCheatHotkeys({ active, onLookup, onSkip, onTrade }: HotkeyArg
   }, [active, onLookup, onSkip, onTrade]);
 }
 
-// After an undo, cheats counted since the snapshot stay counted: a lookup or a hint cannot be taken back, so undoing a play
-// must not refund one.
-export function keepCheatCounts(restored: GameState, current: GameState): GameState {
-  return {
-    ...restored,
-    statistics: {
-      ...restored.statistics,
-      players: Object.fromEntries(Object.entries(restored.statistics.players).map(([id, stats]) => {
-        const now = current.statistics.players[id];
-        return [id, now ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed } : stats];
-      }))
-    }
-  };
-}
+// After an undo, cheats and marks counted since the snapshot stay counted, and the undo itself is counted. The rule is the
+// engine's, shared with the server.
+export const keepCheatCounts = (restored: GameState, current: GameState, undoingPlayerId: string): GameState => carryAfterUndo(restored, current, undoingPlayerId);
 
 // Every cheat a player used, counted. The old card-swap count is the same thing as trades and is not added twice.
 export const cheatCount = (stats: PlayerStatistics): number => stats.skipsUsed + stats.tradesUsed + stats.lookupsUsed + stats.hintsUsed;

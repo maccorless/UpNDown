@@ -22,7 +22,7 @@ function oneCardFromWinning(): GameState {
   state.drawPile = [];
   state.players[0]!.hand = [{ id: 'c-2', value: 2 }];
   state.statistics.startedAtMs = Date.now() - 600_000;
-  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 };
   return state;
 }
 

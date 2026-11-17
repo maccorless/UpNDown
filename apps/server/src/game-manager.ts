@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Action } from '@upndown/engine';
-import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import { buildDeck, carryAfterUndo, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type { HintAdvisor, RobotBrain } from './robot-brain.js';
 import { pickRobotName } from './robot-names.js';
 import type {
@@ -101,6 +101,10 @@ function swapPlayerId(state: GameState, oldPlayerId: string, newPlayerId: string
     state.hostId = newPlayerId;
   }
 
+  if (state.statistics.finishedById === oldPlayerId) {
+    state.statistics.finishedById = newPlayerId;
+  }
+
   if (state.statistics.players[oldPlayerId]) {
     state.statistics.players[newPlayerId] = state.statistics.players[oldPlayerId];
     delete state.statistics.players[oldPlayerId];
@@ -188,6 +192,14 @@ export class GameManager {
     const currentPlayer = room.gameState.players[room.gameState.currentPlayerIndex];
     if (currentPlayer?.id === playerId) {
       throw new Error('Cannot react during your own turn');
+    }
+
+    if (reactionType !== null) {
+      const stats = room.gameState.statistics.players[playerId] ?? emptyPlayerStats();
+      room.gameState = {
+        ...room.gameState,
+        statistics: { ...room.gameState.statistics, players: { ...room.gameState.statistics.players, [playerId]: { ...stats, marksPlaced: stats.marksPlaced + 1 } } }
+      };
     }
 
     if (!this.reactions.has(gameId)) {
@@ -594,18 +606,8 @@ export class GameManager {
       throw new Error('Nothing to undo');
     }
     const previous = room.turnUndoStack.pop()!;
-    // Cheats that were counted since the snapshot (a card lookup, a hint) are not undone with the play.
-    const current = room.gameState.statistics.players;
-    const restored: GameState = {
-      ...previous,
-      statistics: {
-        ...previous.statistics,
-        players: Object.fromEntries(Object.entries(previous.statistics.players).map(([id, stats]) => {
-          const now = current[id];
-          return [id, now ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed } : stats];
-        }))
-      }
-    };
+    // Cheats and marks counted since the snapshot are not undone with the play, and the undo itself is counted.
+    const restored = carryAfterUndo(previous, room.gameState, playerId);
     room.gameState = restored;
     room.updatedAtMs = Date.now();
     return restored;
@@ -1260,6 +1262,11 @@ export class GameManager {
   }
 
   // What a viewer is told about players who dropped, or undefined when there is nothing to tell. Never part of the stored game.
+  // The id of the game's current run, which the player view carries so a browser can name the game the way the server does.
+  runIdOf(gameId: string): string | null {
+    return this.rooms.get(gameId)?.runId ?? null;
+  }
+
   reconnectionFor(gameId: string, viewerId: string, nowMs: number = Date.now()): ReconnectionView | undefined {
     const room = this.rooms.get(gameId);
     if (!room || room.gameState.gamePhase !== 'playing') return undefined;

@@ -42,7 +42,9 @@ export function emptyPlayerStats(): PlayerStatistics {
     skipsUsed: 0,
     tradesUsed: 0,
     lookupsUsed: 0,
-    hintsUsed: 0
+    hintsUsed: 0,
+    undosUsed: 0,
+    marksPlaced: 0
   };
 }
 
@@ -370,7 +372,27 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     drawToHand(player, nextState.drawPile, nextState.settings.handSize);
   }
 
-  return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
+  const result = ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(nextState)));
+  // Only a card play can be the play that wins; the shared win check also runs from other moves, which stay unattributed.
+  return result.gamePhase === 'won' ? { ...result, statistics: { ...result.statistics, finishedById: player.id } } : result;
+}
+
+// After an undo the play is taken back but nothing else is: a hint, a lookup or a mark placed since the snapshot stays counted
+// for everyone, and the player who undid gets one more undo on their record.
+export function carryAfterUndo(restored: GameState, current: GameState, undoingPlayerId: string): GameState {
+  return {
+    ...restored,
+    statistics: {
+      ...restored.statistics,
+      players: Object.fromEntries(Object.entries(restored.statistics.players).map(([id, stats]) => {
+        const now = current.statistics.players[id];
+        const kept = now
+          ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed, marksPlaced: now.marksPlaced, undosUsed: now.undosUsed }
+          : stats;
+        return [id, id === undoingPlayerId ? { ...kept, undosUsed: kept.undosUsed + 1 } : kept];
+      }))
+    }
+  };
 }
 
 export function endTurn(state: GameState, playerId: string): GameState {

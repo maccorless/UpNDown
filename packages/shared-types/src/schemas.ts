@@ -202,6 +202,7 @@ export const gameStateSchema = z.object({
     turns: z.number().int().min(0),
     startedAtMs: z.number().nullable(),
     endedAtMs: z.number().nullable(),
+    finishedById: z.string().max(100).nullable().optional(),
     players: z.record(z.string().max(100), z.object({
       cardsPlayed: z.number().int().min(0),
       totalMovement: z.number().int(),
@@ -210,7 +211,9 @@ export const gameStateSchema = z.object({
       skipsUsed: z.number().int().min(0).default(0),
       tradesUsed: z.number().int().min(0).optional(),
       lookupsUsed: z.number().int().min(0).default(0),
-      hintsUsed: z.number().int().min(0).default(0)
+      hintsUsed: z.number().int().min(0).default(0),
+      undosUsed: z.number().int().min(0).default(0),
+      marksPlaced: z.number().int().min(0).default(0)
     }).transform((stats) => ({ ...stats, tradesUsed: stats.tradesUsed ?? stats.nasCheatsUsed })))
   }),
   nasCheat: z.object({

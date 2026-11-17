@@ -58,6 +58,9 @@ export interface PlayerStatistics {
   tradesUsed: number;
   lookupsUsed: number;
   hintsUsed: number;
+  // Undos this player took, and pile marks they placed. Neither is refunded by an undo (see carryAfterUndo).
+  undosUsed: number;
+  marksPlaced: number;
 }
 
 export interface GameStatistics {
@@ -65,6 +68,8 @@ export interface GameStatistics {
   startedAtMs: number | null;
   endedAtMs: number | null;
   players: Record<string, PlayerStatistics>;
+  // The player whose card play won the game. Set only by a winning play; a game won any other way leaves it unset.
+  finishedById?: string | null | undefined;
 }
 
 export interface NasCheatState {
@@ -86,6 +91,8 @@ export interface ReconnectionView {
 
 export interface GameState {
   gameId: string;
+  // The id of this run of the game (a room code is reused). Only the server's player view carries it; it is never stored.
+  runId?: string | undefined;
   hostId: string;
   players: Player[];
   foundationPiles: FoundationPile[];

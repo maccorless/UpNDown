@@ -74,7 +74,10 @@ describe('GameManager', () => {
     expect(played).not.toBeNull();
 
     const restored = manager.undoLastPlay(activeId, gameId);
-    expect(restored).toEqual(started);
+    // Everything is back as it was before the play, except that the undo itself is now on the player's record.
+    const expected = structuredClone(started);
+    expected.statistics.players[activeId]!.undosUsed += 1;
+    expect(restored).toEqual(expected);
   });
 
   it('issues unique six-character game ids from the full A-Z0-9 alphabet', () => {

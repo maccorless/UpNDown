@@ -1283,7 +1283,7 @@ export function App(): JSX.Element {
       if (stack.length === 0) return stack;
       const prev = stack[stack.length - 1]!;
       // Cheats counted since the snapshot (a card lookup, a hint) are not undone with the move.
-      setSolitaireState((current) => keepCheatCounts(prev, current));
+      setSolitaireState((current) => keepCheatCounts(prev, current, SOLO_PLAYER_ID));
       setSolitaireSelectedCardId(null);
       setError(null);
       return stack.slice(0, -1);

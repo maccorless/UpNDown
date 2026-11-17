@@ -67,8 +67,8 @@ describe('undo and cheats', () => {
   it('keeps cheats counted since the snapshot, so undoing a play never refunds one', () => {
     const snapshot = game({ lookup: 'once' });
     const now: GameState = { ...snapshot, statistics: { ...snapshot.statistics, players: { ...snapshot.statistics.players, p1: { ...snapshot.statistics.players.p1!, lookupsUsed: 1 } } } };
-    expect(keepCheatCounts(snapshot, now).statistics.players.p1!.lookupsUsed).toBe(1);
-    expect(keepCheatCounts(snapshot, now).drawPile).toBe(snapshot.drawPile);
+    expect(keepCheatCounts(snapshot, now, 'p1').statistics.players.p1!.lookupsUsed).toBe(1);
+    expect(keepCheatCounts(snapshot, now, 'p1').drawPile).toBe(snapshot.drawPile);
   });
 });
 
