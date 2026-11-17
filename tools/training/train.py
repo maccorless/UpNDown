@@ -24,6 +24,7 @@ STAGES = {
     'stage2': ['s2-solo-79-h7', 's2-2p-79-h7', 's2-4p-79-h7', 's2-solo-99-h9', 's2-2p-99-h9', 's2-4p-99-h9', 's2-solo-99-h11'],
     'stage3': ['s3-solo-99-h7', 's3-2p-99-h7', 's3-4p-99-h7'],
 }
+STAGES['solo'] = ['s3-solo-99-h7', 's3-solo-99-h7', 's2-solo-99-h9', 's2-solo-79-h7', 's2-solo-99-h11']
 STAGES['mix12'] = STAGES['stage1'] + STAGES['stage2']
 STAGES['mix123'] = STAGES['stage1'] + STAGES['stage2'] + STAGES['stage3'] * 3
 REWARD_SCALE = 0.1

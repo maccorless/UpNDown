@@ -4,7 +4,7 @@
 //   npm run sim --workspace @upndown/engine -- train --setting table4 --rounds 30 --games 150 --seed 1
 //   npm run sim --workspace @upndown/engine -- report
 //   npm run sim --workspace @upndown/engine -- tables
-//   npm run sim --workspace @upndown/engine -- eval --table s3-4p-99-h7 --set validation --games 3000 [--reactions] [--dump file.json] [--weights '{...}'] [--against '{...}']
+//   npm run sim --workspace @upndown/engine -- eval --table s3-4p-99-h7 --set validation --games 3000 [--reactions] [--record] [--dump file.json] [--weights '{...}'] [--against '{...}']
 import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -186,7 +186,8 @@ function evalCommand(): void {
   const seeds = seedsFor(set, games, offset);
   // --reactions: everyone shows honest reactions and the player on turn applies the hand-written receiver rule. Compared against no reactions by --against.
   const withReactions = process.argv.includes('--reactions');
-  const a = withReactions ? playSet(table, receiverPolicy(weights), seeds, DEFAULT_SENDER) : playSet(table, weightedPolicy(weights), seeds);
+  const record = process.argv.includes('--record');
+  const a = withReactions ? playSet(table, receiverPolicy(weights), seeds, DEFAULT_SENDER, { record }) : playSet(table, weightedPolicy(weights), seeds, undefined, { record });
   const s = summarize(a);
   console.log(`${table.id} on ${set} games ${offset}..${offset + games - 1}: won ${pct(s.winRate)} (${pct(s.winInterval[0])} to ${pct(s.winInterval[1])}), score ${s.score.mean.toFixed(2)} (${s.score.low.toFixed(2)} to ${s.score.high.toFixed(2)}), sd ${s.scoreSd.toFixed(1)}, cards left ${s.cardsLeft.toFixed(2)}, stalled ${s.stalled}`);
   const dump = arg('dump', '');
