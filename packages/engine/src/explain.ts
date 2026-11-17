@@ -20,7 +20,11 @@ interface Facts {
 const LEVEL_WORD = ['', 'likes', 'loves', 'really loves'];
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 const pileWord = (ascending: boolean, top: number): string => `${ascending ? 'up' : 'down'} pile showing ${top}`;
-const list = (values: number[]): string => (values.length <= 1 ? values.join('') : `${values.slice(0, -1).join(', ')} and ${values[values.length - 1]}`);
+// At most three numbers, then a count of the rest: "67, 51 and 39" or "67, 51, 39 and 3 more".
+const list = (values: number[]): string => {
+  if (values.length <= 3) return values.length <= 1 ? values.join('') : `${values.slice(0, -1).join(', ')} and ${values[values.length - 1]}`;
+  return `${values.slice(0, 3).join(', ')} and ${values.length - 3} more`;
+};
 
 function factsFor(input: NetInput, slot: number, pile: number): Facts {
   const value = input.hand[slot]!;
@@ -59,7 +63,9 @@ export function explainMove(input: NetInput, action: number, logits: readonly nu
   for (let a = 0; a < NET_END; a += 1) if (input.mask[a] === 1) plays.push(factsFor(input, Math.floor(a / 4), a % 4));
   const name = (k: number): string => seatNames[k] ?? `Player ${k + 1}`;
   const legal = input.mask.map((m, a) => (m === 1 ? a : -1)).filter((a) => a >= 0);
-  const second = legal.filter((a) => a !== action).sort((a, b) => logits[b]! - logits[a]!)[0];
+  // The same card on the other pile of the same kind and top is the same move, not an alternative.
+  const same = (a: number): boolean => a < NET_END && action < NET_END && Math.floor(a / 4) === Math.floor(action / 4) && (a % 4 < 2) === (action % 4 < 2) && input.tops[a % 4] === input.tops[action % 4];
+  const second = legal.filter((a) => a !== action && !same(a)).sort((a, b) => logits[b]! - logits[a]!)[0];
   const close = second !== undefined && logits[action]! - logits[second]! < 0.3;
   const closeNote = (): string | null => {
     if (!close || second === undefined) return null;
@@ -99,7 +105,7 @@ export function explainMove(input: NetInput, action: number, logits: readonly nu
   if (c.follow.length > 0 && reasons.length < 3) reasons.push(`Your ${list(c.follow)} can still follow on that pile.`);
   if (c.jumpedOwn === 0 && c.stranded === 0 && !c.backward && c.steps !== smallest && reasons.length < 3) reasons.push('It jumps over none of your cards and strands none.');
   if (c.unseenJumped !== null && reasons.length < 3) reasons.push(c.unseenJumped === 0 ? 'It jumps over no cards that could still turn up.' : `It jumps over ${plural(c.unseenJumped, 'card')} that could still turn up.`);
-  if (c.asked && reasons.length < 3) reasons.push(`${name(c.asked.seat)} ${LEVEL_WORD[c.asked.level]} this pile, and the move is small enough to be worth it.`);
+  if (c.asked && reasons.length < 3) reasons.push(`${name(c.asked.seat)} ${LEVEL_WORD[c.asked.level]} this pile, ${c.steps === smallest || c.backward ? 'but this is still the move to make' : 'yet the model still plays here'}.`);
   const note = closeNote();
   if (note && reasons.length < 3) reasons.push(note);
   return { headline: `Play the ${c.value} on the ${pileWord(c.ascending, c.top)}.`, reasons: reasons.slice(0, 3) };

@@ -74,6 +74,20 @@ describe('explaining a move', () => {
     expect(e.reasons.join(' ')).toContain('Close call');
   });
 
+  it('does not call the same card on an identical pile a close call', () => {
+    const input = position([33, 60], [30, 30, 90, 99]); // two up piles both at 30
+    const e = explainMove(input, 0 * 4 + 0, flat({ 0: 2, 1: 1.99, 4: 0.5 })); // the twin pile scores almost the same, which is no alternative
+    expect(e.reasons.join(' ')).not.toContain('Close call');
+    const real = explainMove(input, 0 * 4 + 0, flat({ 0: 2, 1: 0.5, 4: 1.99 })); // a different card scoring almost the same is
+    expect(real.reasons.join(' ')).toContain('Close call: the 60 on the up pile showing 30 is nearly as good.');
+  });
+
+  it('lists at most three cards that can follow, then how many more', () => {
+    const input = position([88, 67, 51, 39, 37, 31, 7], [1, 1, 100, 100]);
+    const e = explainMove(input, 0 * 4 + 2, flat({ 2: 3 }));
+    expect(e.reasons.join(' ')).toContain('Your 67, 51, 39 and 3 more can still follow on that pile.');
+  });
+
   it('says plainly when no rule explains the move, never an empty list, never more than three reasons', () => {
     const input = position([60, 70], [30, 5, 90, 99]);
     const e = explainMove(input, 0 * 4 + 1, flat({ 1: 3, 0: 2, 4: 1, 5: 0 }));

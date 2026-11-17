@@ -249,6 +249,31 @@ describe('a game with robots over sockets', () => {
     expect(robotMarked).toBe(true); // the robots showed their reactions to the table during the game
   }, 30_000);
 
+  // The last word the table hears about reactions must be what the server holds, or the robots' marks never show.
+  it('tells the table the robots\' marks when the game starts and after each end of turn, never an older list', async () => {
+    await boot();
+    const host = await open();
+    const created = await ask(host, 'game:create', { playerName: 'Hana', settings, isSolitaire: false });
+    const gameId = created.data!.gameState.gameId;
+    await ask(host, 'game:addRobot', { gameId });
+    let last: Record<string, unknown> | undefined;
+    host.on('game:reactionsUpdated', (marks: Record<string, unknown>) => { last = marks; });
+    await ask(host, 'game:start', { gameId });
+    await wait(50);
+    expect(last).toEqual(server.manager.getReactions(gameId));
+    // play until the host has met the minimum, end the turn, and let the robot take its turn
+    for (let i = 0; i < 2; i += 1) {
+      const state = server.manager.peekState(gameId)!;
+      if (state.gamePhase !== 'playing' || state.players[state.currentPlayerIndex]!.id !== host.id) break;
+      const action = chooseAction(observe(state, host.id!));
+      if (action.type === 'play') await ask(host, 'game:playCard', { gameId, cardId: action.cardId, pileId: action.pileId });
+    }
+    const afterPlays = server.manager.peekState(gameId)!;
+    if (afterPlays.gamePhase === 'playing' && afterPlays.players[afterPlays.currentPlayerIndex]!.id === host.id) await ask(host, 'game:endTurn', { gameId });
+    await wait(80);
+    expect(last).toEqual(server.manager.getReactions(gameId));
+  }, 30_000);
+
   it('answers a hint over the wire with the move and reasons', async () => {
     await boot();
     const host = await open();

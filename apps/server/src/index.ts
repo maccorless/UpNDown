@@ -608,7 +608,8 @@ export function createRealtimeServer(
         const gameState = manager.startGame(socket.id, parsed.gameId);
         manager.clearAllReactions(gameState.gameId);
         broadcastState(gameState.gameId, gameState);
-        io.to(gameState.gameId).emit('game:reactionsUpdated', {});
+        // Read after the broadcast: it is what shows the robots' first marks.
+        io.to(gameState.gameId).emit('game:reactionsUpdated', manager.getReactions(gameState.gameId));
         log('info', 'game.started', { socketId: socket.id, gameId: gameState.gameId });
         reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
@@ -833,9 +834,8 @@ export function createRealtimeServer(
         if (newCurrentPlayerId) {
           manager.clearPlayerReactions(gameState.gameId, newCurrentPlayerId);
         }
-        const reactions = manager.getReactions(gameState.gameId);
         broadcastState(gameState.gameId, gameState);
-        io.to(gameState.gameId).emit('game:reactionsUpdated', reactions);
+        io.to(gameState.gameId).emit('game:reactionsUpdated', manager.getReactions(gameState.gameId));
         reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to end turn');
@@ -939,9 +939,8 @@ export function createRealtimeServer(
         const gameState = manager.leaveGame(socket.id, parsed.gameId);
         socket.leave(parsed.gameId);
         if (gameState) {
-          const reactions = manager.getReactions(parsed.gameId);
           broadcastState(parsed.gameId, gameState);
-          io.to(parsed.gameId).emit('game:reactionsUpdated', reactions);
+          io.to(parsed.gameId).emit('game:reactionsUpdated', manager.getReactions(parsed.gameId));
         }
         log('info', 'game.left', { socketId: socket.id, gameId: parsed.gameId });
         reply(ack, { ok: true, data: { gameState: gameState ? viewOf(gameState, socket.id) : null } });
