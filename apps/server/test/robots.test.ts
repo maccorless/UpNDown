@@ -5,6 +5,7 @@ import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 import { GameManager } from '../src/game-manager.js';
 import { createRealtimeServer } from '../src/index.js';
+import { MATHEMATICIANS, pickRobotName } from '../src/robot-names.js';
 import { lobbyWithUsers } from './helpers/rig.js';
 
 const settings = { ...defaultMultiplayerSettings, maxPlayers: 4 };
@@ -22,7 +23,10 @@ describe('robots at the table (rules)', () => {
     expect(() => l.manager.addRobot('g', l.gameId)).toThrow('Only host');
     const one = l.manager.addRobot('h', l.gameId);
     const two = l.manager.addRobot('h', l.gameId);
-    expect(two.players.filter((p) => p.robot).map((p) => p.name)).toEqual(['Robot 1', 'Robot 2']);
+    const botNames = two.players.filter((p) => p.robot).map((p) => p.name);
+    expect(botNames).toHaveLength(2);
+    expect(new Set(botNames).size).toBe(2);
+    for (const name of botNames) expect(MATHEMATICIANS).toContain(name);
     expect(one.players.find((p) => p.robot)).toMatchObject({ isHost: false, hand: [] });
     l.manager.startGame('h', l.gameId);
     expect(() => l.manager.addRobot('h', l.gameId)).toThrow('lobby');
@@ -75,7 +79,7 @@ describe('robots at the table (rules)', () => {
   it('is passed over when the host is lost: the next person, not the robot, may take over', () => {
     const l = lobbyWithUsers([{ id: 'h', name: 'Hana' }, { id: 'g', name: 'Guy' }]);
     l.manager.addRobot('h', l.gameId);
-    // Seat order: Hana, Guy, Robot 1. Put the robot right after the host by removing and re-adding in a different order.
+    // Seat order: Hana, Guy, then a robot. Put the robot right after the host by removing and re-adding in a different order.
     l.manager.leaveGame('g', l.gameId);
     l.manager.addRobot('h', l.gameId);
     l.manager.joinGame('g2', { gameId: l.gameId, playerName: 'Gus' });
@@ -210,9 +214,10 @@ describe('a game with robots over sockets', () => {
     const created = await ask(host, 'game:create', { playerName: 'Hana', settings: { ...settings, minCardValue: 2, maxCardValue: 40, handSize: 6, minCardsPerTurn: 1 }, isSolitaire: false });
     const gameId = created.data!.gameState.gameId;
     const guestlessAdd = await ask(host, 'game:addRobot', { gameId });
-    expect(guestlessAdd.data!.gameState.players.map((p) => p.name)).toEqual(['Hana', 'Robot 1']);
+    expect(guestlessAdd.data!.gameState.players.map((p) => p.name)[0]).toBe('Hana');
+    expect(MATHEMATICIANS).toContain(guestlessAdd.data!.gameState.players[1]!.name);
     const extra = await ask(host, 'game:addRobot', { gameId });
-    const botId = extra.data!.gameState.players.find((p) => p.name === 'Robot 2')!.id;
+    const botId = extra.data!.gameState.players.find((p) => p.robot && p.name !== guestlessAdd.data!.gameState.players[1]!.name)!.id;
     expect((await ask(host, 'game:removeRobot', { gameId, playerId: botId })).data!.gameState.players).toHaveLength(2);
     await ask(host, 'game:addRobot', { gameId });
 
@@ -313,5 +318,25 @@ describe('a game with robots over sockets', () => {
     await ask(guest, 'game:join', { gameId, playerName: 'Guy' });
     expect((await ask(guest, 'game:addRobot', { gameId })).ok).toBe(false);
     expect((await ask(host, 'game:removeRobot', { gameId, playerId: guest.id })).ok).toBe(false);
+  });
+});
+
+describe('robot names', () => {
+  it('are famous mathematicians, one word each, never the same twice at a table, and never a name a person already has', () => {
+    for (const name of MATHEMATICIANS) expect(name).not.toMatch(/\s/);
+    expect(new Set(MATHEMATICIANS.map((n) => n.toLowerCase())).size).toBe(MATHEMATICIANS.length);
+    const taken: string[] = ['euler'];
+    for (let i = 0; i < 6; i += 1) {
+      const next = pickRobotName(taken, () => 0);
+      expect(taken.map((n) => n.toLowerCase())).not.toContain(next.toLowerCase());
+      taken.push(next);
+    }
+    expect(pickRobotName(['Euclid'], () => 0)).toBe('Archimedes'); // the first free name when the draw is 0
+  });
+
+  it('still gives a name when every one is taken', () => {
+    const name = pickRobotName([...MATHEMATICIANS]);
+    expect(name).not.toBe('');
+    expect(MATHEMATICIANS.map((n) => n.toLowerCase())).not.toContain(name.toLowerCase());
   });
 });

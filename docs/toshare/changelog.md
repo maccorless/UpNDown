@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-17 | — | Feat: robots are named after famous mathematicians (Euler, Noether, Turing and so on) instead of Robot 1, Robot 2, a different name each game and never the same twice at a table |
 | 2026-11-17 | — | Feat: choosing Solitaire no longer deals a game at once. It opens a step that shows the settings (cards, hand size, cheats) with Start Solitaire and Change settings, since settings are fixed once a game starts; the end-of-game screen has Change settings too |
 | 2026-11-17 | — | Feat: robots now play with a trained network (clearly stronger than the old strategy: about 10 to 16 points better in simulated games at two and four players) and show honest reactions after every play, using the rule on the How to Play page. Feat: hints come with up to three reasons you can check (the size of the move, a backward 10, which cards can follow, what a teammate marked), from a network that sees only what you see; in solitaire it needs the model file once and falls back to the old hint offline. `ROBOT_BRAIN=heuristic` and `HINT_BRAIN=heuristic` switch them off |
 | 2026-11-16 | — | Feat: How to Play has a quick start and pictures of the real screens (made again with one command), and describes cheats, robots, joining a game in progress and getting back to a game. Fix: the "saving unavailable" notice no longer stretches over the game board. Tooling: a local tool plays whole games to measure and tune the hint and robot strategy |

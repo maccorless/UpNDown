@@ -2,6 +2,7 @@ import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 
 import type { Action } from '@upndown/engine';
 import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type { HintAdvisor, RobotBrain } from './robot-brain.js';
+import { pickRobotName } from './robot-names.js';
 import type {
   CreateGamePayload,
   GameState,
@@ -1095,13 +1096,12 @@ export class GameManager {
     if (gameState.players.length >= maxPlayersFor(gameState.settings)) {
       throw new Error('The table is full');
     }
-    const robotNumber = gameState.players.filter((player) => player.robot).length + 1;
     const id = `bot-${randomUUID().slice(0, 8)}`;
     const nextState: GameState = {
       ...gameState,
       players: [...gameState.players, {
         id,
-        name: uniqueInGameName(`Robot ${robotNumber}`, gameState.players.map((player) => player.name)),
+        name: pickRobotName(gameState.players.map((player) => player.name)),
         hand: [],
         isHost: false,
         robot: true,

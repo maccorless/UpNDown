@@ -41,7 +41,7 @@ test('pictures for the How to Play page', async ({ page }) => {
   await page.getByTestId('flow-host').click();
   await expect(page.getByTestId('add-robot')).toBeVisible();
   await page.getByTestId('add-robot').click();
-  await expect(page.locator('.players-list')).toContainText('Robot 1');
+  await expect(page.locator('.players-list')).toContainText('[Robot]');
   await shot(page, 'lobby');
   // Settings, as the host, where they can be changed, with the cheat codes opened.
   await page.getByRole('button', { name: /settings/i }).first().click();
