@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@upndown/engine": "0.1.0",
+    "@upndown/profile": "0.1.0",
     "@upndown/shared-types": "0.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

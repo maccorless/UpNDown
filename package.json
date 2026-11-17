@@ -10,8 +10,8 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
-    "build:server": "npm run build --workspace @upndown/shared-types && npm run build --workspace @upndown/engine && npm run build --workspace @upndown/server",
-    "build:client": "npm run build --workspace @upndown/shared-types && npm run build --workspace @upndown/engine && npm run build --workspace @upndown/client",
+    "build:server": "npm run build --workspace @upndown/shared-types && npm run build --workspace @upndown/engine && npm run build --workspace @upndown/profile && npm run build --workspace @upndown/server",
+    "build:client": "npm run build --workspace @upndown/shared-types && npm run build --workspace @upndown/engine && npm run build --workspace @upndown/profile && npm run build --workspace @upndown/client",
     "dev": "npm run dev --workspace @upndown/server --if-present",
     "start:server": "npm run start --workspace @upndown/server",
     "lint": "npm run lint --workspaces --if-present",

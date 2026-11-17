@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@upndown/engine": "0.1.0",
+    "@upndown/profile": "0.1.0",
     "@upndown/shared-types": "0.1.0",
     "cors": "^2.8.5",
     "express": "^4.22.3",

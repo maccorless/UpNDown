@@ -18,7 +18,8 @@
     "baseUrl": ".",
     "paths": {
       "@upndown/shared-types": ["packages/shared-types/src/index.ts"],
-      "@upndown/engine": ["packages/engine/src/index.ts"]
+      "@upndown/engine": ["packages/engine/src/index.ts"],
+      "@upndown/profile": ["packages/profile/src/index.ts"]
     }
   }
 }

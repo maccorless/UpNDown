@@ -93,5 +93,17 @@ create table live_games (
 );
 create index live_games_updated_idx on live_games(updated_at);
 `
+  },
+  {
+    // Facts the profile page and its badges need. Nullable and without defaults: a row written before this has no such
+    // fact, which is different from a fact that is zero. The old container names its columns, so it keeps inserting.
+    id: '005_profile_facts',
+    sql: `
+alter table game_results
+  add column robot_count smallint,
+  add column my_undos int,
+  add column my_reactions int,
+  add column played_last_card boolean;
+`
   }
 ];

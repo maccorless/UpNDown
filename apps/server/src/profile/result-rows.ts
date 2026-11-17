@@ -1,5 +1,6 @@
-import { emptyPlayerStats } from '@upndown/engine';
+import { resultRowFromState } from '@upndown/profile';
 import type { GameState, SolitaireResultPayload } from '@upndown/shared-types';
+import { toStoredRow } from './rows.js';
 import type { GameResultRow } from './store.js';
 
 // Co-players are not stored (a privacy decision), only how many there were. A row is one player's view of a game:
@@ -14,42 +15,14 @@ export function buildResultRows(args: {
   onlyPlayerId?: string;
 }): GameResultRow[] {
   const { state, runId, outcome, userIdByPlayerId, nowMs, onlyPlayerId } = args;
-  const startedMs = state.statistics.startedAtMs ?? nowMs;
-  // The engine stamps the end of a finished game; an abandoned game ends when the host ends it.
-  const endedMs = Math.max(startedMs, outcome === 'abandoned' ? nowMs : state.statistics.endedAtMs ?? nowMs);
-  const cardsTotal = state.settings.maxCardValue - state.settings.minCardValue + 1;
-  const cardsLeft = state.drawPile.length + state.players.reduce((sum, player) => sum + player.hand.length, 0);
-
   const rows: GameResultRow[] = [];
   for (const player of state.players) {
     const userId = userIdByPlayerId.get(player.id);
     if (!userId || (onlyPlayerId !== undefined && player.id !== onlyPlayerId)) continue;
-    const mine = state.statistics.players[player.id] ?? emptyPlayerStats();
-    rows.push({
-      userId,
-      gameId: runId,
-      mode: 'multiplayer',
-      outcome,
-      startedAt: new Date(startedMs),
-      endedAt: new Date(endedMs),
-      durationMs: endedMs - startedMs,
-      turns: state.statistics.turns,
-      playerCount: state.players.length,
-      cardsTotal,
-      cardsLeft,
-      myCardsPlayed: mine.cardsPlayed,
-      myTotalMovement: mine.totalMovement,
-      mySpecialPlays: mine.specialPlays,
-      myNasCheats: mine.nasCheatsUsed,
-      mySkips: mine.skipsUsed,
-      myTrades: mine.tradesUsed,
-      myLookups: mine.lookupsUsed,
-      myHints: mine.hintsUsed,
-      handSize: state.settings.handSize,
-      minCardsPerTurn: state.settings.minCardsPerTurn,
-      maxCard: state.settings.maxCardValue,
-      settings: { ...state.settings }
-    });
+    const row = resultRowFromState({ state, runId, outcome, playerId: player.id, nowMs });
+    // A game the server watched keeps its full settings; the shared builder only knows the fields the profile reads.
+    const mine = state.statistics.players[player.id];
+    rows.push({ ...toStoredRow(userId, row), ...(mine ? { myTrades: mine.tradesUsed, myNasCheats: mine.nasCheatsUsed } : {}), settings: { ...state.settings } });
   }
   return rows;
 }
@@ -77,6 +50,10 @@ export function buildSolitaireRow(userId: string, payload: SolitaireResultPayloa
     myTrades: payload.trades + payload.nasCheats,
     myLookups: payload.lookups,
     myHints: payload.hints,
+    robotCount: 0,
+    myUndos: payload.undos ?? null,
+    myReactions: 0,
+    playedLastCard: payload.playedLastCard ?? null,
     handSize: payload.settings.handSize,
     minCardsPerTurn: payload.settings.minCardsPerTurn,
     maxCard: payload.settings.maxCardValue,

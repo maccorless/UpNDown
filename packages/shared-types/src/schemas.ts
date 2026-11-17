@@ -245,6 +245,9 @@ export const solitaireResultPayloadSchema = z.object({
   trades: z.number().int().min(0).max(200).default(0),
   lookups: z.number().int().min(0).max(2000).default(0),
   hints: z.number().int().min(0).max(2000).default(0),
+  // Not defaulted: an older client that does not say stays unknown (null), which is not the same as none.
+  undos: z.number().int().min(0).max(2000).optional(),
+  playedLastCard: z.boolean().optional(),
   settings: gameSettingsSchema
 }).superRefine((r, ctx) => {
   const fail = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }); };

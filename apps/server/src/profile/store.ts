@@ -24,6 +24,11 @@ export interface GameResultRow {
   myTrades: number;
   myLookups: number;
   myHints: number;
+  // Null when the fact was not recorded (a row from before migration 005, or a client that did not report it).
+  robotCount: number | null;
+  myUndos: number | null;
+  myReactions: number | null;
+  playedLastCard: boolean | null;
   handSize: number;
   minCardsPerTurn: number;
   maxCard: number;
@@ -162,12 +167,13 @@ export class PgProfileStore implements ProfileStore {
         const inserted = await this.pool.query(
           `insert into game_results (user_id, game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count,
              cards_total, cards_left, my_cards_played, my_total_movement, my_special_plays, my_nas_cheats, hand_size,
-             min_cards_per_turn, max_card, settings, my_skips, my_trades, my_lookups, my_hints)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, $22, $23)
+             min_cards_per_turn, max_card, settings, my_skips, my_trades, my_lookups, my_hints, robot_count, my_undos, my_reactions,
+             played_last_card)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, $22, $23, $24, $25, $26, $27)
            on conflict (user_id, game_id) do nothing`,
           [row.userId, row.gameId, row.mode, row.outcome, row.startedAt, row.endedAt, row.durationMs, row.turns, row.playerCount,
             row.cardsTotal, row.cardsLeft, row.myCardsPlayed, row.myTotalMovement, row.mySpecialPlays, row.myNasCheats, row.handSize,
-            row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings), row.mySkips, row.myTrades, row.myLookups, row.myHints]
+            row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings), row.mySkips, row.myTrades, row.myLookups, row.myHints, row.robotCount, row.myUndos, row.myReactions, row.playedLastCard]
         );
         results.push({ userId: row.userId, outcome: (inserted.rowCount ?? 0) > 0 ? 'inserted' : 'duplicate' });
       } catch (err) {
