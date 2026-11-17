@@ -96,7 +96,7 @@ describe('cheats in solitaire', () => {
   });
 
   // The strategy runs in the browser from the cards the player can see: no request is made.
-  it('gives a hint with no connection at all, lights up a card, and counts it against a single use', async () => {
+  it('gives a hint with no connection at all, lights up a card, and counts it against a single use (the only request allowed is the network file, which sends nothing)', async () => {
     withCheats('off', 'off', 'once');
     const user = userEvent.setup();
     render(<App />);
@@ -107,7 +107,9 @@ describe('cheats in solitaire', () => {
     expect(screen.getByTestId('hint-banner').textContent).toMatch(/^Hint: play \d+ on the (up|down) pile showing \d+\.$/);
     expect(document.querySelectorAll('.card.hinted')).toHaveLength(1);
     expect(document.querySelectorAll('.pile-unit.hinted')).toHaveLength(1);
-    expect(vi.mocked(fetch).mock.calls.length).toBe(requestsBefore);
+    // The screen-only network is a static file fetched once, with no data sent; if it cannot be fetched the written strategy gives the hint, as here.
+    const newCalls = vi.mocked(fetch).mock.calls.slice(requestsBefore).map((call) => String(call[0]));
+    expect(newCalls.every((url) => url === '/models/hint.json')).toBe(true);
     await user.click(screen.getByTestId('open-cheats'));
     expect((screen.getByTestId('cheat-hint') as HTMLButtonElement).disabled).toBe(true);
   });

@@ -1,10 +1,11 @@
-import { buildDeck, createStartedGameState } from '@upndown/engine';
-import { defaultMultiplayerSettings, type CheatLimit, type GameState } from '@upndown/shared-types';
+import { buildDeck, createStartedGameState, isValidPlay } from '@upndown/engine';
+import { readFileSync } from 'node:fs';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, type CheatLimit, type GameState } from '@upndown/shared-types';
 import { render } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, useCheatHotkeys } from './cheats.js';
+import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, soloHint, useCheatHotkeys } from './cheats.js';
 
 const game = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint', CheatLimit>>, over: Partial<GameState> = {}): GameState => ({
   ...createStartedGameState({
@@ -151,5 +152,45 @@ describe('hints', () => {
     expect(moveKey(counted, 'p1')).toBe(moveKey(state, 'p1'));
     expect(moveKey({ ...state, cardsPlayedThisTurn: 1 }, 'p1')).not.toBe(moveKey(state, 'p1'));
     expect(moveKey(null, 'p1')).toBe('');
+  });
+});
+
+// Hints that give reasons, and the solitaire hint that works in the browser.
+describe('hints with reasons', () => {
+  it('puts the reasons after the hint, only when there are some', () => {
+    const state = game({ hint: 'once' });
+    const mine = state.players[0]!.hand.find((c) => state.foundationPiles.some((p) => isValidPlay(c, p)))!;
+    const pile = state.foundationPiles.find((p) => isValidPlay(mine, p))!;
+    const action = { type: 'play' as const, cardId: mine.id, pileId: pile.id };
+    expect(describeHint(action, state, 'p1').text).not.toContain('Why');
+    expect(describeHint(action, state, 'p1', []).text).not.toContain('Why');
+    expect(describeHint(action, state, 'p1', ['The smallest move you have (3 steps).', 'Your 47 can still follow on that pile.']).text)
+      .toMatch(/^Hint: play \d+ on the (up|down) pile showing \d+\. Why: The smallest move you have \(3 steps\)\. Your 47 can still follow on that pile\.$/);
+  });
+
+  const solo = (): GameState => createStartedGameState({
+    gameId: 'SOLO01', hostId: 'solo', players: [{ id: 'solo', name: 'Me' }],
+    settings: { ...defaultSolitaireSettings, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'unlimited' } }, isSolitaire: true, deck: buildDeck(defaultSolitaireSettings)
+  });
+
+  it('gives a legal move with reasons when the network file can be fetched', async () => {
+    // the file the browser fetches: public/models/hint.json is a link to the engine's screen-only network
+    const weights = readFileSync('public/models/hint.json', 'utf8');
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(weights, { status: 200 })));
+    const state = solo();
+    const view = await soloHint(state, 'solo');
+    expect(view.cardId).toBeDefined();
+    expect(state.players[0]!.hand.some((c) => c.id === view.cardId)).toBe(true);
+    expect(view.text).toMatch(/Why: /);
+    vi.unstubAllGlobals();
+  });
+
+  it('falls back to the written strategy, without reasons, when the file cannot be fetched (offline)', async () => {
+    vi.resetModules(); // forget a network loaded by the test above
+    const { soloHint: fresh } = await import('./cheats.js');
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    const view = await fresh(solo(), 'solo');
+    expect(view.text).toMatch(/^Hint: play \d+ on the (up|down) pile showing \d+\.$/);
+    vi.unstubAllGlobals();
   });
 });

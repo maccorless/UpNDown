@@ -1,4 +1,4 @@
-import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, useCheatHotkeys, type HintView } from './cheats.js';
+import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, soloHint, useCheatHotkeys, type HintView } from './cheats.js';
 import { CheatsPanel } from './CheatsPanel.js';
 import { InviteModal, JoinRequestModal } from './LateJoin.js';
 import { SeatChoice } from './SeatChoice.js';
@@ -7,7 +7,7 @@ import { isClaimed } from './claims.js';
 import { readSavedSeat } from './saved-seat.js';
 import { useSavedSeat } from './useSavedSeat.js';
 import type { Action } from '@upndown/engine';
-import { buildDeck, createStartedGameState, isValidPlay, chooseAction as chooseActionEngine, observe as observeEngine, playCard as playCardEngine, recordCheatUse, requiredCardsForTurn, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
+import { buildDeck, createStartedGameState, isValidPlay, playCard as playCardEngine, recordCheatUse, requiredCardsForTurn, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
 import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
@@ -1503,7 +1503,7 @@ export function App(): JSX.Element {
       try {
         const counted = recordCheatUse(solitaireState, SOLO_PLAYER_ID, 'hint');
         setSolitaireState(counted);
-        setHint(describeHint(chooseActionEngine(observeEngine(solitaireState, SOLO_PLAYER_ID)), solitaireState, SOLO_PLAYER_ID));
+        setHint(await soloHint(solitaireState, SOLO_PLAYER_ID));
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to give a hint');
@@ -1512,13 +1512,13 @@ export function App(): JSX.Element {
     }
     if (!multiplayerState) return;
     // The server works the hint out from what this player can see and counts the use; nothing goes to the other players.
-    const ack = await emitWithAck<{ action: Action }>('game:hint', { gameId: multiplayerState.gameId }, 'cheat');
+    const ack = await emitWithAck<{ action: Action; reasons?: string[] }>('game:hint', { gameId: multiplayerState.gameId }, 'cheat');
     if (!ack.ok) {
       setError(ack.error);
       return;
     }
     setError(null);
-    setHint(describeHint(ack.data.action, multiplayerState, playerId));
+    setHint(describeHint(ack.data.action, multiplayerState, playerId, ack.data.reasons));
   };
 
   const handleCheatSkip = async (): Promise<void> => {

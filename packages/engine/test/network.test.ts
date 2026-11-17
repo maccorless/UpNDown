@@ -5,14 +5,15 @@ import type { NetInput } from '../src/netinput.js';
 
 interface Case { hand: number[]; tops: number[]; globals: number[]; others: number[]; react: number[]; seatKind: number[]; played: number[]; mask: number[]; logits: Record<string, number> }
 
-const weights = JSON.parse(readFileSync(new URL('../models/robot.json', import.meta.url), 'utf8')) as NetworkWeights;
-const fixtures = JSON.parse(readFileSync(new URL('./fixtures/network-robot.json', import.meta.url), 'utf8')) as { cases: Case[] };
-const net = loadNetwork(weights);
 const inputOf = (c: Case): NetInput => ({ ...c, canon: [0, 1, 2, 3] });
+const models = [['robot', 'robot'], ['hint', 'hint']] as const;
 
 // The fixtures are positions the Python network scored (tools/training/export_weights.py). The TypeScript network must give the same numbers,
 // otherwise a robot in the game would not play as the network did in training.
-describe('the TypeScript network matches the Python one', () => {
+describe.each(models)('the TypeScript %s network matches the Python one', (name, file) => {
+  const weights = JSON.parse(readFileSync(new URL(`../models/${file}.json`, import.meta.url), 'utf8')) as NetworkWeights;
+  const fixtures = JSON.parse(readFileSync(new URL(`./fixtures/network-${name}.json`, import.meta.url), 'utf8')) as { cases: Case[] };
+  const net = loadNetwork(weights);
   it('gives the same score for every legal action in 60 recorded positions', () => {
     let worst = 0;
     let checked = 0;

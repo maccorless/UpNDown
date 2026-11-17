@@ -13,3 +13,4 @@ export * from './solver.js';
 export * from './search.js';
 export * from './netinput.js';
 export * from './network.js';
+export * from './explain.js';

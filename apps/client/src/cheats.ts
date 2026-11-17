@@ -1,4 +1,4 @@
-import type { Action } from '@upndown/engine';
+import { buildNetInput, chooseAction, explainMove, loadNetwork, NET_END, networkLogits, observe, type Action, type Network, type NetworkWeights } from '@upndown/engine';
 import { cheatLimitOf, type CheatKind, type CheatUsedEvent, type GameState, type PlayerStatistics } from '@upndown/shared-types';
 import { useEffect } from 'react';
 
@@ -127,7 +127,12 @@ export interface HintView {
 
 // A hint in words, and which card and pile to light up. `action` comes from the strategy (engine) or, in multiplayer, from
 // the server, which worked it out from the same facts a player can see.
-export function describeHint(action: Action, state: GameState, playerId: string | null): HintView {
+export function describeHint(action: Action, state: GameState, playerId: string | null, reasons?: readonly string[]): HintView {
+  const view = hintWithoutReasons(action, state, playerId);
+  return reasons && reasons.length > 0 ? { ...view, text: `${view.text} Why: ${reasons.join(' ')}` } : view;
+}
+
+function hintWithoutReasons(action: Action, state: GameState, playerId: string | null): HintView {
   const me = state.players.find((player) => player.id === playerId);
   if (action.type === 'play') {
     const card = me?.hand.find((c) => c.id === action.cardId);
@@ -143,6 +148,40 @@ export function describeHint(action: Action, state: GameState, playerId: string 
   if (action.type === 'endTurn') return { text: 'Hint: you have played enough. End your turn.' };
   if (action.type === 'skip') return { text: 'Hint: you cannot make the minimum this turn. Skip it, before you are stuck.' };
   return { text: 'Hint: no play is possible.' };
+}
+
+// Solitaire is played in the browser, so its hint is worked out here, with the screen-only network when its file can be fetched (about 2 MB, once, the
+// first time a hint is asked for) and the written strategy otherwise (offline, or any failure). The network sees only what the player sees, and gives reasons.
+let soloNetwork: Promise<Network | null> | null = null;
+function loadSoloNetwork(): Promise<Network | null> {
+  soloNetwork ??= fetch('/models/hint.json')
+    .then((r) => (r.ok ? (r.json() as Promise<NetworkWeights>) : null))
+    .then((w) => (w ? loadNetwork(w) : null))
+    .catch(() => null)
+    .then((net) => { if (!net) soloNetwork = null; return net; });
+  return soloNetwork;
+}
+
+export async function soloHint(state: GameState, playerId: string): Promise<HintView> {
+  const rule = chooseAction(observe(state, playerId));
+  if (rule.type === 'play') {
+    try {
+      const net = await loadSoloNetwork();
+      if (net && !net.tierB) {
+        const input = buildNetInput(state, { tierB: false, reactionsOn: net.reactions });
+        const logits = networkLogits(net, input);
+        let best = -1;
+        for (let a = 0; a < input.mask.length; a += 1) if (input.mask[a] === 1 && a !== NET_END && (best < 0 || logits[a]! > logits[best]!)) best = a;
+        const me = state.players.find((p) => p.id === playerId);
+        const card = me?.hand[Math.floor(best / 4)];
+        const pileId = input.canon[best % 4];
+        if (best >= 0 && card && pileId !== undefined) {
+          return describeHint({ type: 'play', cardId: card.id, pileId }, state, playerId, explainMove(input, best, logits).reasons);
+        }
+      }
+    } catch { /* fall back to the written strategy */ }
+  }
+  return describeHint(rule, state, playerId);
 }
 
 // Changes whenever the game moves on (a card played, a turn passed, the hand changed), and not when only a count changes, so

@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Action } from '@upndown/engine';
 import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
-import type { RobotBrain } from './robot-brain.js';
+import type { HintAdvisor, RobotBrain } from './robot-brain.js';
 import type {
   CreateGamePayload,
   GameState,
@@ -141,6 +141,8 @@ export interface GameManagerHooks {
   activeTtlMs?: number;
   // What robots decide with. Without one they use the written strategy.
   robotBrain?: RobotBrain | null;
+  // What hints are worked out with, and explained by. Without one the written strategy gives the hint, without reasons.
+  hintAdvisor?: HintAdvisor | null;
 }
 
 // The public lobby list shows the newest of these.
@@ -608,9 +610,9 @@ export class GameManager {
     return restored;
   }
 
-  // A hint for the player asking, worked out from what that player can see (never the draw pile or other hands), and counted
-  // as a use. Only on their own turn. Nothing about it changes the game or is shown to anyone else.
-  hint(playerId: string, payload: SkipPayload): Action {
+  // A hint for the player asking, worked out from what that player can see (never the draw pile, other hands or the played-card record), and counted
+  // as a use. Only on their own turn. Nothing about it changes the game or is shown to anyone else. With a network the hint comes with reasons.
+  hintAdvice(playerId: string, payload: SkipPayload): { action: Action; headline?: string; reasons?: string[] } {
     const room = this.requireRoom(payload.gameId);
     const { gameState } = room;
     const current = gameState.players[gameState.currentPlayerIndex];
@@ -620,7 +622,19 @@ export class GameManager {
     // Throws when hints are off for this game, or the single use is spent.
     room.gameState = recordCheatUse(gameState, playerId, 'hint');
     room.updatedAtMs = Date.now();
-    return chooseAction(observe(gameState, playerId));
+    const rule = chooseAction(observe(gameState, playerId));
+    // Skip and trade are the written strategy's to suggest; the network was not trained on them.
+    if (rule.type !== 'skip' && rule.type !== 'trade' && rule.type !== 'none') {
+      try {
+        const advice = this.hooks.hintAdvisor?.advise(gameState, playerId, this.getReactions(payload.gameId));
+        if (advice) return advice;
+      } catch { /* fall through to the written strategy */ }
+    }
+    return { action: rule };
+  }
+
+  hint(playerId: string, payload: SkipPayload): Action {
+    return this.hintAdvice(playerId, payload).action;
   }
 
   // Skip and trade change the game for good: each clears the undo history, so undo can never take one back or refund it.
