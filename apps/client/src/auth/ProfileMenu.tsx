@@ -9,7 +9,7 @@ const anchorPositioning = typeof CSS !== 'undefined' && CSS.supports('position-a
 
 // `locked` is true while seated in a game: signing out would drop the player from it. The item stays
 // focusable (aria-disabled, not disabled) so the reason is reachable by keyboard and touch.
-export function ProfileMenu({ auth, locked, currentName, onOpenProfile }: { auth: AuthState; locked: boolean; currentName?: string; onOpenProfile?: () => void }): JSX.Element | null {
+export function ProfileMenu({ auth, locked, currentName, onOpenProfile, movedNote = false }: { auth: AuthState; locked: boolean; currentName?: string; onOpenProfile?: () => void; movedNote?: boolean }): JSX.Element | null {
   const menuId = useId();
   const hintId = useId();
   const menuRef = useRef<HTMLDivElement>(null);
@@ -107,6 +107,7 @@ export function ProfileMenu({ auth, locked, currentName, onOpenProfile }: { auth
             </button>
           ) : null}
         </div>
+        {signedIn && movedNote ? <p className="profile-menu-hint">Signing out keeps your history in your account. This device will start a new guest profile.</p> : null}
         {locked && signedIn ? <p id={hintId} className="profile-menu-hint">Leave the game to sign out.</p> : null}
       </div>
     </div>

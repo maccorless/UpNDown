@@ -16,6 +16,8 @@ interface Data {
   seen: Record<string, number>;
   // The last time the "sign in to keep this" nudge was shown.
   nudgedAtMs?: number;
+  // When this device's games were last moved into an account.
+  movedAtMs?: number;
 }
 
 // ok: saved in the browser. memory: the browser would not store it (private window, policy), so it lasts until the tab closes.
@@ -37,6 +39,8 @@ export interface LocalHistory {
   resetSeen(): void;
   nudgedAtMs(): number | null;
   setNudgedAtMs(ms: number): void;
+  movedAtMs(): number | null;
+  setMovedAtMs(ms: number): void;
   requestPersistence(): void;
   // Called when history changes in this tab or in another one.
   subscribe(listener: () => void): () => void;
@@ -149,6 +153,8 @@ export function createLocalHistory(storage: Storage | null = typeof window !== '
       mutate((d) => { for (const [id, tier] of Object.entries(map)) d.seen[id] = Math.max(d.seen[id] ?? 0, tier); });
     },
     resetSeen() { mutate((d) => { d.seen = {}; }); },
+    movedAtMs: () => read().movedAtMs ?? null,
+    setMovedAtMs(ms) { mutate((d) => { d.movedAtMs = ms; }); },
     nudgedAtMs: () => read().nudgedAtMs ?? null,
     setNudgedAtMs(ms) { mutate((d) => { d.nudgedAtMs = ms; }); },
     requestPersistence() {

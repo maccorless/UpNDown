@@ -32,6 +32,7 @@ import { BadgeToasts } from './profile/BadgeToasts.js';
 import { useBadgeToasts } from './profile/useBadgeToasts.js';
 import { useSeenBadges } from './profile/useSeenBadges.js';
 import { useProfileSource } from './profile/useProfile.js';
+import { MoveHistoryDialog } from './profile/MoveHistoryDialog.js';
 import { useSolitaireSave } from './useSolitaireSave.js';
 import { useAuth } from './auth/useAuth.js';
 import './App.css';
@@ -1982,7 +1983,7 @@ export function App(): JSX.Element {
       <section className="app-header">
         <h1 onDoubleClick={() => { if (cheatStatusList.length > 0) setCheatsOpen('panel'); }}><span className="word-up">Up</span>N<span className="word-down">Down</span></h1>
         <div className="header-actions">
-          <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} onOpenProfile={() => setProfileOpen(true)} />
+          <ProfileMenu auth={auth} currentName={playerName} locked={mode === 'solitaire' || multiplayerState !== null} onOpenProfile={() => setProfileOpen(true)} movedNote={localHistory.movedAtMs() !== null} />
           {mode === null ? (
             <a
               className="secondary link-button"
@@ -2441,6 +2442,7 @@ export function App(): JSX.Element {
 
       <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={seenBadges.seen} markSeen={seenBadges.markSeen} onClose={() => setProfileOpen(false)} />
       <BadgeToasts toasts={badgeToasts.toasts} onDismiss={badgeToasts.dismiss} />
+      <MoveHistoryDialog auth={auth} history={localHistory} source={profileSource} markSeen={seenBadges.markSeen} />
 
       {(mode || isSettingsOpen) ? (
         <SettingsDialog
