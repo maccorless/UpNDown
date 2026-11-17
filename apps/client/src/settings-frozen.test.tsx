@@ -20,6 +20,7 @@ describe('Settings button ice', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
 
     const button = screen.getByTestId('open-settings');
     expect(button.classList.contains('settings-frozen')).toBe(true);

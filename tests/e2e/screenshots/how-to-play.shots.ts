@@ -29,6 +29,7 @@ test('pictures for the How to Play page', async ({ page }) => {
 
   // Solitaire: the board, then a card chosen.
   await page.getByTestId('mode-solitaire').click();
+  await page.getByTestId('start-solitaire').click();
   await expect(page.locator('[data-testid^="hand-card-"]').first()).toBeVisible();
   await shot(page, 'solitaire-board');
   await page.locator('[data-testid^="hand-card-"]').first().click();

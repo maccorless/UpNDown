@@ -2919,3 +2919,8 @@ button.mode-card:not(:disabled):active {
   color: #f1f5f9;
   border: 1px solid #ffd23f;
 }
+
+.setup-summary {
+  margin: 0.5rem 0 1rem;
+  padding-left: 1.2rem;
+}

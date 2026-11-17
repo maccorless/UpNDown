@@ -31,6 +31,7 @@ describe('cheats in solitaire', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     expect(screen.queryByTestId('open-cheats')).toBeNull();
   });
 
@@ -39,6 +40,7 @@ describe('cheats in solitaire', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await user.click(screen.getByTestId('open-cheats'));
     expect(screen.getByTestId('cheat-lookup')).toBeTruthy();
     expect(screen.getByTestId('cheat-trade')).toBeTruthy();
@@ -50,6 +52,7 @@ describe('cheats in solitaire', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     const before = handIds();
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('open-cheats'));
@@ -69,6 +72,7 @@ describe('cheats in solitaire', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
     expect((screen.getByTestId('undo') as HTMLButtonElement).disabled).toBe(false);
@@ -84,6 +88,7 @@ describe('cheats in solitaire', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
     await user.click(screen.getByTestId('open-cheats'));
@@ -101,6 +106,7 @@ describe('cheats in solitaire', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     const requestsBefore = vi.mocked(fetch).mock.calls.length; // the page asked about sign-in when it loaded
     await user.click(screen.getByTestId('open-cheats'));
     await user.click(screen.getByTestId('cheat-hint'));

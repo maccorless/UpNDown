@@ -134,6 +134,8 @@ Game automatically checks for valid moves and declares win/loss after every card
 
 ### Solitaire Mode
 
+Choosing Solitaire opens a setup step, not a game: it shows the settings the next game will have (cards, hand size, cheats), with **Start Solitaire** and **Change settings**. Settings can be changed there and are fixed once a game is dealt (the Settings button then shows them view only). After a game ends, **Change settings** ends it and opens the settings, **Play Again** deals another with the same settings, and Back to Lobby returns to the home page.
+
 **Differences from multiplayer**:
 - No turns — continuous play
 - No minimum card requirement enforced

@@ -106,6 +106,7 @@ describe('saving a solitaire result', () => {
     const user = userEvent.setup();
     const first = render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
     const id = listSolitaireSaves()[0]!.runId;
@@ -125,6 +126,7 @@ describe('saving a solitaire result', () => {
     const user = userEvent.setup();
     const first = render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
     const one = listSolitaireSaves()[0]!.runId;
@@ -133,6 +135,7 @@ describe('saving a solitaire result', () => {
 
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
     await user.click(screen.getByTestId('pile-0'));
     expect(listSolitaireSaves()[0]!.runId).not.toBe(one);
@@ -168,6 +171,7 @@ describe('solitaire with no connection', () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     for (let i = 0; i < 3; i += 1) {
       await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
       await user.click(screen.getByTestId('pile-0'));

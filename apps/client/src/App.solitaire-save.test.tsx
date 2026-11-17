@@ -16,6 +16,7 @@ const handIds = () => screen.getAllByTestId(/hand-card-/).map((el) => el.getAttr
 
 async function startAndPlayOneCard(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByTestId('mode-solitaire'));
+  await user.click(await screen.findByTestId('start-solitaire'));
   const before = handIds();
   await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
   await user.click(screen.getByTestId('pile-0'));
@@ -87,6 +88,7 @@ describe('saving and resuming solitaire', () => {
     render(<App />);
     await screen.findByTestId('continue-solitaire');
     await user.click(screen.getByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     await waitFor(() => expect(screen.getAllByTestId(/hand-card-/).length).toBeGreaterThan(0));
     expect(savedKeys()).toEqual([oldKey]);
     await user.click(screen.getAllByTestId(/hand-card-/)[0]!);
@@ -140,6 +142,7 @@ describe('saving and resuming solitaire', () => {
     const user = userEvent.setup();
     const first = render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(await screen.findByTestId('start-solitaire'));
     expect(screen.getAllByTestId(/hand-card-/).length).toBeGreaterThan(0);
     expect(raw()).toBeNull();
     first.unmount();

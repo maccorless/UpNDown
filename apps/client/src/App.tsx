@@ -19,6 +19,7 @@ import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
 import { ConnectionNotices, hasConnectionNotices } from './ConnectionNotices.js';
 import { Landing } from './Landing.js';
+import { SolitaireSetup } from './SolitaireSetup.js';
 import { NamePrompt } from './auth/NamePrompt.js';
 import { useAccountSync } from './auth/useAccountSync.js';
 import { readNameConfirmed, writeNameConfirmed } from './player-name-confirmed.js';
@@ -2048,7 +2049,6 @@ export function App(): JSX.Element {
           onChangeName={() => setEditingName(true)}
           onSolitaire={() => {
             setMode('solitaire');
-            handleSolitaireNewGame();
             setMultiplayerFlow('choose');
             setShowJoinById(false);
             setError(null);
@@ -2112,15 +2112,7 @@ export function App(): JSX.Element {
           hintPileId={hint?.pileId}
         />
         ) : (
-          <section className="panel lobby" aria-label="solitaire ended">
-            <h2>Solitaire</h2>
-            <p>Start a solitaire run when you are ready.</p>
-            <div className="button-row">
-              <button type="button" className="primary" onClick={handleSolitaireNewGame} data-testid="start-solitaire">
-                Start Solitaire
-              </button>
-            </div>
-          </section>
+          <SolitaireSetup settings={solitaireConfig} onStart={handleSolitaireNewGame} onChangeSettings={handleOpenSettings} />
         )
       ) : mode === 'multiplayer' ? (
         <>
@@ -2624,6 +2616,7 @@ export function App(): JSX.Element {
           onClose={() => setDismissedStatsModalKey(activeStatsModalKey)}
           saveStatus={mode === 'solitaire' ? solitaireResult.status : 'idle'}
           onRetrySave={solitaireResult.retry}
+          {...(mode === 'solitaire' ? { onChangeSettings: () => { handleSolitaireEndGame(); handleOpenSettings(); } } : {})}
           onPlayAgain={() => {
             if (mode === 'solitaire') {
               handleSolitaireNewGame();

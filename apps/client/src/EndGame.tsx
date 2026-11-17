@@ -63,6 +63,8 @@ interface EndGameStatisticsModalProps {
   // Only for a signed-in player's solitaire game: whether the result reached their history. Idle shows nothing.
   saveStatus?: 'idle' | 'saving' | 'saved' | 'failed';
   onRetrySave?: () => void;
+  // Solitaire only: end this game and open the settings, since they are fixed while a game is on.
+  onChangeSettings?: () => void;
 }
 
 export function EndGameStatisticsModal({
@@ -74,7 +76,8 @@ export function EndGameStatisticsModal({
   onPlayAgain,
   onBackToLobby,
   saveStatus = 'idle',
-  onRetrySave
+  onRetrySave,
+  onChangeSettings
 }: EndGameStatisticsModalProps): JSX.Element {
   const won = gameState.gamePhase === 'won';
   const progress = deckProgress(gameState);
@@ -183,6 +186,7 @@ export function EndGameStatisticsModal({
         <button type="button" className="primary" onClick={onPlayAgain} disabled={hostOnly}>
           {mode === 'multiplayer' ? (isHost ? 'Play Again' : 'Host Restarts') : 'Play Again'}
         </button>
+        {onChangeSettings ? <button type="button" className="secondary" onClick={onChangeSettings} data-testid="end-change-settings">Change settings</button> : null}
         <button type="button" className="secondary" onClick={onBackToLobby} disabled={hostOnly}>
           {mode === 'multiplayer' ? (isHost ? 'Back to Lobby' : 'Host Returns to Lobby') : 'Back to Lobby'}
         </button>

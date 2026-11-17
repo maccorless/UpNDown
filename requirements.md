@@ -35,6 +35,7 @@ A cooperative multiplayer card game where players work together to play all thei
 - **Status**: ✅ **Implemented**
 
 #### Solitaire Mode
+- **Setup step**: choosing Solitaire does not deal a game. It opens a step that lists the settings (cards, hand size, cheats) with Start Solitaire and Change settings. The settings are editable there and are fixed once a game is dealt; the end-of-game screen has Change settings (it ends the game and opens the settings), Play Again (same settings) and Back to Lobby
 - Continuous play — no turn structure
 - `autoRefillHand` always `true`
 - No minimum card requirement
