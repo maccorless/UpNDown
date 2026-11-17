@@ -185,7 +185,7 @@
       <p>Cheats are off unless the game turns them on in Settings, under <strong>Cheat codes</strong>. Each one is set to <strong>Off</strong>, <strong>Once</strong> (one use per player per game) or <strong>Unlimited</strong>. Open the cheats panel by double tapping the <strong>UpNDown</strong> title, or with the <strong>Cheats</strong> button.</p>
       <ul>
         <li><strong>Card seeker</strong> (<code>Ctrl/Cmd+P</code>): type a card number to see where it is: in the draw pile, in a player&rsquo;s hand, or already played. <strong>Only you</strong> see the answer. The other players are told that you used it, nothing more.</li>
-        <li><strong>Hint</strong>: suggests the best play from what you can see (your hand, the piles, how many cards are left). It lights up the card and the pile and says it in words. Only you see it, and it also works in solitaire with no connection.</li>
+        <li><strong>Hint</strong>: suggests the best play from what you can see (your hand, the piles, how many cards are left, and what teammates have marked) and gives up to three reasons you can check on the table. It lights up the card and the pile and says it in words. Only you see it. It also works in solitaire; with no connection it still gives the hint, without the reasons.</li>
         <li><strong>Skip turn</strong> (<code>Ctrl/Cmd+S</code>, after a confirmation): pass your turn without playing the minimum. Only on your turn, before you play a card. It cannot save you once you are stuck, so use it before then. If every player skips in a row and nobody plays a card, the game is lost.</li>
         <li><strong>Trade a card</strong> (<code>Ctrl/Cmd+Shift+X</code>, with a card selected): swap that card for the next one from the draw pile. The card you give goes back into the pile at a random place.</li>
         <li>Other players are told when you skip, trade or use the card seeker. Skip and trade cannot be undone.</li>
@@ -201,7 +201,7 @@
       <h2>Robots</h2>
       <ul>
         <li>In the lobby the host can add <strong>robots</strong> to fill seats. They count toward the number of players.</li>
-        <li>A robot plays by the same rules as you, using the same strategy as the hint, from only what a player can see. It never looks at hidden cards.</li>
+        <li>A robot plays by the same rules as you, using a trained player that sees what you see plus the list of cards already played. It never looks at hidden cards. Robots mark piles with reactions after every play, and read yours.</li>
         <li>Robots only play while a person is at the table. If every person is away for 90 seconds, a game with robots ends.</li>
         <li>Robots cannot be kicked, and no result is saved for them.</li>
       </ul>
@@ -237,6 +237,8 @@
         <li>Each player has a small circle next to every pile (players 1&ndash;3 left, 4&ndash;6 right).</li>
         <li>Reactions are visible to all players and persist until your turn starts.</li>
         <li>Use these to hint that you have a great card for that pile!</li>
+        <li>A good way to use them: mark a pile by how close your best card for it is. <strong>Really love</strong>: a backward 10, or a card within about 2 steps of the top. <strong>Love</strong>: within about 5 steps. <strong>Like</strong>: within about 11 steps (these are the robots&rsquo; thresholds with the default 2 to 99 deck). Nothing otherwise.</li>
+        <li>If a teammate has marked a pile, avoid taking it with a big move. Only act on a mark that is current: after a card is played, update yours, because an old mark can mislead.</li>
       </ul>
     </section>
 

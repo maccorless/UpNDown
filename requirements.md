@@ -104,6 +104,7 @@ A cooperative multiplayer card game where players work together to play all thei
 - Each player has a fixed slot per pile (players 1–3 in the top row, 4–6 in the bottom row, above and below the card)
 - Reactions reset when the player's turn starts
 - Cannot set reactions during your own turn
+- Robots mark piles automatically after every play, by how close their best card for the pile is (really love: a backward 10 or within 3% of the deck; love: within 6%; like: within 12%), and read everyone's marks
 - **Status**: ✅ **Implemented**
 
 #### Foundation Pile Arrows
@@ -164,7 +165,7 @@ tests/e2e               Playwright smoke tests
 - Other players join via game ID or shareable invite link (`?game=XXXXXX`)
 - **Games survive a restart**: where a database is connected, games being played (not lobbies or finished games) are saved to the `live_games` table and put back when the server starts, with every seat treated as a dropped connection, so the usual notice, kick and take-over rules apply and each player takes their seat back with the saved token or, signed in, by account (`game:mySeats` lists the games an account holds; with several the player chooses). Saving is a sweep every 2 seconds, never in a move's way; a new seat credential is saved before it is handed over; tokens are stored only as hashes. One process writes at a time (a Postgres advisory lock on its own connection, plus a version on every write). A game untouched for 24 hours is deleted; without saving the limit stays 30 minutes. The page says so when saving is unavailable (`storage` on `/api/auth/config`: `none` for a version with no database, `down` when it is not answering, with a retry every 15 seconds)
 - **Joining a game in progress**: by invitation only. The host's Invite button makes a single-use link (30 minutes); whoever opens it asks to join and waits; the host is asked and must say yes. On a yes the newcomer is dealt a hand from the bottom of the draw pile at any time during play, and nothing else changes (no other hand, no pile, not whose turn it is). Refused if the table or the deck is full, the account already has a seat, the invitation is spent or expired, or dealing would end the game. See GAME_MECHANICS.md
-- **Robots**: the host can add robots in the lobby (they count toward the player limits, with no cap of their own, and at least one person must stay). The server plays them with the same strategy as hints, through the same rules, a moment apart, and only while a person is connected; with every person away they wait, and after 90 seconds the game is over (abandoned for each signed-in person). Robots cannot be kicked, never take the host seat or an account's result, and are listed as [Robot]
+- **Robots**: the host can add robots in the lobby (they count toward the player limits, with no cap of their own, and at least one person must stay). The server plays them with a trained network (the written strategy for cheats, errors and tables outside what the network handles), through the same rules, a moment apart, and only while a person is connected; with every person away they wait, and after 90 seconds the game is over (abandoned for each signed-in person). Robots cannot be kicked, never take the host seat or an account's result, and are listed as [Robot]
 - **One seat per account**: a signed-in account cannot join a game it already has a seat in ("Your account is already in this game (perhaps in another tab)"). Two different accounts, for example in two tabs of one browser, are two players, and guests are never matched with each other. A guest seat that comes back signed in as an account already seated in that game is not credited to it
 - **One game per connection**: a connection can be in one game at a time. Starting or joining another game leaves a lobby or a finished game it was still seated in; a game that is being played cannot be left, so it refuses with "You are already in a game that is still being played"
 - **Limits**: at most 500 rooms exist at once ("The server is full right now" beyond that), and the public lobby list shows the 50 newest
@@ -300,7 +301,7 @@ End-game statistics modal shows:
 20. Game ID invite link with one-click copy
 21. Player kick (lobby and active game) with card return to draw pile
 22. Trade cheat (swap a hand card for the next draw card; replaces the name-gated Nas swap)
-23. Hint cheat (a strategy in the engine that sees only what a player can see; the suggested card and pile are lit up with the advice in words), card seeker cheat (Ctrl/Cmd-P; the answer is private; others are notified), skip cheat (Ctrl/Cmd-S), cheats panel and notices
+23. Hint cheat (a trained network that sees only what a player can see, with the written strategy as the fallback; the suggested card and pile are lit up with the advice in words and up to three reasons), card seeker cheat (Ctrl/Cmd-P; the answer is private; others are notified), skip cheat (Ctrl/Cmd-S), cheats panel and notices
 24. Rate limiting on all Socket.IO events
 25. TTL-based orphan room reaping
 26. In-memory state storage, with saving of games in progress to Postgres where one is connected

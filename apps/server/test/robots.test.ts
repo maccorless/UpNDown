@@ -221,6 +221,8 @@ describe('a game with robots over sockets', () => {
     const started = await ask(host, 'game:start', { gameId });
     latest = started.data!.gameState;
     let robotMoves = 0;
+    let robotMarked = false;
+    host.on('game:reactionsUpdated', (marks: Record<string, unknown>) => { if (Object.keys(marks).some((id) => id !== host.id)) robotMarked = true; });
     const seenTurns = new Set<string>();
     host.on('game:updated', (state: GameState) => {
       const current = state.players[state.currentPlayerIndex];
@@ -244,6 +246,21 @@ describe('a game with robots over sockets', () => {
     expect(latest!.gamePhase === 'won' || latest!.gamePhase === 'lost').toBe(true);
     expect(seenTurns.size).toBeGreaterThan(0); // the robots really took turns
     expect(robotMoves).toBeGreaterThan(0);
+    expect(robotMarked).toBe(true); // the robots showed their reactions to the table during the game
+  }, 30_000);
+
+  it('answers a hint over the wire with the move and reasons', async () => {
+    await boot();
+    const host = await open();
+    const created = await ask(host, 'game:create', { playerName: 'Hana', settings: { ...settings, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'unlimited' } }, isSolitaire: false });
+    const gameId = created.data!.gameState.gameId;
+    await ask(host, 'game:addRobot', { gameId });
+    await ask(host, 'game:start', { gameId });
+    const hint = await ask(host, 'game:hint', { gameId }) as unknown as { ok: boolean; data?: { action: { type: string }; reasons?: string[]; headline?: string } };
+    expect(hint.ok).toBe(true);
+    expect(['play', 'endTurn']).toContain(hint.data!.action.type);
+    expect(hint.data!.reasons!.length).toBeGreaterThanOrEqual(1);
+    expect(hint.data!.headline).toBeTruthy();
   }, 30_000);
 
   it('stops when nobody is left to watch, and ends the game after the kick time', async () => {
