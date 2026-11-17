@@ -121,7 +121,7 @@ export const CATALOG: readonly Badge[] = [
     id: 'speedrunner', name: 'Speedrunner', blurb: 'Win fast at the standard settings, with no cheats.', category: 'time', targets: config.speedMs, direction: 'atMost',
     track: () => {
       let best: number | null = null;
-      return { step: (r) => { if (won(r) && r.playerCount === 1 && standard(r) && cheatsUsed(r) === 0) best = best === null ? r.durationMs : Math.min(best, r.durationMs); }, value: () => best };
+      return { step: (r) => { if (won(r) && standard(r) && cheatsUsed(r) === 0) best = best === null ? r.durationMs : Math.min(best, r.durationMs); }, value: () => best };
     }
   }),
   // Secrets
