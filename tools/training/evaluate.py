@@ -28,7 +28,7 @@ dev = tr.device()
 ck = torch.load(args.checkpoint, map_location=dev)
 tier_b = (args.tier or ck['args']['tier']) == 'B'
 reactions = args.reactions or ck['args'].get('reactions', False)
-policy = Policy().to(dev); policy.load_state_dict(ck['policy']); policy.eval()
+policy = Policy(ck['args'].get('width', 64)).to(dev); policy.load_state_dict(ck['policy']); policy.eval()
 s, w, l = tr.evaluate(policy, args.table, args.games, tier_b, reactions, dev, args.set, lag=args.lag, seat_mix=args.seat_mix)
 dump = os.path.join(tr.HERE, 'runs', f'strategy-{args.table}-{args.set}-{args.games}{"-r" if args.against_reactions else ""}.json')
 if not os.path.exists(dump):

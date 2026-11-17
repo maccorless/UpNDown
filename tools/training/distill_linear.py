@@ -22,7 +22,7 @@ args = ap.parse_args()
 dev = tr.device()
 ck = torch.load(args.checkpoint, map_location=dev)
 tier_b = ck['args']['tier'] == 'B'; reactions = ck['args'].get('reactions', False)
-teacher = Policy().to(dev); teacher.load_state_dict(ck['policy']); teacher.eval()
+teacher = Policy(ck['args'].get('width', 64)).to(dev); teacher.load_state_dict(ck['policy']); teacher.eval()
 tables = args.tables.split(',')
 K = ds.K
 net = (torch.nn.Linear(K, 1) if args.hidden == 0 else torch.nn.Sequential(torch.nn.Linear(K, args.hidden), torch.nn.ReLU(), torch.nn.Linear(args.hidden, 1))).to(dev)

@@ -30,7 +30,7 @@ args = ap.parse_args()
 dev = tr.device()
 ck = torch.load(args.checkpoint, map_location=dev)
 tier_b = ck['args']['tier'] == 'B'; reactions = ck['args'].get('reactions', False)
-teacher = Policy().to(dev); teacher.load_state_dict(ck['policy']); teacher.eval()
+teacher = Policy(ck['args'].get('width', 64)).to(dev); teacher.load_state_dict(ck['policy']); teacher.eval()
 tables = args.tables.split(',')
 N = {n: i for i, n in enumerate(ds.NAMES)}
 PLAY_FEATURES = ['gap', 'backward10', 'skipped', 'stranded', 'fitsAfter', 'regretPile', 'roomAfter', 'ascending'] + (['reactHere'] if reactions else [])

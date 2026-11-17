@@ -90,10 +90,17 @@ def record(b, dev, tier_b, reactions):
 
 
 @torch.no_grad()
-def greedy(policy, b, dev, tier_b, reactions):
-    r = record(b, dev, tier_b, reactions)
-    card, pair, pile, glob, rec_, _ = ft.build(r)
-    return policy(card, pair, pile, glob, rec_, r['mask']).argmax(1).cpu().numpy()
+def greedy(policy, b, dev, tier_b, reactions, chunk=6000):
+    """Network's greedy move for every game in the batch, a chunk at a time (a big search batch would overrun the GPU memory cap)."""
+    out = []
+    for start in range(0, len(b.ptr), chunk):
+        sub = b.copy_rows(np.arange(start, min(start + chunk, len(b.ptr)))) if len(b.ptr) > chunk else b
+        r = record(sub, dev, tier_b, reactions)
+        card, pair, pile, glob, rec_, _ = ft.build(r)
+        out.append(policy(card, pair, pile, glob, rec_, r['mask']).argmax(1).cpu().numpy())
+    if dev == 'mps':
+        torch.mps.empty_cache()
+    return np.concatenate(out)
 
 
 def finish(policy, b, dev, tier_b, reactions, cap=130):

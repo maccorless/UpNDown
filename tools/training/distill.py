@@ -139,7 +139,7 @@ def main():
     dev = tr.device()
     ck = torch.load(args.checkpoint, map_location=dev)
     tier_b = ck['args']['tier'] == 'B'; reactions = ck['args'].get('reactions', False)
-    teacher = Policy().to(dev); teacher.load_state_dict(ck['policy']); teacher.eval()
+    teacher = Policy(ck['args'].get('width', 64)).to(dev); teacher.load_state_dict(ck['policy']); teacher.eval()
     tables = args.tables.split(',')
     student = Student(args.depth, args.leaf)
     X, Y, W = [], [], []
