@@ -29,7 +29,9 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - name: Install dependencies
-        run: npm install
+        run: npm ci
+      - name: Security audit
+        run: npm audit --audit-level=high
       - name: Install Playwright browsers
         run: npm run --workspace @upndown/e2e install:browsers
       - name: Lint

@@ -6,24 +6,27 @@ export function clientIpOfRequest(req: Request, trustedProxyHops: number): strin
 }
 
 export function createIpRateLimiter(trustedProxyHops: number, now: () => number = Date.now) {
-  const buckets = new Map<string, { windowStartMs: number; count: number }>();
+  const buckets = new Map<string, number[]>();
   const sweep = setInterval(() => {
     const nowMs = now();
-    for (const [key, bucket] of buckets) {
-      if (nowMs - bucket.windowStartMs >= 10 * 60_000) buckets.delete(key);
+    for (const [key, timestamps] of buckets) {
+      if (timestamps.length === 0 || nowMs - timestamps[timestamps.length - 1]! >= 10 * 60_000) {
+        buckets.delete(key);
+      }
     }
   }, 60_000);
   sweep.unref();
 
   const allowKey = (key: string, limit: number, windowMs: number): boolean => {
     const nowMs = now();
-    const bucket = buckets.get(key);
-    if (!bucket || nowMs - bucket.windowStartMs >= windowMs) {
-      buckets.set(key, { windowStartMs: nowMs, count: 1 });
-      return true;
+    let timestamps = buckets.get(key) ?? [];
+    timestamps = timestamps.filter(t => nowMs - t < windowMs);
+    if (timestamps.length >= limit) {
+      if (timestamps.length > 0) buckets.set(key, timestamps);
+      return false;
     }
-    if (bucket.count >= limit) return false;
-    bucket.count += 1;
+    timestamps.push(nowMs);
+    buckets.set(key, timestamps);
     return true;
   };
 

@@ -875,6 +875,7 @@ export class GameManager {
     }
     room.userIdByPlayerId.delete(payload.targetPlayerId);
     room.disconnectedAtMs.delete(payload.targetPlayerId);
+    room.rejoinTokens.delete(payload.targetPlayerId);
 
     // Return kicked player's cards to draw pile in random order
     let drawPile = [...gameState.drawPile];

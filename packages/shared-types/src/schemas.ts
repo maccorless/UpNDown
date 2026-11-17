@@ -151,7 +151,7 @@ export const setReactionPayloadSchema = z.object({
 
 export const cardLookupPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
-  cardValue: z.number().int().min(1).max(999),
+  cardValue: z.number().int().min(CARD_MIN).max(CARD_MAX),
   secret: z.boolean().optional()
 });
 

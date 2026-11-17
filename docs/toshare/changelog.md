@@ -2,10 +2,17 @@ Created: 09-Nov-2026 19:09 CST
 
 # Changelog
 
+## Week of 2026-11-16
+
+| Date | ID | Change |
+|------|----|--------|
+| 2026-11-17 | — | Fix: 10 auth hardening fixes from security audit: SameSite=Strict on all cookies, __Host- prefix for OAuth state cookie with Path=/, sliding-window rate limiter, backslash/control-char filter on legacy-host redirect, card lookup bounds tightened to game range (2-99), rejoin token cleared on kick, session cookie refreshed on all authenticated endpoints, npm ci + npm audit in CI |
+
 ## Week of 2026-11-09
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-17 | — | Feat: new robots (retrained under a cleaner mark language) that score 0.1 to 0.5 points higher than the old ones at 2 and 4 players and mark piles the same way a person can: really love only for a backward 10, love for a card within 2 steps of the top, like within 10 steps (it was 3% / 6% / 12% of the deck). How to Play, the guide and the robots agree |
 | 2026-11-17 | — | Feat: a configurable pause before every robot plays, so people and other robots can react first: 0.8 to 1.6 seconds with a person at the table (as before), 150 ms at a table of robots only; set with ROBOT_PAUSE_MS, ROBOT_PAUSE_JITTER_MS and ROBOT_PAUSE_ROBOTS_ONLY_MS. The robot reads the marks at the moment it plays |
 | 2026-11-17 | — | Fix: the players list beside the board was cut off. It now grows with the window (a quarter of its width, between 220 and 360 pixels), names and card counts wrap instead of being clipped, and in a short window it fills the height beside the board instead of showing one line |
 | 2026-11-17 | — | Feat: robots are named after famous mathematicians (Euler, Noether, Turing and so on) instead of Robot 1, Robot 2, a different name each game and never the same twice at a table |

@@ -17,7 +17,7 @@ export function legacyHostRedirect(
     const path = req.originalUrl;
     // The canonical host never redirects to itself, even if PUBLIC_BASE_URL was set to the legacy address.
     if (!wantsPage || host !== current.legacyHost.toLowerCase() || host === new URL(current.publicBaseUrl).host.toLowerCase()
-      || !path.startsWith('/') || path.startsWith('//')) {
+      || !path.startsWith('/') || path.startsWith('//') || /[\\\u0000-\u001f\u007f]/.test(path)) {
       next();
       return;
     }

@@ -18,7 +18,8 @@ export const extendedExpiry = (createdAt: Date, now: Date): Date =>
 
 // `__Host-` needs Secure, so plain http (local development) uses the plain name.
 export const sessionCookieName = (secure: boolean): string => (secure ? '__Host-upndown_session' : 'upndown_session');
-export const OAUTH_STATE_COOKIE = 'oauth_state';
+// `__Host-` needs Secure + Path=/, so plain http (local dev) uses a plain name.
+export const oauthStateCookieName = (secure: boolean): string => (secure ? '__Host-upndown_oauth_state' : 'upndown_oauth_state');
 
 export function readCookie(header: string | undefined, name: string): string | undefined {
   for (const part of (header ?? '').split(';')) {
@@ -35,7 +36,7 @@ export function serializeCookie(
   value: string,
   options: { maxAgeSec: number; path: string; secure: boolean }
 ): string {
-  return `${name}=${value}; Max-Age=${options.maxAgeSec}; Path=${options.path}; HttpOnly; SameSite=Lax${options.secure ? '; Secure' : ''}`;
+  return `${name}=${value}; Max-Age=${options.maxAgeSec}; Path=${options.path}; HttpOnly; SameSite=Strict${options.secure ? '; Secure' : ''}`;
 }
 
 export interface OAuthState {

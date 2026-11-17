@@ -105,11 +105,11 @@ describe('auth routes', () => {
     expect(target.searchParams.get('redirect_uri')).toBe(`${BASE}/auth/google/callback`);
     expect(target.searchParams.get('state')).toHaveLength(32);
     expect(target.searchParams.get('code_challenge')).toBeTruthy();
-    const cookie = res.headers.getSetCookie().find((c) => c.startsWith('oauth_state='));
+    const cookie = res.headers.getSetCookie().find((c) => c.startsWith('__Host-upndown_oauth_state='));
     expect(cookie).toMatch(/HttpOnly/);
-    expect(cookie).toMatch(/SameSite=Lax/);
+    expect(cookie).toMatch(/SameSite=Strict/);
     expect(cookie).toMatch(/Secure/);
-    expect(cookie).toMatch(/Path=\/auth/);
+    expect(cookie).toMatch(/Path=\/(;|$)/);
     expect(cookie).toMatch(/Max-Age=600/);
   });
 
@@ -122,7 +122,7 @@ describe('auth routes', () => {
     const session = callback.headers.getSetCookie().find((c) => c.startsWith('__Host-upndown_session='));
     expect(session).toMatch(/HttpOnly/);
     expect(session).toMatch(/Secure/);
-    expect(session).toMatch(/SameSite=Lax/);
+    expect(session).toMatch(/SameSite=Strict/);
     expect(session).toMatch(/Path=\/(;|$)/);
     expect(session).not.toMatch(/Domain/i);
     expect(session).toMatch(/Max-Age=77\d{5}/); // 90 days
@@ -198,9 +198,9 @@ describe('auth routes', () => {
       const start = await get('/auth/google/start', jar);
       absorb(jar, start);
       const state = new URL(start.headers.get('location') as string).searchParams.get('state');
-      const [, sig] = (jar.get('oauth_state') as string).split('.');
+      const [, sig] = (jar.get('__Host-upndown_oauth_state') as string).split('.');
       const forged = Buffer.from(JSON.stringify({ state, verifier: 'x', returnPath: 'https://evil.com', expiresAtMs: Date.now() + 1e6 })).toString('base64url');
-      jar.set('oauth_state', `${forged}.${sig}`);
+      jar.set('__Host-upndown_oauth_state', `${forged}.${sig}`);
       const res = await get(`/auth/google/callback?code=c&state=${state}`, jar);
       expect(res.headers.get('location')).toBe(`${BASE}/?login=failed`);
     });
@@ -221,7 +221,7 @@ describe('auth routes', () => {
     it('a state cookie works once: the callback clears it', async () => {
       await boot();
       const { jar } = await signIn();
-      expect(jar.has('oauth_state')).toBe(false);
+      expect(jar.has('__Host-upndown_oauth_state')).toBe(false);
     });
   });
 

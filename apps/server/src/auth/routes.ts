@@ -8,7 +8,7 @@ import { createIpRateLimiter } from './http-rate-limit.js';
 import type { AuthSettings } from './config.js';
 import type { Provider } from './providers.js';
 import {
-  OAUTH_STATE_COOKIE, OAUTH_STATE_TTL_MS, extendedExpiry, hashToken, initialExpiry, newSessionToken, pkceChallenge,
+  oauthStateCookieName, OAUTH_STATE_TTL_MS, extendedExpiry, hashToken, initialExpiry, newSessionToken, pkceChallenge,
   readCookie, safeEqual, sanitizeReturnPath, serializeCookie, sessionCookieName, sessionIdOf, signOAuthState,
   verifyOAuthState, SESSION_EXTEND_AFTER_MS
 } from './sessions.js';
@@ -83,6 +83,12 @@ export function createAuthRouter(options: AuthRouterOptions): {
   const clearCookie = (res: Response, name: string, path: string, secure: boolean): void => {
     res.append('Set-Cookie', serializeCookie(name, '', { maxAgeSec: 0, path, secure }));
   };
+  const refreshSessionCookie = (req: Request, res: Response, session: { expiresAt: Date; extended: boolean }, settings: AuthSettings): void => {
+    if (!session.extended) return;
+    const secure = secureOf(settings);
+    const token = readCookie(req.headers.cookie, sessionCookieName(secure));
+    if (token) res.append('Set-Cookie', serializeCookie(sessionCookieName(secure), token, { maxAgeSec: Math.floor((session.expiresAt.getTime() - Date.now()) / 1000), path: '/', secure }));
+  };
 
   // Looks the session up and slides its expiry. Null means "treat as guest".
   const resolveSession = async (
@@ -121,7 +127,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       returnPath: sanitizeReturnPath(req.query.return, settings.publicBaseUrl),
       expiresAtMs: Date.now() + OAUTH_STATE_TTL_MS
     });
-    res.append('Set-Cookie', serializeCookie(OAUTH_STATE_COOKIE, cookie, { maxAgeSec: OAUTH_STATE_TTL_MS / 1000, path: '/auth', secure: secureOf(settings) }));
+    res.append('Set-Cookie', serializeCookie(oauthStateCookieName(secureOf(settings)), cookie, { maxAgeSec: OAUTH_STATE_TTL_MS / 1000, path: '/', secure: secureOf(settings) }));
     res.redirect(302, provider.startUrl({
       redirectUri: `${settings.publicBaseUrl}/auth/${provider.id}/callback`,
       state,
@@ -138,7 +144,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
     const { settings } = current;
     const secure = secureOf(settings);
     const fail = (kind: 'cancelled' | 'failed'): void => {
-      clearCookie(res, OAUTH_STATE_COOKIE, '/auth', secure);
+      clearCookie(res, oauthStateCookieName(secure), '/', secure);
       res.redirect(302, `${settings.publicBaseUrl}/?login=${kind}`);
     };
 
@@ -148,7 +154,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       return;
     }
 
-    const saved = verifyOAuthState(settings.stateSecret, readCookie(req.headers.cookie, OAUTH_STATE_COOKIE), Date.now());
+    const saved = verifyOAuthState(settings.stateSecret, readCookie(req.headers.cookie, oauthStateCookieName(secure)), Date.now());
     const { code, state } = req.query;
     if (!saved || typeof code !== 'string' || typeof state !== 'string' || !safeEqual(state, saved.state)) {
       log('warn', 'auth.callback_rejected', { reason: saved ? 'state mismatch or missing code' : 'missing or invalid state cookie' });
@@ -168,7 +174,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       const token = newSessionToken();
       const expiresAt = initialExpiry(new Date());
       await current.store.createSession(userId, hashToken(token), expiresAt);
-      clearCookie(res, OAUTH_STATE_COOKIE, '/auth', secure);
+      clearCookie(res, oauthStateCookieName(secure), '/', secure);
       res.append('Set-Cookie', serializeCookie(sessionCookieName(secure), token, { maxAgeSec: Math.floor((expiresAt.getTime() - Date.now()) / 1000), path: '/', secure }));
       res.redirect(302, `${settings.publicBaseUrl}${saved.returnPath}`);
     } catch (err) {
@@ -198,12 +204,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       }
       stored = { ...stored, playerName };
     }
-    if (session.extended) {
-      // The browser's copy would otherwise expire before the extended row does.
-      const secure = secureOf(current.settings);
-      const token = readCookie(req.headers.cookie, sessionCookieName(secure)) as string;
-      res.append('Set-Cookie', serializeCookie(sessionCookieName(secure), token, { maxAgeSec: Math.floor((session.expiresAt.getTime() - Date.now()) / 1000), path: '/', secure }));
-    }
+    refreshSessionCookie(req, res, session, current.settings);
     const parsed = storedSettingsSchema.safeParse(stored);
     res.json({ playerName, nameConfirmed: (await current.store.getNameConfirmed(session.userId)) === true, settings: parsed.success ? parsed.data : { playerName } });
   }));
@@ -237,6 +238,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
     // Changing the name is choosing one. Re-sending the stored name (the sync does on every save) is not.
     const renamed = body.data.playerName !== undefined && body.data.playerName !== existing.playerName;
     await current.store.replaceSettings(session.userId, next, { confirmName: renamed });
+    refreshSessionCookie(req, res, session, current.settings);
     res.json({ settings: next });
   }));
 
@@ -264,6 +266,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       res.status(401).json({});
       return;
     }
+    refreshSessionCookie(req, res, session, current.settings);
     res.json({ playerName: body.data.playerName, nameConfirmed: true });
   }));
 
@@ -306,6 +309,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       res.status(409).json({ error: 'history full' });
       return;
     }
+    refreshSessionCookie(req, res, session, current.settings);
     const [outcome] = await current.store.recordResults([buildSolitaireRow(session.userId, body.data)]);
     log('info', 'game.results_recorded', { runId: body.data.gameId, rows: 1, mode: 'solitaire', inserted: outcome?.outcome === 'inserted' ? 1 : 0, duplicate: outcome?.outcome === 'duplicate' ? 1 : 0, userMissing: outcome?.outcome === 'user_missing' ? 1 : 0, failed: outcome?.outcome === 'failed' ? 1 : 0 });
     if (outcome?.outcome === 'inserted' || outcome?.outcome === 'duplicate') {
