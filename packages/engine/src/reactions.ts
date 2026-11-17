@@ -30,9 +30,9 @@ export function clearPlayerOn(board: ReactionState, playerId: string): ReactionS
 // ---- The sender: the level reports how good my best card for the pile is ----
 
 // A level is a step on the move (as a fraction of the deck): at most `like`, `love`, `reallyLove`, which must get smaller.
-// A backward 10 is always really love. These are the only numbers the sender has, so a person can compute the same signal.
+// A backward 10 is always really love, and with reallyLove 0 it is the only thing that is. These are the only numbers the sender has, so a person can compute the same signal.
 export interface SenderThresholds { like: number; love: number; reallyLove: number }
-export const DEFAULT_SENDER: SenderThresholds = { like: 0.12, love: 0.06, reallyLove: 0.03 };
+export const DEFAULT_SENDER: SenderThresholds = { like: 0.105, love: 0.03, reallyLove: 0 };
 
 export function senderLevel(hand: readonly Card[], pile: FoundationPile, settings: GameSettings, t: SenderThresholds = DEFAULT_SENDER): ReactionType | null {
   if (!(t.like >= t.love && t.love >= t.reallyLove && t.reallyLove >= 0)) throw new Error('Sender thresholds must get smaller: like, love, really love');

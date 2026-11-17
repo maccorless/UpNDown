@@ -44,21 +44,21 @@ describe('the sender is truthful and monotone', () => {
   });
 
   it('reports the best card in the hand, not the worst, and nothing when no card fits', () => {
-    expect(level([95, 32])).toBe('really_love');
+    expect(level([95, 32])).toBe('love');
     expect(level([95, 80])).toBeNull();
     expect(level([10, 15], 0)).toBeNull();
   });
 
-  it('puts a backward 10 and a move of up to 2 at the top, and a move of 3 one step lower', () => {
+  it('keeps really love for a backward 10 alone; a move of up to 2 is love and a move of 3 is like', () => {
     expect(level([20])).toBe('really_love');
-    expect(level([32])).toBe('really_love');
-    expect(level([33])).toBe('love');
+    expect(level([32])).toBe('love');
+    expect(level([33])).toBe('like');
   });
 
   it('steps down through love and like as the move grows, 98 cards being the deck', () => {
-    expect(level([35])).toBe('love'); // move 5 is 5.1%
-    expect(level([38])).toBe('like'); // move 8 is 8.2%
-    expect(level([44])).toBeNull(); // move 14 is 14.3%
+    expect(level([35])).toBe('like'); // move 5 is 5.1%
+    expect(level([40])).toBe('like'); // move 10 is 10.2%, the last like
+    expect(level([41])).toBeNull(); // move 11 is 11.2%
   });
 
   it('refuses thresholds that do not get smaller', () => {

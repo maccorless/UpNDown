@@ -46,9 +46,9 @@ A network trained with the list of cards already played played clearly better at
 
 The game lets a player who is not on turn mark a pile with like, love or really love. The meaning that works is the one How to Play already gives: **"I hold a great card for this pile"**, and the level should rise as your best card for that pile gets closer to its top:
 
-- really love: a backward 10, or a card within about 3 steps of the top (roughly 3% of the deck);
-- love: within about 6 steps (6%);
-- like: within about 12 steps (12%);
+- really love: a backward 10 only (so it always means "leave this pile to me");
+- love: a card within about 2 steps of the top (3% of the deck);
+- like: within about 10 steps (10.5% of the deck);
 - nothing otherwise.
 
 If a teammate has marked a pile, **do not take that pile with a big move unless the move is tiny or a backward 10**; play elsewhere or end your turn.

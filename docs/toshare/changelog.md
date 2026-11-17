@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-17 | — | Fix: robot reaction thresholds recalibrated: really love is now a backward 10 only (not within 3%); love is within ~2 steps (was 5); like is within ~10 steps (was 11). Strategy guide, How to Play, requirements.md and engine tests updated to match |
 | 2026-11-17 | — | Fix: 10 auth hardening fixes from security audit: SameSite=Strict on all cookies, __Host- prefix for OAuth state cookie with Path=/, sliding-window rate limiter, backslash/control-char filter on legacy-host redirect, card lookup bounds tightened to game range (2-99), rejoin token cleared on kick, session cookie refreshed on all authenticated endpoints, npm ci + npm audit in CI |
 
 ## Week of 2026-11-09

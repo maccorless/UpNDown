@@ -105,7 +105,7 @@ A cooperative multiplayer card game where players work together to play all thei
 - Each player has a fixed slot per pile (players 1–3 in the top row, 4–6 in the bottom row, above and below the card)
 - Reactions reset when the player's turn starts
 - Cannot set reactions during your own turn
-- Robots mark piles automatically after every play, by how close their best card for the pile is (really love: a backward 10 or within 3% of the deck; love: within 6%; like: within 12%), and read everyone's marks
+- Robots mark piles automatically after every play, by how close their best card for the pile is (really love: a backward 10 only; love: within 3% of the deck; like: within 10.5%), and read everyone's marks
 - **Status**: ✅ **Implemented**
 
 #### Foundation Pile Arrows
