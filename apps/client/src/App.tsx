@@ -28,6 +28,10 @@ import { useSolitaireResult } from './useSolitaireResult.js';
 import { useLocalHistory } from './profile/useLocalHistory.js';
 import { useGuestMultiplayerRecord } from './profile/useGuestMultiplayerRecord.js';
 import { ProfileLayer } from './profile/ProfileLayer.js';
+import { BadgeToasts } from './profile/BadgeToasts.js';
+import { useBadgeToasts } from './profile/useBadgeToasts.js';
+import { useSeenBadges } from './profile/useSeenBadges.js';
+import { useProfileSource } from './profile/useProfile.js';
 import { useSolitaireSave } from './useSolitaireSave.js';
 import { useAuth } from './auth/useAuth.js';
 import './App.css';
@@ -648,6 +652,8 @@ export function App(): JSX.Element {
   // Solitaire needs no server. Only a signed-in player's finished game is sent, to be saved to their history.
   const localHistory = useLocalHistory();
   const [profileOpen, setProfileOpen] = useState(false);
+  const seenBadges = useSeenBadges(auth, localHistory);
+  const profileSource = useProfileSource(auth, localHistory);
   const solitaireResult = useSolitaireResult({ active: solitaireActive, state: solitaireState, runId: solitaireRunId, signedIn: auth.status === 'signedIn', guest: auth.status === 'guest' || auth.status === 'disabled', userId: auth.userId, history: localHistory });
 
   const [multiplayerState, setMultiplayerState] = useState<GameState | null>(null);
@@ -680,6 +686,9 @@ export function App(): JSX.Element {
   const [isPageVisible, setIsPageVisible] = useState(() => document.visibilityState === 'visible');
   const [playerId, setPlayerId] = useState<string | null>(null);
   const guestRecord = useGuestMultiplayerRecord({ state: multiplayerState, playerId, guest: auth.status === 'guest' || auth.status === 'disabled', history: localHistory });
+  const mpFinished = mode === 'multiplayer' && (multiplayerState?.gamePhase === 'won' || multiplayerState?.gamePhase === 'lost') && !!multiplayerState.runId;
+  const finishedKey = mode === 'solitaire' && ['saved', 'local', 'queued'].includes(solitaireResult.status) ? `solo:${solitaireRunId}` : mpFinished ? `mp:${multiplayerState?.runId}` : null;
+  const badgeToasts = useBadgeToasts({ source: profileSource, finishedKey, delayMs: auth.status === 'signedIn' && mpFinished ? 1500 : 0, seen: seenBadges.seen, markSeen: seenBadges.markSeen, nudge: auth.status === 'guest', history: localHistory });
   const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [pendingLobbyState, setPendingLobbyState] = useState<GameState | null>(null);
@@ -692,7 +701,7 @@ export function App(): JSX.Element {
     setEnableSounds(val);
     try { window.localStorage.setItem(SOUNDS_STORAGE_KEY, String(val)); } catch { /* ignore */ }
   };
-  useAccountSync(auth, { playerName, setPlayerName, solitaire: solitaireConfig, setSolitaire: setSolitaireConfig, multiplayer: multiplayerCreateSettings, setMultiplayer: setMultiplayerCreateSettings, enableSounds, setEnableSounds: changeSounds });
+  useAccountSync(auth, { playerName, setPlayerName, solitaire: solitaireConfig, setSolitaire: setSolitaireConfig, multiplayer: multiplayerCreateSettings, setMultiplayer: setMultiplayerCreateSettings, enableSounds, setEnableSounds: changeSounds, seenBadges: seenBadges.seen });
   const [cardLookupOpen, setCardLookupOpen] = useState(false);
   const [cardLookupValue, setCardLookupValue] = useState('');
   const [cardLookupToast, setCardLookupToast] = useState<CardLookupResult | null>(null);
@@ -2430,7 +2439,8 @@ export function App(): JSX.Element {
         />
       ) : null}
 
-      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={{}} onClose={() => setProfileOpen(false)} />
+      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={seenBadges.seen} markSeen={seenBadges.markSeen} onClose={() => setProfileOpen(false)} />
+      <BadgeToasts toasts={badgeToasts.toasts} onDismiss={badgeToasts.dismiss} />
 
       {(mode || isSettingsOpen) ? (
         <SettingsDialog

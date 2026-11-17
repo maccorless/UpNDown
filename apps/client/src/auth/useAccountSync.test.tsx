@@ -17,12 +17,12 @@ const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
 });
 
 // Stands in for App: the same four pieces of state, owned by React.
-function useHarness(auth: AuthState, initialName = 'Guest Person') {
+function useHarness(auth: AuthState, initialName = 'Guest Person', seenBadges: Record<string, number> = {}) {
   const [playerName, setPlayerName] = useState(initialName);
   const [solitaire, setSolitaire] = useState(localSolitaire);
   const [multiplayer, setMultiplayer] = useState(localMultiplayer);
   const [enableSounds, setEnableSounds] = useState(true);
-  useAccountSync(auth, { playerName, setPlayerName, solitaire, setSolitaire, multiplayer, setMultiplayer, enableSounds, setEnableSounds });
+  useAccountSync(auth, { playerName, setPlayerName, solitaire, setSolitaire, multiplayer, setMultiplayer, enableSounds, setEnableSounds, seenBadges });
   return { playerName, setPlayerName, solitaire, multiplayer, enableSounds, setEnableSounds };
 }
 
@@ -57,6 +57,26 @@ describe('useAccountSync', () => {
     expect(puts()).toHaveLength(1);
     expect(lastBody()).toEqual({ playerName: 'Abraham Lincoln', solitaire: localSolitaire, multiplayer: localMultiplayer, enableSounds: true });
     expect(result.current.solitaire.handSize).toBe(6);
+  });
+
+  it('sends the badges the player has been shown with the rest of the document, and sends none when there are none', async () => {
+    renderHook(() => useHarness(makeAuth(), 'Abraham Lincoln', { duet: 1 }));
+    await settle(3000);
+    expect(lastBody()).toMatchObject({ seenBadges: { duet: 1 } });
+    puts().length = 0;
+    fetchMock.mockClear();
+    renderHook(() => useHarness(makeAuth(), 'Abraham Lincoln'));
+    await settle(3000);
+    expect(lastBody()).not.toHaveProperty('seenBadges');
+  });
+
+  it('keeps the badges the account already has when this device knows none (the first save must not wipe them)', async () => {
+    const auth = makeAuth({ settings: { playerName: 'Abraham Lincoln', seenBadges: { solo: 2 } } });
+    renderHook(() => useHarness(auth));
+    await settle(3000);
+    // The account had no sounds or table settings, so the device's are uploaded, and the badges it had go up with them.
+    expect(puts().length).toBeGreaterThan(0);
+    for (const [, init] of puts()) expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({ seenBadges: { solo: 2 } });
   });
 
   // Ken's rule: the account name wins over whatever a guest had typed on this device.

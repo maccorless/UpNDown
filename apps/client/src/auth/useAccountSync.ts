@@ -11,17 +11,26 @@ export interface SyncState {
   setMultiplayer: (settings: GameSettings) => void;
   enableSounds: boolean;
   setEnableSounds: (on: boolean) => void;
+  // Badges the player has been shown. Sent with the rest of the document when there are any.
+  seenBadges?: Record<string, number>;
 }
 
 const DEBOUNCE_MS = 800;
 
 // Fixed key order, so two equal documents always stringify equal and "unchanged" can be a string compare.
-const documentOf = (name: string, s: Pick<SyncState, 'solitaire' | 'multiplayer' | 'enableSounds'>): StoredSettings => ({
+const documentOf = (name: string, s: Pick<SyncState, 'solitaire' | 'multiplayer' | 'enableSounds' | 'seenBadges'>): StoredSettings => ({
   playerName: name,
   solitaire: s.solitaire,
   multiplayer: s.multiplayer,
-  enableSounds: s.enableSounds
+  enableSounds: s.enableSounds,
+  ...(s.seenBadges && Object.keys(s.seenBadges).length > 0 ? { seenBadges: s.seenBadges as Record<string, 1 | 2 | 3> } : {})
 });
+
+const mergeSeen = (a: Record<string, number>, b: Record<string, number> | undefined): Record<string, number> => {
+  const out = { ...a };
+  for (const [id, tier] of Object.entries(b ?? {})) out[id] = Math.max(out[id] ?? 0, tier);
+  return out;
+};
 
 async function putSettings(doc: StoredSettings): Promise<boolean> {
   try {
@@ -48,12 +57,14 @@ export function useAccountSync(auth: AuthState, state: SyncState): void {
   const initialised = useRef(false);
   const lastSent = useRef<string | null>(null);
   const lastValidName = useRef<string | null>(null);
+  // Badges the account already had when this page loaded. They are always sent back, so a device that knows fewer cannot erase them.
+  const accountSeen = useRef<Record<string, number>>({});
 
   // An emptied or all-control-character field keeps the last good name instead of being sent or dropping the name.
   const typed = cleanPlayerName(state.playerName);
   const name = typed || lastValidName.current || '';
   if (typed) lastValidName.current = typed;
-  const doc = documentOf(name, state);
+  const doc = documentOf(name, { ...state, seenBadges: mergeSeen(accountSeen.current, state.seenBadges) });
   const docJson = JSON.stringify(doc);
 
   useEffect(() => {
@@ -62,12 +73,15 @@ export function useAccountSync(auth: AuthState, state: SyncState): void {
     if (!initialised.current) {
       initialised.current = true;
       const server = auth.settings;
+      accountSeen.current = server?.seenBadges ?? {};
       const accountName = auth.playerName ?? name;
       const hasServerSettings = !!server && (server.solitaire !== undefined || server.multiplayer !== undefined || server.enableSounds !== undefined);
       const merged = documentOf(accountName, {
         solitaire: server?.solitaire ?? latest.current.solitaire,
         multiplayer: server?.multiplayer ?? latest.current.multiplayer,
-        enableSounds: server?.enableSounds ?? latest.current.enableSounds
+        enableSounds: server?.enableSounds ?? latest.current.enableSounds,
+        // What the account already says wins at the start, so the first save cannot wipe it.
+        seenBadges: mergeSeen(server?.seenBadges ?? {}, latest.current.seenBadges)
       });
       lastValidName.current = accountName;
       // Recorded before the state updates land, so the re-render they cause is not mistaken for a user change.

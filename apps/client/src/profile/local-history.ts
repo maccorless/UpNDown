@@ -33,6 +33,8 @@ export interface LocalHistory {
   clear(): void;
   seen(): Record<string, number>;
   setSeen(map: Record<string, number>): void;
+  // Forgets which badges were shown (after the games behind them were moved to an account).
+  resetSeen(): void;
   nudgedAtMs(): number | null;
   setNudgedAtMs(ms: number): void;
   requestPersistence(): void;
@@ -146,6 +148,7 @@ export function createLocalHistory(storage: Storage | null = typeof window !== '
     setSeen(map) {
       mutate((d) => { for (const [id, tier] of Object.entries(map)) d.seen[id] = Math.max(d.seen[id] ?? 0, tier); });
     },
+    resetSeen() { mutate((d) => { d.seen = {}; }); },
     nudgedAtMs: () => read().nudgedAtMs ?? null,
     setNudgedAtMs(ms) { mutate((d) => { d.nudgedAtMs = ms; }); },
     requestPersistence() {

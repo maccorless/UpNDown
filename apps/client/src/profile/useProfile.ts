@@ -8,6 +8,16 @@ export const deviceTimeZone = (): string => {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch { return 'UTC'; }
 };
 
+// The source for whoever is here, or null until sign-in is known.
+export function useProfileSource(auth: AuthState, history: LocalHistory): ProfileSource | null {
+  const signedIn = auth.status === 'signedIn';
+  const known = auth.status !== 'loading';
+  return useMemo<ProfileSource | null>(() => {
+    if (!known) return null;
+    return signedIn ? accountSource(createOutbox(auth.userId ?? 'unknown')) : localSource(history);
+  }, [known, signedIn, auth.userId, history]);
+}
+
 export interface ProfileView {
   source: ProfileSource | null;
   state: 'loading' | 'ready' | 'error';
@@ -21,11 +31,7 @@ export interface ProfileView {
 // (the page is open), and a guest's page refreshes when its history changes.
 export function useProfile(auth: AuthState, history: LocalHistory, enabled: boolean): ProfileView {
   const signedIn = auth.status === 'signedIn';
-  const known = auth.status !== 'loading';
-  const source = useMemo<ProfileSource | null>(() => {
-    if (!known) return null;
-    return signedIn ? accountSource(createOutbox(auth.userId ?? 'unknown')) : localSource(history);
-  }, [known, signedIn, auth.userId, history]);
+  const source = useProfileSource(auth, history);
   const [data, setData] = useState<ProfileData | null>(null);
   const [state, setState] = useState<ProfileView['state']>('loading');
   const [version, setVersion] = useState(0);

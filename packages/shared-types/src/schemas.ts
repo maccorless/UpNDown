@@ -168,7 +168,9 @@ export const storedSettingsSchema = z.object({
   playerName: accountNameSchema.optional(),
   solitaire: gameSettingsSchema.optional(),
   multiplayer: gameSettingsSchema.optional(),
-  enableSounds: z.boolean().optional()
+  enableSounds: z.boolean().optional(),
+  // The highest tier of each badge the player has been shown, by badge id, so a badge is announced once per tier.
+  seenBadges: z.record(z.string().max(64), z.number().int().min(1).max(3)).refine((r) => Object.keys(r).length <= 100).optional()
 });
 
 export type StoredSettings = z.infer<typeof storedSettingsSchema>;

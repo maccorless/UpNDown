@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { AuthState } from '../auth/useAuth.js';
 import type { LocalHistory } from './local-history.js';
 import { ProfilePage, type ProfileTab } from './ProfilePage.js';
@@ -9,13 +9,19 @@ interface Props {
   history: LocalHistory;
   open: boolean;
   seen: Record<string, number>;
+  markSeen: (map: Record<string, number>) => void;
   onClose: () => void;
 }
 
 // The profile sheet and what it needs, kept out of App.tsx. Nothing loads until it is opened.
-export function ProfileLayer({ auth, history, open, seen, onClose }: Props): JSX.Element | null {
+export function ProfileLayer({ auth, history, open, seen, markSeen, onClose }: Props): JSX.Element | null {
   const [tab, setTab] = useState<ProfileTab>('stats');
   const view = useProfile(auth, history, open);
+  // Looking at the achievements is seeing them: what is shown there is not announced again later.
+  useEffect(() => {
+    if (!open || tab !== 'achievements' || !view.data) return;
+    markSeen(Object.fromEntries(view.data.badges.filter((b) => b.tier > 0).map((b) => [b.id, b.tier])));
+  }, [open, tab, view.data, markSeen]);
   if (!open) return null;
   return (
     <ProfilePage
