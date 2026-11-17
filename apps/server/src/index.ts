@@ -24,6 +24,7 @@ import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { resolveClientIp } from './client-ip.js';
 import { GameManager } from './game-manager.js';
 import { loadHintAdvisor, loadRobotBrain } from './robot-brain.js';
+import { pickRobotPause, robotPauseFromEnv } from './robot-pause.js';
 import { toPlayerView } from './player-view.js';
 import { AdvisoryLock, type WriterLock } from './live/advisory-lock.js';
 import { PgGameStore, type GameStore } from './live/game-store.js';
@@ -306,7 +307,9 @@ export function createRealtimeServer(
   // has passed does nothing. Each step goes through the manager like a person's move and is broadcast, which plans the next.
   const robotTimers = new Set<NodeJS.Timeout>();
   const robotPlanned = new Map<string, string>();
-  const robotDelay = (): number => timing.robotDelayMs ?? 800 + Math.floor(Math.random() * 800);
+  const robotPause = robotPauseFromEnv();
+  // A pause before every robot turn, in which the others (people, and robots re-marking their piles) can react. Tests fix it with timing.robotDelayMs.
+  const robotDelay = (gameId: string): number => timing.robotDelayMs ?? pickRobotPause(robotPause, manager.hasHumanSeat(gameId));
   const scheduleRobot = (gameId: string): void => {
     const due = manager.robotToAct(gameId);
     if (!due || robotPlanned.get(gameId) === due.turnKey) return;
@@ -325,7 +328,7 @@ export function createRealtimeServer(
       if (done.step === 'skip' || done.step === 'trade') announceCheatBy(gameId, done.robotId, done.step);
       log('info', 'game.robot_step', { gameId, step: done.step });
       broadcastState(gameId, state);
-    }, robotDelay());
+    }, robotDelay(gameId));
     timer.unref();
     robotTimers.add(timer);
   };

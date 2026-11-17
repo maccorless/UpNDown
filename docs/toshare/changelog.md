@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-17 | — | Feat: a configurable pause before every robot plays, so people and other robots can react first: 0.8 to 1.6 seconds with a person at the table (as before), 150 ms at a table of robots only; set with ROBOT_PAUSE_MS, ROBOT_PAUSE_JITTER_MS and ROBOT_PAUSE_ROBOTS_ONLY_MS. The robot reads the marks at the moment it plays |
 | 2026-11-17 | — | Fix: the players list beside the board was cut off. It now grows with the window (a quarter of its width, between 220 and 360 pixels), names and card counts wrap instead of being clipped, and in a short window it fills the height beside the board instead of showing one line |
 | 2026-11-17 | — | Feat: robots are named after famous mathematicians (Euler, Noether, Turing and so on) instead of Robot 1, Robot 2, a different name each game and never the same twice at a table |
 | 2026-11-17 | — | Feat: choosing Solitaire no longer deals a game at once. It opens a step that shows the settings (cards, hand size, cheats) with Start Solitaire and Change settings, since settings are fixed once a game starts; the end-of-game screen has Change settings too |

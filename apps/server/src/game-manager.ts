@@ -1169,6 +1169,11 @@ export class GameManager {
     return changed;
   }
 
+  // Whether any seat is a person (connected or not): a table of robots alone has nobody slow to wait for.
+  hasHumanSeat(gameId: string): boolean {
+    return this.rooms.get(gameId)?.gameState.players.some((player) => !player.robot) ?? false;
+  }
+
   // Robots only act while a person is at the table: a connected one. With nobody there they wait.
   hasConnectedHuman(gameId: string): boolean {
     const room = this.rooms.get(gameId);

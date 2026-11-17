@@ -11,11 +11,32 @@ Measured by switching each rule off and replaying the same 3,000 deals (written 
 | Rule | What happens without it |
 |---|---|
 | **1. Play the smallest move.** On each pile, prefer the card that takes it the least distance. | Collapses: nearly every game is lost (two players 3.0, four players 19.4). This is the heart of the game. |
-| **2. Stop when you have played your minimum**, unless the next move is tiny (about 3 steps or less) or a backward 10. | Two players 54.1 (down 21.9), four players 76.0 (down 12.6). Playing on after your minimum with a big move spends room the next player needed. Solitaire has no turns, so this does not apply there. |
+| **2. Stop when you have played your minimum**, unless the next move is tiny or a backward 10 (see "When to play on" below). | Two players 54.1 (down 21.9), four players 76.0 (down 12.6). Playing on after your minimum with a big move spends room the next player needed. Solitaire has no turns, so this does not apply there. |
 | **3. Look ahead through your hand.** Prefer the play after which more of your other cards can still be played in a row, with small moves. | Down 4.3 in solitaire, 2.6 with two players, 2.9 with four. |
 | **4. Use the backward 10.** A card exactly 10 below an ascending pile (or 10 above a descending one) sets the pile back for free. Treat it as a bonus. | Down about 1 point at every table. |
 | **5. Do not jump over your own cards.** Playing a card past another card of yours on the same pile makes that one unplayable there. | Down 0.3 to 0.4. Small, but free to follow. |
 | Avoid stranding a card (leaving one with no pile that takes it) | Worth almost nothing once the others are followed (under 0.1). |
+
+## When to play on after your minimum
+
+Once you have played the minimum, stop unless the best move you have left is **tiny** or a **backward 10**. Measured on 3,000 deals per table with honest, up-to-date reactions (the written strategy with a stricter or looser meaning of "tiny"; fixed 3 steps scored two players 80.6 and four players 91.0):
+
+| How "tiny" depends on what teammates have marked on that pile | Two players | Four players |
+|---|---|---|
+| Always 3 steps (the written strategy) | 80.6 | 91.0 |
+| **No mark: 4 steps. Like: 6. Love: 3. Really love: not at all (only a backward 10)** | **86.1 (+5.4)** | **93.2 (+2.2)** |
+| Same, but like only 1 step (the "tighten when anyone likes it" idea) | 81.0 (+0.4) | 90.7 (-0.2) |
+| Same as the best row but making it depend on how early the game is (4 early, 2 late) | 85.1 (+4.4) | 92.4 (+1.5), a little worse than without |
+
+What this says:
+
+- **A backward 10 is always worth playing.** The trained computer players kept playing in 100% of the 11,000 positions where a backward 10 was their best move.
+- **A "really love" mark on a pile means leave it.** Even a 1-step move on a pile a teammate really loves was played by the trained players only 45% of the time (92% with no mark).
+- **A plain "like" is not a reason to stop.** It is a reason to play on a little more, up to about 6 steps, and the computer players agree (98% played a 1-step move on a liked pile).
+- **"Love" sits in between:** up to about 3 steps.
+- **Early or late in the game does not need its own rule.** The trained players do keep playing a bit more early (about 4 steps early, 2 late), but a rule built on it gained nothing measurable (and was slightly worse together with the marks).
+- **Setting up a backward 10** (playing a bigger move because a card in your hand is exactly 10 below the new top) gained nothing measurable on top of the above (+0.1 to +0.3, not significant), so it is not a rule. With no reactions in play it gained +0.3 at two players and nothing at four.
+- These are for tables where marks are honest and current, as robots keep them. A mark that is several plays old can mislead, so with slow human marks expect less.
 
 ## Counting cards (the played-card record)
 

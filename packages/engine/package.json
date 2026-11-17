@@ -13,7 +13,8 @@
     "test:unit": "vitest run",
     "sim": "tsx tools/sim.ts",
     "golden": "tsx tools/golden.ts",
-    "decks": "tsx tools/decks.ts"
+    "decks": "tsx tools/decks.ts",
+    "stoptest": "tsx tools/stoptest.ts"
   },
   "dependencies": {
     "@upndown/shared-types": "0.1.0"
