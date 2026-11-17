@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Action } from '@upndown/engine';
-import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import { buildDeck, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import type { RobotBrain } from './robot-brain.js';
 import type {
   CreateGamePayload,
   GameState,
@@ -138,6 +139,8 @@ export interface GameManagerHooks {
   kickMs?: number;
   // How long a game that nobody is connected to is kept (default 30 minutes; much longer once games are saved).
   activeTtlMs?: number;
+  // What robots decide with. Without one they use the written strategy.
+  robotBrain?: RobotBrain | null;
 }
 
 // The public lobby list shows the newest of these.
@@ -1122,6 +1125,36 @@ export class GameManager {
     return nextState;
   }
 
+  // Robots show honest reactions, as a diligent player would: after every play, each robot not on turn marks every pile by how good its best card for
+  // it is (the rule in How to Play), and a robot on turn shows none. Returns whether anything changed, so the caller can tell the table.
+  syncRobotReactions(gameId: string): boolean {
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase !== 'playing' || room.gameState.isSolitaire) return false;
+    const state = room.gameState;
+    const onTurn = state.players[state.currentPlayerIndex]?.id;
+    const board = this.reactions.get(gameId) ?? new Map<string, Map<number, ReactionType>>();
+    let changed = false;
+    for (const player of state.players) {
+      if (!player.robot) continue;
+      const want = new Map<number, ReactionType>();
+      if (player.id !== onTurn) {
+        for (const pile of state.foundationPiles) {
+          const level = senderLevel(player.hand, pile, state.settings);
+          if (level) want.set(pile.id, level);
+        }
+      }
+      const have = board.get(player.id);
+      const same = have ? have.size === want.size && [...want].every(([pile, level]) => have.get(pile) === level) : want.size === 0;
+      if (same) continue;
+      changed = true;
+      if (want.size === 0) board.delete(player.id);
+      else board.set(player.id, want);
+    }
+    if (board.size > 0) this.reactions.set(gameId, board);
+    else this.reactions.delete(gameId);
+    return changed;
+  }
+
   // Robots only act while a person is at the table: a connected one. With nobody there they wait.
   hasConnectedHuman(gameId: string): boolean {
     const room = this.rooms.get(gameId);
@@ -1144,16 +1177,28 @@ export class GameManager {
     const due = this.robotToAct(gameId);
     if (!due || due.turnKey !== expectedTurnKey) return null;
     const state = this.requireRoom(gameId).gameState;
-    const action = chooseAction(observe(state, due.robotId));
-    try {
-      if (action.type === 'play') this.playCard(due.robotId, { gameId, cardId: action.cardId, pileId: action.pileId });
-      else if (action.type === 'endTurn') this.endTurn(due.robotId, gameId);
-      else if (action.type === 'skip') this.skip(due.robotId, { gameId });
-      else if (action.type === 'trade') this.trade(due.robotId, { gameId, cardId: action.cardId });
-      else return null;
-    } catch {
-      return null;
+    // The written strategy decides cheats (skip, trade), which the network was not trained on; otherwise the network decides when there is one.
+    const rule = chooseAction(observe(state, due.robotId));
+    let brainAction: Action | null = null;
+    if (rule.type !== 'skip' && rule.type !== 'trade' && rule.type !== 'none') {
+      try { brainAction = this.hooks.robotBrain?.choose(state, due.robotId, this.getReactions(gameId)) ?? null; } catch { brainAction = null; }
     }
+    // A move the network picks that the rules refuse falls back to the written strategy's, so a robot never stalls.
+    let action: Action = rule;
+    for (const candidate of brainAction ? [brainAction, rule] : [rule]) {
+      try {
+        if (candidate.type === 'play') this.playCard(due.robotId, { gameId, cardId: candidate.cardId, pileId: candidate.pileId });
+        else if (candidate.type === 'endTurn') this.endTurn(due.robotId, gameId);
+        else if (candidate.type === 'skip') this.skip(due.robotId, { gameId });
+        else if (candidate.type === 'trade') this.trade(due.robotId, { gameId, cardId: candidate.cardId });
+        else return null;
+        action = candidate;
+        break;
+      } catch {
+        if (candidate === rule) return null;
+      }
+    }
+    if (action.type === 'none') return null;
     return { robotId: due.robotId, step: action.type };
   }
 

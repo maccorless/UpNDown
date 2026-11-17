@@ -23,6 +23,7 @@ import type { CheatUsedEvent, JoinRequestEvent, JoinResolvedEvent } from '@upndo
 import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { resolveClientIp } from './client-ip.js';
 import { GameManager } from './game-manager.js';
+import { loadRobotBrain } from './robot-brain.js';
 import { toPlayerView } from './player-view.js';
 import { AdvisoryLock, type WriterLock } from './live/advisory-lock.js';
 import { PgGameStore, type GameStore } from './live/game-store.js';
@@ -270,7 +271,7 @@ export function createRealtimeServer(
     }
   });
 
-  const manager = new GameManager({ onResults: (rows) => auth.recordResults(rows), ...timing });
+  const manager = new GameManager({ onResults: (rows) => auth.recordResults(rows), robotBrain: loadRobotBrain(process.env, (message) => log('info', 'robots.brain', { message })), ...timing });
   // The account behind a socket, from the session cookie at the handshake. Guests have none.
   const userIdOf = (socket: Socket): string | undefined => (typeof socket.data.userId === 'string' ? socket.data.userId : undefined);
   // A connection is in one game at a time. A seat in a lobby or a finished game is simply left (the client forgot to);
@@ -296,6 +297,7 @@ export function createRealtimeServer(
     for (const socketId of io.sockets.adapter.rooms.get(gameId) ?? []) {
       io.to(socketId).emit('game:updated', viewOf(state, socketId));
     }
+    if (manager.syncRobotReactions(gameId)) io.to(gameId).emit('game:reactionsUpdated', manager.getReactions(gameId));
     scheduleRobot(gameId);
   };
 
