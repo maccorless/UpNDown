@@ -8,6 +8,7 @@ import type { AuthState } from './useAuth.js';
 const makeAuth = (overrides: Partial<AuthState> = {}): AuthState => ({
   status: 'signedIn',
   storage: 'ok',
+  userId: null,
   playerName: 'Grover Arthur',
   nameConfirmed: false,
   settings: null,

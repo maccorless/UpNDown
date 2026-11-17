@@ -9,6 +9,8 @@ export interface AuthState {
   // Whether the server can save: 'none' (no database in this version), 'ok', 'down' (not answering right now), or 'unknown'
   // (not told, for example offline or an older server).
   storage: 'unknown' | 'none' | 'ok' | 'down';
+  // An opaque id for the signed-in account (the browser keys what it keeps for the account on it). Null when signed out.
+  userId: string | null;
   playerName: string | null;
   // False until the player has typed a name or accepted the suggested one, which is what the first-sign-in prompt asks.
   nameConfirmed: boolean;
@@ -36,6 +38,7 @@ function takeLoginMessage(): LoginMessage | null {
 
 export function useAuth(navigate: (url: string) => void = (url) => window.location.assign(url)): AuthState {
   const [status, setStatus] = useState<AuthState['status']>('loading');
+  const [userId, setUserId] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState<string | null>(null);
   const [nameConfirmed, setNameConfirmed] = useState(true);
   const [settings, setSettings] = useState<StoredSettings | null>(null);
@@ -54,7 +57,8 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
       const me = await fetch('/api/me', { ...sameOrigin, signal: controller.signal });
       if (me.status === 401) return setStatus('guest');
       if (!me.ok) return setStatus('disabled');
-      const body = await me.json() as { playerName?: string | null; nameConfirmed?: boolean; settings?: unknown };
+      const body = await me.json() as { userId?: string; playerName?: string | null; nameConfirmed?: boolean; settings?: unknown };
+      setUserId(typeof body.userId === 'string' ? body.userId : null);
       setPlayerName(typeof body.playerName === 'string' ? body.playerName : null);
       // A server that does not say (an older one) must not trigger a prompt it cannot answer.
       setNameConfirmed(body.nameConfirmed !== false);
@@ -79,6 +83,7 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
       body: '{}'
     });
     if (response.ok) {
+      setUserId(null);
       setPlayerName(null);
       setNameConfirmed(true);
       setSettings(null);
@@ -108,5 +113,5 @@ export function useAuth(navigate: (url: string) => void = (url) => window.locati
 
   const dismissLoginMessage = useCallback(() => setLoginMessage(null), []);
 
-  return { status, storage, playerName, nameConfirmed, settings, loginMessage, signIn, signOut, confirmName, dismissLoginMessage };
+  return { status, storage, userId, playerName, nameConfirmed, settings, loginMessage, signIn, signOut, confirmName, dismissLoginMessage };
 }

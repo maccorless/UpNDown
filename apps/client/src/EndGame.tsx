@@ -4,6 +4,7 @@ import { cheatCount, describeCheats } from './cheats.js';
 import type { CSSProperties, JSX } from 'react';
 import { deckProgress, lossLine, PLAYER_COLOR_HEX, statsHighlights } from './board-helpers.js';
 import { Modal } from './Modal.js';
+import type { ResultSaveStatus } from './useSolitaireResult.js';
 
 type Mode = 'solitaire' | 'multiplayer';
 
@@ -61,7 +62,7 @@ interface EndGameStatisticsModalProps {
   onPlayAgain: () => void;
   onBackToLobby: () => void;
   // Only for a signed-in player's solitaire game: whether the result reached their history. Idle shows nothing.
-  saveStatus?: 'idle' | 'saving' | 'saved' | 'failed';
+  saveStatus?: ResultSaveStatus;
   onRetrySave?: () => void;
   // Solitaire only: end this game and open the settings, since they are fixed while a game is on.
   onChangeSettings?: () => void;
@@ -110,7 +111,11 @@ export function EndGameStatisticsModal({
 
       {saveStatus === 'idle' ? null : (
         <p className="stats-save" role="status">
-          {saveStatus === 'saving' ? 'Saving to your history...' : saveStatus === 'saved' ? 'Saved to your history.' : 'Could not save this game to your history. '}
+          {saveStatus === 'saving' ? 'Saving to your history...'
+            : saveStatus === 'saved' ? 'Saved to your history.'
+            : saveStatus === 'queued' ? 'Saved on this device, will sync when you are online.'
+            : saveStatus === 'local' ? 'Saved on this device.'
+            : 'Could not save this game to your history. '}
           {saveStatus === 'failed' && onRetrySave ? <button type="button" className="link-action" onClick={onRetrySave}>Try again</button> : null}
         </p>
       )}

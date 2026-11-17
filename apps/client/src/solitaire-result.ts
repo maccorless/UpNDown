@@ -33,6 +33,12 @@ export function buildSolitairePayload(state: GameState, runId: string): Solitair
     totalMovement: mine.totalMovement,
     specialPlays: mine.specialPlays,
     nasCheats: mine.nasCheatsUsed,
+    skips: mine.skipsUsed,
+    trades: mine.tradesUsed,
+    lookups: mine.lookupsUsed,
+    hints: mine.hintsUsed,
+    undos: mine.undosUsed,
+    playedLastCard: state.gamePhase === 'won' ? state.statistics.finishedById === SOLO_PLAYER_ID : false,
     settings: state.settings
   };
   // The server applies the same checks. A game that cannot pass them is not sent, rather than sent to be refused.
@@ -40,7 +46,9 @@ export function buildSolitairePayload(state: GameState, runId: string): Solitair
   return checked.success ? (payload as SolitaireResultPayload) : null;
 }
 
-export async function postSolitaireResult(payload: SolitaireResultPayload): Promise<boolean> {
+// ok: the server has it. retry: it may work later (no connection, throttled, signed out, server trouble). permanent: the server
+// refused this game for good, so sending it again changes nothing.
+export async function postSolitaireResult(payload: SolitaireResultPayload): Promise<'ok' | 'retry' | 'permanent'> {
   try {
     const response = await fetch('/api/me/solitaire-results', {
       method: 'POST',
@@ -48,8 +56,9 @@ export async function postSolitaireResult(payload: SolitaireResultPayload): Prom
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    return response.ok;
+    if (response.ok) return 'ok';
+    return response.status === 400 || response.status === 409 || response.status === 413 ? 'permanent' : 'retry';
   } catch {
-    return false;
+    return 'retry';
   }
 }

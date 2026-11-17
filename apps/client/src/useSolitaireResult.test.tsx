@@ -3,6 +3,8 @@ import { defaultSolitaireSettings, type GameState } from '@upndown/shared-types'
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useSolitaireResult } from './useSolitaireResult.js';
+import { createLocalHistory } from './profile/local-history.js';
+import { createOutbox } from './profile/outbox.js';
 
 const playing = (): GameState => createStartedGameState({
   gameId: 'SOLITAIRE', hostId: 'solo-player', players: [{ id: 'solo-player', name: 'You', color: 'cyan' }],
@@ -20,7 +22,7 @@ const won = (): GameState => {
 };
 const lost = (): GameState => ({ ...won(), gamePhase: 'lost', drawPile: playing().drawPile.slice(0, 30) , statistics: { ...won().statistics, players: { 'solo-player': { cardsPlayed: 68, totalMovement: 200, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 } } } });
 
-type Props = { active: boolean; state: GameState; runId: string; signedIn: boolean };
+type Props = { active: boolean; state: GameState; runId: string; signedIn: boolean; guest?: boolean; userId?: string | null; history?: ReturnType<typeof createLocalHistory> };
 const render = (initial: Props) => renderHook((p: Props) => useSolitaireResult(p), { initialProps: initial });
 
 describe('useSolitaireResult', () => {
@@ -121,5 +123,51 @@ describe('useSolitaireResult', () => {
     release(new Response('{}', { status: 200 }));
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(result.current.status).toBe('idle');
+  });
+
+  describe('on this device and offline', () => {
+    beforeEach(() => { window.localStorage.clear(); });
+
+    it('keeps a guest\'s finished game on the device and makes no request', async () => {
+      const history = createLocalHistory();
+      const { result } = render({ active: true, state: won(), runId: 'run-g1', signedIn: false, guest: true, history });
+      await waitFor(() => expect(result.current.status).toBe('local'));
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(history.load().rows).toMatchObject([{ gameId: 'run-g1', mode: 'solitaire', outcome: 'won' }]);
+    });
+
+    it('keeps a game once however many times the screen redraws, for a guest', async () => {
+      const history = createLocalHistory();
+      const state = won();
+      const { rerender, result } = render({ active: true, state, runId: 'run-g2', signedIn: false, guest: true, history });
+      await waitFor(() => expect(result.current.status).toBe('local'));
+      for (let i = 0; i < 3; i += 1) rerender({ active: true, state: { ...state }, runId: 'run-g2', signedIn: false, guest: true, history });
+      expect(history.load().rows).toHaveLength(1);
+    });
+
+    it('queues a signed-in game when there is no connection, keeps playing, and sends it when the connection returns', async () => {
+      let online = false;
+      fetchMock.mockImplementation(async () => { if (!online) throw new TypeError('Failed to fetch'); return new Response('{}', { status: 200 }); });
+      const { result } = render({ active: true, state: won(), runId: 'run-q1', signedIn: true, userId: 'user-1' });
+      await waitFor(() => expect(result.current.status).toBe('queued'));
+      expect(createOutbox('user-1').pending().map((p) => p.gameId)).toEqual(['run-q1']);
+      online = true;
+      window.dispatchEvent(new Event('online'));
+      await waitFor(() => expect(createOutbox('user-1').pending()).toEqual([]));
+    });
+
+    it('drops a game the server refused for good, and says so', async () => {
+      fetchMock.mockImplementationOnce(async () => new Response('{}', { status: 400 }));
+      const { result } = render({ active: true, state: won(), runId: 'run-q2', signedIn: true, userId: 'user-1' });
+      await waitFor(() => expect(result.current.status).toBe('failed'));
+      expect(createOutbox('user-1').pending()).toEqual([]);
+    });
+
+    it('keeps a throttled game for later instead of dropping it', async () => {
+      fetchMock.mockImplementation(async () => new Response('{}', { status: 429 }));
+      const { result } = render({ active: true, state: won(), runId: 'run-q3', signedIn: true, userId: 'user-1' });
+      await waitFor(() => expect(result.current.status).toBe('queued'));
+      expect(createOutbox('user-1').pending()).toHaveLength(1);
+    });
   });
 });

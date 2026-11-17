@@ -85,6 +85,18 @@ describe('the result a finished solitaire game reports', () => {
   });
 });
 
+describe('what the result says about help and undo', () => {
+  it('reports each kind of cheat used and the undos, so a signed-in game and the same game kept on a device agree (Clean Hands depends on it)', () => {
+    const won = winningGame();
+    won.statistics.players['solo-player'] = { ...won.statistics.players['solo-player']!, skipsUsed: 1, tradesUsed: 2, lookupsUsed: 3, hintsUsed: 4, undosUsed: 5 };
+    expect(buildSolitairePayload(won, 'run-9')).toMatchObject({ skips: 1, trades: 2, lookups: 3, hints: 4, undos: 5, playedLastCard: true });
+  });
+
+  it('says the winning card was not the player\'s for a loss', () => {
+    expect(buildSolitairePayload(lostGame(), 'run-10')).toMatchObject({ playedLastCard: false });
+  });
+});
+
 describe('sending it', () => {
   afterEach(() => vi.unstubAllGlobals());
   const payload = () => buildSolitairePayload(winningGame(), 'run-6')!;
@@ -92,21 +104,22 @@ describe('sending it', () => {
   it('posts the result as JSON with the session cookie, and says whether it was accepted', async () => {
     const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);
-    expect(await postSolitaireResult(payload())).toBe(true);
+    expect(await postSolitaireResult(payload())).toBe('ok');
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe('/api/me/solitaire-results');
     expect(init).toMatchObject({ method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } });
     expect(JSON.parse(init.body as string).gameId).toBe('run-6');
   });
 
-  it.each([[400], [401], [429], [500]])('is a failure, not a crash, when the server answers %i', async (status) => {
+  // A failure that may pass is kept and retried; one the server refused for good is dropped, so it cannot loop forever.
+  it.each([[400, 'permanent'], [409, 'permanent'], [413, 'permanent'], [401, 'retry'], [429, 'retry'], [500, 'retry'], [503, 'retry']])('answers %i with %s', async (status, expected) => {
     vi.stubGlobal('fetch', vi.fn(async () => new Response('{}', { status })));
-    expect(await postSolitaireResult(payload())).toBe(false);
+    expect(await postSolitaireResult(payload())).toBe(expected);
   });
 
-  it('is a failure, not a crash, with no connection', async () => {
+  it('is a retry, not a crash, with no connection', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => { throw new TypeError('Failed to fetch'); }));
-    expect(await postSolitaireResult(payload())).toBe(false);
+    expect(await postSolitaireResult(payload())).toBe('retry');
   });
 });
 
