@@ -308,7 +308,7 @@ export function createRealtimeServer(
   const robotTimers = new Set<NodeJS.Timeout>();
   const robotPlanned = new Map<string, string>();
   const robotPause = robotPauseFromEnv();
-  // A pause before every robot turn, in which the others (people, and robots re-marking their piles) can react. Tests fix it with timing.robotDelayMs.
+  // A pause after EACH robot step (every card it plays and its end of turn, not once per turn), in which the others (people, and robots re-marking their piles) can react. Tests fix it with timing.robotDelayMs.
   const robotDelay = (gameId: string): number => timing.robotDelayMs ?? pickRobotPause(robotPause, manager.hasHumanSeat(gameId));
   const scheduleRobot = (gameId: string): void => {
     const due = manager.robotToAct(gameId);

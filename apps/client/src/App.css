@@ -435,6 +435,34 @@ body {
   margin: 0;
 }
 
+.hand-panel.my-turn {
+  border-color: var(--accent-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.your-turn-banner {
+  margin-bottom: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--accent-strong);
+  color: var(--on-accent, #fff);
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .your-turn-banner {
+    animation: your-turn-in 0.5s ease-out;
+  }
+}
+
+@keyframes your-turn-in {
+  0% { opacity: 0; transform: scale(0.9); }
+  60% { transform: scale(1.04); }
+  100% { opacity: 1; transform: none; }
+}
+
 .turn-progress {
   padding: 2px 10px;
   border-radius: 999px;

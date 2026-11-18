@@ -551,7 +551,13 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
         );
       })() : null}
 
-      <section className="panel hand-panel" aria-label="your hand">
+      <section className={`panel hand-panel${mode === 'multiplayer' && gameState.gamePhase === 'playing' && isMyTurn ? ' my-turn' : ''}`} aria-label="your hand">
+        {mode === 'multiplayer' && gameState.gamePhase === 'playing' && isMyTurn ? (
+          // keyed by the turn count so the entrance plays again each time the turn comes back to this player
+          <div key={gameState.statistics.turns} className="your-turn-banner" aria-live="polite" data-testid="your-turn-banner">
+            Your turn: play at least {requiredPlaysThisTurn} {requiredPlaysThisTurn === 1 ? 'card' : 'cards'}
+          </div>
+        ) : null}
         <div className="hand-header">
           <div className="hand-title">
             <h2>Your Hand</h2>
@@ -1999,7 +2005,12 @@ export function App(): JSX.Element {
               How to Play
             </a>
           ) : null}
-          {mode === 'solitaire' && solitaireActive ? (
+          {(solitaireEnded || multiplayerEnded) && !statsModalOpen ? (
+            <button type="button" className="secondary" onClick={() => setDismissedStatsModalKey(null)} data-testid="show-results">
+              Results
+            </button>
+          ) : null}
+          {mode === 'solitaire' && solitaireActive && !solitaireEnded ? (
             <button
               type="button"
               className="danger"
@@ -2009,7 +2020,7 @@ export function App(): JSX.Element {
               End Game
             </button>
           ) : null}
-          {mode === 'multiplayer' && multiplayerGameActive ? (
+          {mode === 'multiplayer' && multiplayerGameActive && !multiplayerEnded ? (
             <button
               type="button"
               className="danger"

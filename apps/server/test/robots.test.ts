@@ -254,6 +254,38 @@ describe('a game with robots over sockets', () => {
     expect(robotMarked).toBe(true); // the robots showed their reactions to the table during the game
   }, 30_000);
 
+  // The pause comes after EACH robot play, not once per turn: others get a moment to react to every card the robot lays down.
+  it('waits the pause after every single robot step, including the second card of the same turn', async () => {
+    const pauseMs = 80;
+    await boot({ robotDelayMs: pauseMs });
+    const host = await open();
+    const created = await ask(host, 'game:create', { playerName: 'Hana', settings: { ...settings, minCardValue: 2, maxCardValue: 60, handSize: 7, minCardsPerTurn: 2 }, isSolitaire: false });
+    const gameId = created.data!.gameState.gameId;
+    await ask(host, 'game:addRobot', { gameId });
+    let latest = (await ask(host, 'game:start', { gameId })).data!.gameState;
+    // A robot step is any update that follows a state in which a robot was on turn.
+    const stepsAt: { at: number; turn: number }[] = [];
+    host.on('game:updated', (state: GameState) => {
+      if (latest.players[latest.currentPlayerIndex]?.robot && state.statistics.turns >= latest.statistics.turns) stepsAt.push({ at: Date.now(), turn: latest.statistics.turns });
+      latest = state;
+    });
+    const deadline = Date.now() + 15_000;
+    while (Date.now() < deadline && latest.gamePhase === 'playing' && stepsAt.length < 12) {
+      const state = latest;
+      if (state.players[state.currentPlayerIndex]!.id === host.id) {
+        const action = chooseAction(observe(state, host.id!));
+        if (action.type === 'play') await ask(host, 'game:playCard', { gameId, cardId: action.cardId, pileId: action.pileId });
+        else if (action.type === 'endTurn') await ask(host, 'game:endTurn', { gameId });
+        else break;
+      } else {
+        await wait(5);
+      }
+    }
+    const sameTurnGaps = stepsAt.slice(1).map((step, i) => ({ gap: step.at - stepsAt[i]!.at, same: step.turn === stepsAt[i]!.turn })).filter((x) => x.same).map((x) => x.gap);
+    expect(sameTurnGaps.length).toBeGreaterThan(0); // the robot played more than one card in a turn
+    expect(Math.min(...sameTurnGaps)).toBeGreaterThanOrEqual(pauseMs - 15);
+  }, 30_000);
+
   // The last word the table hears about reactions must be what the server holds, or the robots' marks never show.
   it('tells the table the robots\' marks when the game starts and after each end of turn, never an older list', async () => {
     await boot();

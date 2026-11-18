@@ -215,6 +215,8 @@ Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom sta
   - ✅ Draw pile count
   - ✅ Game ID with one-click invite link copy
   - ✅ Turn sequence display (dot strip + "Your turn in X" label)
+  - ✅ When the turn is yours: a "Your turn: play at least N cards" banner over the hand and a highlighted hand panel
+  - ✅ A won or lost game shows no End Game button; a Results button reopens the results (Play Again, Back to Lobby)
   - ✅ Pile reaction indicators (👍 ❤️ 🔥 per player per pile)
   - ✅ Backward-10 special play animation (golden flash + floating label)
   - ✅ End-game confirmation modal (prevents accidental game termination)
