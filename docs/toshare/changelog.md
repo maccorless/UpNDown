@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-18 | — | Fix: a host alone in a new lobby can save settings again (the server refused them because the room was below the minimum player count; starting a game still enforces it), and a refused save is now told inside the Settings dialog instead of behind it |
 | 2026-11-17 | — | Feat: a Profile page for everyone, with Statistics and Achievements tabs. Guests keep their finished games in the browser; a banner says plainly that the profile lives only there and is lost if the browser data is cleared, with a Sign in with Google button. Signed-in players see the same page computed from their account. 34 badges with Bronze, Silver and Gold, a few secret ones, and toasts after the result screen |
 | 2026-11-17 | — | Feat: signing in with games on the device offers to add them to the account, in small batches, with nothing deleted from the device until the server has it; games that cannot be added stay on the device. A signed-in solitaire game that cannot be sent (offline, throttled) waits on the device and is sent when the connection returns |
 | 2026-11-17 | — | Fix: signed-in solitaire results were stored with zero skips, trades, lookups and hints (only the old card-swap count was sent). They now report every cheat kind and undos. Earlier rows cannot be repaired |

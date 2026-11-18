@@ -124,6 +124,7 @@ interface SettingsDialogProps {
   settings: GameSettings;
   editable: boolean;
   validationError: string | null;
+  saveError?: string | null;
   onClose: () => void;
   onSave?: () => void;
   onChange: (settings: GameSettings) => void;
@@ -140,6 +141,7 @@ function OpenSettingsDialog({
   settings,
   editable,
   validationError,
+  saveError,
   onClose,
   onSave,
   onChange,
@@ -370,6 +372,7 @@ function OpenSettingsDialog({
           ) : null}
 
           {validationError ? <p className="settings-error" role="alert">{validationError}</p> : null}
+          {saveError && !validationError ? <p className="settings-error" role="alert">{saveError}</p> : null}
         </div>
 
         <footer className="settings-foot">

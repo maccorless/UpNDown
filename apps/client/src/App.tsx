@@ -665,6 +665,8 @@ export function App(): JSX.Element {
   const [multiplayerCreateSettings, setMultiplayerCreateSettings] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [settingsDraft, setSettingsDraft] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  // A refused save is told inside the dialog; the page banner sits behind it.
+  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
   const [dismissedStatsModalKey, setDismissedStatsModalKey] = useState<string | null>(null);
   // false: closed. 'panel': the cheats panel. 'skip': the panel, straight to the skip confirmation (the Ctrl/Cmd-S key).
   const [cheatsOpen, setCheatsOpen] = useState<false | 'panel' | 'skip'>(false);
@@ -1846,6 +1848,7 @@ export function App(): JSX.Element {
     } else {
       setSettingsDraft(multiplayerState ? multiplayerState.settings : multiplayerCreateSettings);
     }
+    setSettingsSaveError(null);
     setIsSettingsOpen(true);
   };
 
@@ -1886,7 +1889,7 @@ export function App(): JSX.Element {
 
     const isHost = multiplayerState.hostId === playerId;
     if (!isHost) {
-      setError('Only host can change settings');
+      setSettingsSaveError('Only host can change settings');
       return;
     }
 
@@ -1897,11 +1900,12 @@ export function App(): JSX.Element {
     );
 
     if (!ack.ok) {
-      setError(ack.error);
+      setSettingsSaveError(ack.error);
       return;
     }
 
     setMultiplayerState(ack.data.gameState);
+    setSettingsSaveError(null);
     setIsSettingsOpen(false);
     setError(null);
   };
@@ -2451,9 +2455,10 @@ export function App(): JSX.Element {
           settings={settingsDraft}
           editable={settingsEditable}
           validationError={settingsDraftError}
-          onClose={() => setIsSettingsOpen(false)}
+          saveError={settingsSaveError}
+          onClose={() => { setSettingsSaveError(null); setIsSettingsOpen(false); }}
           onSave={() => { void handleSaveSettings(); }}
-          onChange={setSettingsDraft}
+          onChange={(next) => { setSettingsSaveError(null); setSettingsDraft(next); }}
           enableSounds={enableSounds}
           onToggleSounds={changeSounds}
         />

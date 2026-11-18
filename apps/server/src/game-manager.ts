@@ -754,10 +754,6 @@ export class GameManager {
       throw new Error('This deck cannot deal a full hand to that many players. Raise the top card or lower the hand size.');
     }
 
-    if (gameState.players.length < payload.settings.minPlayers) {
-      throw new Error('Current player count is below new min players');
-    }
-
     const nextState: GameState = {
       ...gameState,
       settings: withCheatLimits(payload.settings)

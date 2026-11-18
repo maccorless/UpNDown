@@ -172,3 +172,13 @@ describe('settings that the deck cannot deal', () => {
     expect(started.players.map((p) => p.hand.length)).toEqual([9, 9, 9]);
   });
 });
+
+describe('changing settings in a lobby that is not full yet', () => {
+  it('lets a host who is alone save settings (players are still joining; starting enforces the minimum)', () => {
+    const manager = new GameManager();
+    const room = manager.createGame('host', { playerName: 'Host', settings: defaultMultiplayerSettings, isSolitaire: false });
+    const next = manager.updateSettings('host', { gameId: room.gameId, settings: { ...defaultMultiplayerSettings, handSize: 8 } });
+    expect(next.settings.handSize).toBe(8);
+    expect(() => manager.startGame('host', room.gameId)).toThrow('Need at least 2 players');
+  });
+});
