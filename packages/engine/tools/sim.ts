@@ -27,10 +27,12 @@ const SETTINGS: Record<string, Setting> = {
 
 export const reward = scoreGame;
 
-const BOUNDS: Record<keyof StrategyWeights, [number, number]> = {
+// The numbers a search can tune (the pair rule switch is not one of them).
+type Tunable = Exclude<keyof StrategyWeights, 'deferComplement'>;
+const BOUNDS: Record<Tunable, [number, number]> = {
   gap: [0.2, 4], backwardTen: [0, 40], skipOver: [0, 20], strand: [0, 30], stopGap: [0, 12], planPlayed: [0, 10], planGap: [0, 2]
 };
-const KEYS = Object.keys(BOUNDS) as Array<keyof StrategyWeights>;
+const KEYS = Object.keys(BOUNDS) as Tunable[];
 
 interface Score { reward: number; winRate: number; cardsLeft: number }
 

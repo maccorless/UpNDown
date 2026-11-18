@@ -60,16 +60,18 @@ describe('the robot brain', () => {
     expect(brain.choose({ ...s, isSolitaire: true }, 'p1', {})).toBeNull();
   });
 
-  // The reason robots use it at all: it plays clearly better than the written strategy on the same deals.
-  it('beats the written strategy over the same deals, at two and four players', () => {
+  // The reason robots use it at all: it plays better than the written strategy. This table (no auto refill, no reactions) is not one the network was trained on, and the
+  // written strategy now follows the pair rule (+6.8 at two players, +2.2 at four, on the real tables), which this network has not learned. So the check here is only that
+  // the network is still within a few points of the strategy over 24 deals; the real comparison is the 3,000 paired validation games in docs/plans.
+  it('plays about as well as the written strategy over the same deals, at two and four players', () => {
     for (const players of [2, 4]) {
       let network = 0, written = 0;
-      const games = 12;
+      const games = 24;
       for (let seed = 1; seed <= games; seed += 1) {
         network += playOut(start(players, 100 + seed), (s, id) => brain.choose(s, id, {}) ?? chooseAction(observe(s, id)));
         written += playOut(start(players, 100 + seed), (s, id) => chooseAction(observe(s, id)));
       }
-      expect(network / games, `${players} players`).toBeGreaterThan(written / games + 3);
+      expect(network / games, `${players} players`).toBeGreaterThan(written / games - 3);
     }
   });
 

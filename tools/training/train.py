@@ -63,10 +63,10 @@ def act(policy, rec, dev, greedy=False):
     return (logits + g).argmax(1).cpu().numpy()
 
 
-def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', workers=4, act_fn=None, lag=0, seat_mix=None, sender=None):
+def evaluate(policy, table, games, tier_b, reactions, dev, set_='validation', workers=4, act_fn=None, lag=0, seat_mix=None, sender=None, pair_rule=False):
     """Greedy play of the first `games` seeds of a seed set on one table. Returns per-seed scores in seed order, and outcomes."""
     per = -(-games // workers)
-    actors = Actors(ENGINE, [table], per, workers, set_, record=tier_b, reactions=reactions, lag=lag, seat_mix=seat_mix, sender=sender)
+    actors = Actors(ENGINE, [table], per, workers, set_, record=tier_b, reactions=reactions, lag=lag, seat_mix=seat_mix, sender=sender, pair_rule=pair_rule)
     scores, wins, left = {}, {}, {}
     try:
         while len(scores) < games:
@@ -104,6 +104,7 @@ def main():
     ap.add_argument('--tier', default='A', choices=['A', 'B'])
     ap.add_argument('--reactions', action='store_true')
     ap.add_argument('--sender', default=None, help='like,love,reallyLove thresholds (shares of the deck) for the honest senders; reallyLove 0 means only a backward 10 is really love')
+    ap.add_argument('--pair-rule', action='store_true', help='the second card of a ten-apart pair in hand is not offered while its partner is held (see complement.ts)')
     ap.add_argument('--seat-mix', type=float, default=None, help='share of seats that are robots with exact instant reactions; the rest are human-like')
     ap.add_argument('--workers', type=int, default=12)
     ap.add_argument('--games', type=int, default=1024)
@@ -145,7 +146,7 @@ def main():
     for stage, budget in stages:
         tables = STAGES[stage]
         say(f'--- stage {stage}: {tables}, {budget:.0f} steps')
-        actors = Actors(ENGINE, tables, args.games, args.workers, 'train', record=tier_b, reactions=args.reactions, seat_mix=args.seat_mix, sender=args.sender)
+        actors = Actors(ENGINE, tables, args.games, args.workers, 'train', record=tier_b, reactions=args.reactions, seat_mix=args.seat_mix, sender=args.sender, pair_rule=args.pair_rule)
         N = args.games * args.workers
         stage_steps = 0
         t0 = time.time()
@@ -242,7 +243,7 @@ def STAGES_BY_INDEX(tables, k):
 
 def report_eval(say, policy, tables, args, tier_b, dev):
     for t in dict.fromkeys(tables):
-        s, w, l = evaluate(policy, t, args.eval_games, tier_b, args.reactions, dev, seat_mix=args.seat_mix, sender=args.sender)
+        s, w, l = evaluate(policy, t, args.eval_games, tier_b, args.reactions, dev, seat_mix=args.seat_mix, sender=args.sender, pair_rule=args.pair_rule)
         say(f'  eval {t:16s} score {s.mean():6.2f} (se {s.std(ddof=1) / np.sqrt(len(s)):.2f})  won {w.mean() * 100:5.1f}%  cards left {l.mean():5.2f}')
 
 

@@ -35,6 +35,8 @@ const workers = Number(arg('workers', '1'));
 const set = arg('set', 'train') as 'train' | 'validation' | 'test';
 const record = process.argv.includes('--record');
 const reactions = process.argv.includes('--reactions');
+// --pair-rule: the network is not offered the second card of a ten-apart pair while its partner is in the hand (src/complement.ts).
+const pairRule = process.argv.includes('--pair-rule');
 // --lag k: the reactions a player sees are the ones shown k plays ago (people do not update instantly).
 const lag = Number(arg('lag', '0'));
 // --seat-mix p: each seat of a new game is a robot (instant, exact reactions) with probability p, otherwise human-like: reactions 1 or 3 plays old, or never shown.
@@ -101,7 +103,7 @@ function writeRecord(e: number): void {
     if (slot.history.length > 4) slot.history.shift();
   }
   const input = buildNetInput(s, {
-    tierB: record, reactionsOn: reactions,
+    tierB: record, reactionsOn: reactions, pairRule,
     reactionsOf: (idx) => (slot.lags[idx]! < 0 ? null : slot.history[Math.max(0, slot.history.length - 1 - slot.lags[idx]!)]![idx]!),
     seatKindOf: (idx) => (slot.lags[idx] !== 0 ? 1 : 0)
   });

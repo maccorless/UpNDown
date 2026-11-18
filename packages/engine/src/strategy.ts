@@ -1,4 +1,5 @@
 import { cheatLimitOf, type Card, type FoundationPile, type GameState, type ReactionState } from '@upndown/shared-types';
+import { deferComplement } from './complement.js';
 import { isValidPlay, requiredCardsForTurn } from './rules.js';
 
 // What a player can see, and nothing else: their own hand, the top of each pile, how many cards are in the draw pile and how
@@ -63,6 +64,8 @@ export interface StrategyWeights {
   // is worth this much, and each step of movement along the way costs planGap.
   planPlayed: number;
   planGap: number;
+  // The pair rule (see complement.ts). On unless this is false; only an experiment turns it off.
+  deferComplement?: boolean;
 }
 
 export const DEFAULT_WEIGHTS: StrategyWeights = { gap: 1, backwardTen: 14, skipOver: 4, strand: 8, stopGap: 3, planPlayed: 3, planGap: 0.3 };
@@ -167,9 +170,12 @@ export type Action =
 // `none` means nothing can be done (it is not this player's turn, or the player is stuck).
 export function chooseAction(obs: Observation, weights: StrategyWeights = DEFAULT_WEIGHTS, bias?: PlayBias): Action {
   if (!obs.myTurn) return { type: 'none' };
-  const plays = rankPlays(obs, weights, bias);
+  const ranked = rankPlays(obs, weights, bias);
   const needed = Math.max(0, obs.required - obs.cardsPlayedThisTurn);
-  const best = plays[0];
+  const first = ranked[0];
+  // The pair rule: the second card of a pair waits for its partner. The best play is swapped for the next card of the climb, with its own score.
+  const redirect = first && weights.deferComplement !== false ? deferComplement(obs.hand, obs.piles, first) : null;
+  const best = redirect ? ranked.find((p) => p.cardId === redirect.cardId && p.pileId === redirect.pileId) ?? first : first;
 
   // Before a card is played this turn: if the minimum cannot be met from this hand, skipping first (while the game is still
   // being played) is the one thing that saves the turn.

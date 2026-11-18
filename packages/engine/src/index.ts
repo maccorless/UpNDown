@@ -3,6 +3,7 @@ export * from './rules.js';
 export * from './errors.js';
 export * from './transitions.js';
 export * from './strategy.js';
+export * from './complement.js';
 export * from './simulate.js';
 export * from './stats.js';
 export * from './tables.js';

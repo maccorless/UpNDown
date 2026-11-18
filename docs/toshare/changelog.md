@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-18 | — | Feat: the written strategy (hint fallback, robots' fallback) now follows the pair rule: with a card and the card ten below it in hand, play the climb to the higher one first and the lower one last as a backward 10. Worth +11 in solitaire, +6.8 with two players and +2.2 with four on the same deals. The trained robots and hints are unchanged until a network is trained with the rule |
 | 2026-11-18 | — | Fix: on large hands the numbers on the cards no longer overlap where the screen has room (the hand fan adapts to the width of the row and the card size, and cards get a little narrower on phones). Where an 11 card hand cannot fit on the smallest phones, hovering (or selecting) a card brings it to the top so its number can be read |
 | 2026-11-18 | — | Feat: the board now says in words when your turn has started (a banner over your hand, "Your turn: play at least N cards", and a highlighted hand), not only by sound and the tab title |
 | 2026-11-18 | — | Fix: once a game is won or lost there is no End Game button to press (it was host-only and the game was already over); a Results button brings back the results with Play Again and Back to Lobby |

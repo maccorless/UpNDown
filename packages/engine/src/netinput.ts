@@ -1,5 +1,6 @@
 import type { FoundationPile, GameState } from '@upndown/shared-types';
 import { playedValues } from './belief.js';
+import { deferComplement } from './complement.js';
 import { isValidPlay, requiredCardsForTurn } from './rules.js';
 
 // What the trained network is shown for the player on turn: only what that player can see (plus, for the "Tier B" network, the public list of cards
@@ -8,6 +9,8 @@ import { isValidPlay, requiredCardsForTurn } from './rules.js';
 export const NET_HAND = 11, NET_OTHERS = 5, NET_DECK = 100, NET_ACTIONS = NET_HAND * 4 + 1, NET_END = NET_HAND * 4;
 
 export interface NetInputOptions {
+  // Withhold the second card of a ten-apart pair while its partner is in the hand (default off: a network trained without the rule plays worse with it; one trained with it must be run with it).
+  pairRule?: boolean;
   // Tier B: also show the list of cards already played.
   tierB: boolean;
   // The network was trained with reactions switched on (flag 11 of the globals); the reactions themselves come from reactionsOf.
@@ -63,7 +66,12 @@ export function buildNetInput(state: GameState, opts: NetInputOptions): NetInput
   const played = new Array<number>(NET_DECK).fill(0);
   if (opts.tierB) for (const v of playedValues(state)) played[v] = 1;
   const mask = new Array<number>(NET_ACTIONS).fill(0);
-  me.hand.slice(0, NET_HAND).forEach((c, i) => canon.forEach((pileId, p) => { if (isValidPlay(c, pileOf(pileId))) mask[i * 4 + p] = 1; }));
+  // The pair rule (complement.ts) is a rule about legal choices: the second card of a pair is not offered while its partner is still in the hand.
+  me.hand.slice(0, NET_HAND).forEach((c, i) => canon.forEach((pileId, p) => {
+    if (!isValidPlay(c, pileOf(pileId))) return;
+    if (opts.pairRule === true && deferComplement(me.hand, state.foundationPiles, { cardId: c.id, pileId })) return;
+    mask[i * 4 + p] = 1;
+  }));
   if (players > 1 && state.cardsPlayedThisTurn >= required) mask[NET_END] = 1;
   return { hand, tops, canon, globals, others, react, seatKind, played, mask };
 }

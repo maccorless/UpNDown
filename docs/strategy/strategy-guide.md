@@ -17,6 +17,12 @@ Measured by switching each rule off and replaying the same 3,000 deals (written 
 | **5. Do not jump over your own cards.** Playing a card past another card of yours on the same pile makes that one unplayable there. | Down 0.3 to 0.4. Small, but free to follow. |
 | Avoid stranding a card (leaving one with no pile that takes it) | Worth almost nothing once the others are followed (under 0.1). |
 
+## The pair rule: a card and the card ten below it in your own hand
+
+If your hand holds a card and the card exactly ten below it (3 and 13 on an up pile), **never play the lower one the ordinary way first.** Play the cards up to the higher one, then the higher one, and last the lower one as a backward 10: the pile ends on 3 instead of 13 for the same cards. On a down pile it is the mirror: play the lower card first and the higher one last. This is about your own hand, not a guess about the draw pile.
+
+Measured on the same deals, adding it to the written strategy: solitaire 50.9 to 62.0 (+11.0), two players 76.0 to 82.8 (+6.8), four players 88.6 to 90.8 (+2.2), and a small 9-card solitaire deck 83.7 to 91.5. The first network (trained without the rule) did not find it by itself: forcing the rule on that network made it play worse (two players 92.1 to 88.3), so the network has to be trained with the rule in place. When a hand holds several pairs at once (3 and 13 as well as 5 and 15) only one can be finished on a pile, and the written strategy handles that crudely.
+
 ## When to play on after your minimum
 
 Once you have played the minimum, stop unless the best move you have left is **tiny** or a **backward 10**. Measured on 3,000 deals per table with honest, up-to-date reactions (the written strategy with a stricter or looser meaning of "tiny"; fixed 3 steps scored two players 80.6 and four players 91.0):
