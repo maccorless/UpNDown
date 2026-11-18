@@ -605,7 +605,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             ) : null}
           </div>
         </div>
-        <div className={`cards-fan ${isCompactHand ? 'compact' : ''}`} style={{ '--hand-n': Math.max(1, sortedHand.length) } as React.CSSProperties}>
+        <div className={`cards-fan ${isCompactHand ? 'compact' : ''}`} style={{ '--hand-n': Math.max(1, sortedHand.length), '--hand-gaps': Math.max(1, sortedHand.length - 1) } as React.CSSProperties}>
           {sortedHand.map((card) => (
             <button
               key={card.id}

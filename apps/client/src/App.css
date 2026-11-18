@@ -730,14 +730,17 @@ button:disabled {
 }
 
 .card {
-  width: var(--card-w);
+  --cw: var(--card-w);
+  --fs: var(--card-font);
+  width: var(--cw);
   aspect-ratio: 7 / 10;
+  position: relative;
   margin-left: -22px;
   border-radius: 10px;
   border: 2px solid #bcc8d6;
   background: var(--card);
   color: var(--ink);
-  font-size: var(--card-font);
+  font-size: var(--fs);
   font-weight: 800;
   display: grid;
   place-items: center;
@@ -756,6 +759,31 @@ button:disabled {
 .card.card-unplayable {
   opacity: 0.32;
   filter: grayscale(70%);
+}
+
+/* The hand is a fan. Each card steps over by as much as the row allows, at most a card less 10px (a little fan even when there is room; never so little that the two digits would meet), and
+   by at least 40% of a card. Cards are as wide as the row can take while the two digits stay clear of the next card (see the width rules);
+   if a very large hand on a small screen still needs more, the digits do meet, and hovering or focusing a card, or selecting it, brings it
+   to the top so its number can be read. */
+.cards-fan {
+  container-type: inline-size;
+}
+
+.cards-fan .card {
+  --step-fit: calc((100cqw - var(--cw) - 4px) / var(--hand-gaps, 1));
+  --step-safe: calc(var(--cw) / 2 + var(--fs) * 0.85 + 3px);
+  --step: clamp(calc(var(--cw) * 0.4), var(--step-fit), min(var(--cw), max(calc(var(--cw) - 10px), var(--step-safe))));
+  margin-left: calc(var(--step) - var(--cw));
+}
+
+.cards-fan .card:first-child {
+  margin-left: 0;
+}
+
+.cards-fan .card:hover,
+.cards-fan .card:focus-visible,
+.cards-fan .card.selected {
+  z-index: 3;
 }
 
 .error {
@@ -1197,15 +1225,15 @@ section[aria-label="welcome"] h2 {
   }
 
   .card {
-    width: clamp(50px, 7.5vw, 78px);
-    font-size: clamp(18px, 3vw, 28px);
-    margin-left: -14px;
+    --cw: clamp(50px, 7.5vw, 78px);
+    --fs: clamp(18px, 3vw, 28px);
+    width: var(--cw);
+    font-size: var(--fs);
   }
 
   .cards-fan.compact .card {
-    width: clamp(36px, 5.5vw, 54px);
-    font-size: clamp(13px, 2.2vw, 18px);
-    margin-left: -4px;
+    --cw: clamp(36px, 5.5vw, 54px);
+    --fs: clamp(13px, 2.2vw, 18px);
   }
 
   .cards-fan {
@@ -1316,9 +1344,10 @@ section[aria-label="welcome"] h2 {
   }
 
   .card {
-    width: clamp(46px, 7.2vh, 70px);
-    font-size: clamp(18px, 2.8vh, 24px);
-    margin-left: -12px;
+    --cw: clamp(46px, 7.2vh, 70px);
+    --fs: clamp(18px, 2.8vh, 24px);
+    width: var(--cw);
+    font-size: var(--fs);
   }
 
   .phase-splash {
@@ -1393,15 +1422,17 @@ section[aria-label="welcome"] h2 {
     border-radius: 6px;
   }
 
-  /* Hand cards — wide for easy tapping, but sized so the whole hand fits the screen even at 11 cards (30% overlap). */
+  /* Hand cards: wide for easy tapping, sized so the whole hand fits the screen even at 11 cards. The overlap itself comes from the fan rule at the end of the card styles. */
   .cards-fan {
-    --hand-card-w: clamp(34px, calc((100vw - 32px) / (1 + 0.7 * (var(--hand-n, 7) - 1))), 68px);
+    --hand-card-w: clamp(30px, calc((100vw - 32px) / (1 + 0.9 * (var(--hand-n, 7) - 1))), 68px);
   }
 
-  .cards-fan .card {
-    width: var(--hand-card-w);
-    font-size: clamp(14px, calc(var(--hand-card-w) * 0.38), 24px);
-    margin-left: calc(var(--hand-card-w) * -0.3);
+  .cards-fan .card,
+  .cards-fan.compact .card {
+    --cw: var(--hand-card-w);
+    --fs: clamp(12px, calc(var(--hand-card-w) * 0.38), 24px);
+    width: var(--cw);
+    font-size: var(--fs);
     border-radius: 8px;
   }
 
@@ -1410,9 +1441,10 @@ section[aria-label="welcome"] h2 {
   }
 
   .card {
-    width: clamp(52px, 13vw, 68px);
-    font-size: clamp(18px, 5vw, 24px);
-    margin-left: -12px;
+    --cw: clamp(52px, 13vw, 68px);
+    --fs: clamp(18px, 5vw, 24px);
+    width: var(--cw);
+    font-size: var(--fs);
     border-radius: 8px;
   }
 
