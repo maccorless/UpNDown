@@ -18,14 +18,14 @@ ck = torch.load(args.checkpoint, map_location='cpu')
 width = ck['args'].get('width', 64)
 policy = Policy(width); policy.load_state_dict(ck['policy']); policy.eval()
 tensors = {k: {'shape': list(v.shape), 'data': [round(float(x), 6) for x in v.detach().flatten()]} for k, v in policy.state_dict().items()}
-meta = {'width': width, 'tierB': ck['args']['tier'] == 'B', 'reactions': bool(ck['args'].get('reactions', False)), 'trainedSteps': ck.get('steps'), 'source': os.path.basename(os.path.dirname(args.checkpoint))}
+meta = {'width': width, 'tierB': ck['args']['tier'] == 'B', 'reactions': bool(ck['args'].get('reactions', False)), 'pairRule': bool(ck['args'].get('pair_rule', False)), 'trainedSteps': ck.get('steps'), 'source': os.path.basename(os.path.dirname(args.checkpoint))}
 os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
 json.dump({**meta, 'tensors': tensors}, open(args.out, 'w'), separators=(',', ':'))
 print(f'wrote {args.out}: {os.path.getsize(args.out) / 1e6:.2f} MB, width {width}, {sum(p.numel() for p in policy.parameters())} numbers')
 
 if args.fixtures:
     tables = ['s3-4p-99-h7', 's3-2p-99-h7', 's3-solo-99-h7', 's2-4p-79-h7']
-    actors = Actors(tr.ENGINE, tables, 64, 2, 'validation', record=meta['tierB'], reactions=meta['reactions'], seat_mix=0.5)
+    actors = Actors(tr.ENGINE, tables, 64, 2, 'validation', record=meta['tierB'], reactions=meta['reactions'], seat_mix=0.5, pair_rule=meta['pairRule'])
     rng = np.random.default_rng(11)
     for _ in range(25):
         m = actors.current['mask'].astype(bool); r = rng.random(m.shape); r[~m] = -1; actors.step(r.argmax(1))

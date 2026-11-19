@@ -157,7 +157,7 @@ export async function soloHint(state: GameState, playerId: string): Promise<Hint
     try {
       const net = await loadSoloNetwork();
       if (net && !net.tierB) {
-        const input = buildNetInput(state, { tierB: false, reactionsOn: net.reactions });
+        const input = buildNetInput(state, { tierB: false, reactionsOn: net.reactions, pairRule: net.pairRule });
         const logits = networkLogits(net, input);
         let best = -1;
         for (let a = 0; a < input.mask.length; a += 1) if (input.mask[a] === 1 && a !== NET_END && (best < 0 || logits[a]! > logits[best]!)) best = a;

@@ -6,13 +6,14 @@ export interface NetworkWeights {
   width: number;
   tierB: boolean;
   reactions: boolean;
+  pairRule?: boolean;
   trainedSteps?: number | null;
   source?: string;
   tensors: Record<string, { shape: number[]; data: number[] }>;
 }
 
 interface Linear { w: Float64Array; b: Float64Array; inn: number; out: number }
-export interface Network { width: number; tierB: boolean; reactions: boolean; layers: Record<string, Linear> }
+export interface Network { width: number; tierB: boolean; reactions: boolean; pairRule: boolean; layers: Record<string, Linear> }
 
 export function loadNetwork(weights: NetworkWeights): Network {
   const layers: Record<string, Linear> = {};
@@ -22,7 +23,7 @@ export function loadNetwork(weights: NetworkWeights): Network {
     if (!w || !b) throw new Error(`Network weights are missing ${name}`);
     layers[name] = { w: Float64Array.from(w.data), b: Float64Array.from(b.data), out: w.shape[0]!, inn: w.shape[1]! };
   }
-  return { width: weights.width, tierB: weights.tierB, reactions: weights.reactions, layers };
+  return { width: weights.width, tierB: weights.tierB, reactions: weights.reactions, pairRule: weights.pairRule === true, layers };
 }
 
 function linear(l: Linear, x: ArrayLike<number>, relu: boolean): Float64Array {

@@ -28,6 +28,7 @@ function decide(net: Network, state: GameState, playerId: string, reactions: Rea
   const input = buildNetInput(state, {
     tierB: net.tierB,
     reactionsOn: net.reactions,
+    pairRule: net.pairRule,
     reactionsOf: (idx) => {
       const marks = reactions[state.players[idx]!.id];
       return [0, 1, 2, 3].map((pileId) => { const r = marks?.[pileId]; return r ? LEVEL[r] : 0; });
