@@ -136,7 +136,7 @@ export function createAuthRouter(options: AuthRouterOptions): {
       returnPath: sanitizeReturnPath(req.query.return, settings.publicBaseUrl),
       expiresAtMs: Date.now() + OAUTH_STATE_TTL_MS
     });
-    res.append('Set-Cookie', serializeCookie(oauthStateCookieName(secureOf(settings)), cookie, { maxAgeSec: OAUTH_STATE_TTL_MS / 1000, path: '/', secure: secureOf(settings) }));
+    res.append('Set-Cookie', serializeCookie(oauthStateCookieName(secureOf(settings)), cookie, { maxAgeSec: OAUTH_STATE_TTL_MS / 1000, path: '/', secure: secureOf(settings), sameSite: 'Lax' }));
     res.redirect(302, provider.startUrl({
       redirectUri: `${settings.publicBaseUrl}/auth/${provider.id}/callback`,
       state,

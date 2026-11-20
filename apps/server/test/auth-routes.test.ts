@@ -107,7 +107,8 @@ describe('auth routes', () => {
     expect(target.searchParams.get('code_challenge')).toBeTruthy();
     const cookie = res.headers.getSetCookie().find((c) => c.startsWith('__Host-upndown_oauth_state='));
     expect(cookie).toMatch(/HttpOnly/);
-    expect(cookie).toMatch(/SameSite=Strict/);
+    // Google sends the browser back from another site. A Strict cookie is not sent on that trip, so the callback would find no state and refuse every sign-in.
+    expect(cookie).toMatch(/SameSite=Lax/);
     expect(cookie).toMatch(/Secure/);
     expect(cookie).toMatch(/Path=\/(;|$)/);
     expect(cookie).toMatch(/Max-Age=600/);

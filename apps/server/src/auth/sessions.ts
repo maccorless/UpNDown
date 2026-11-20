@@ -34,9 +34,9 @@ export function readCookie(header: string | undefined, name: string): string | u
 export function serializeCookie(
   name: string,
   value: string,
-  options: { maxAgeSec: number; path: string; secure: boolean }
+  options: { maxAgeSec: number; path: string; secure: boolean; sameSite?: 'Strict' | 'Lax' }
 ): string {
-  return `${name}=${value}; Max-Age=${options.maxAgeSec}; Path=${options.path}; HttpOnly; SameSite=Strict${options.secure ? '; Secure' : ''}`;
+  return `${name}=${value}; Max-Age=${options.maxAgeSec}; Path=${options.path}; HttpOnly; SameSite=${options.sameSite ?? 'Strict'}${options.secure ? '; Secure' : ''}`;
 }
 
 export interface OAuthState {
