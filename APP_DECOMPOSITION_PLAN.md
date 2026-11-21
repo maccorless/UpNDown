@@ -16,7 +16,7 @@ This file does too much. It is hard to read, hard to test in isolation, hard to 
 > **This is a plan only. No code is changed by this document.**
 > Execute one phase at a time, running the full test suite after each phase before merging.
 
-> **Progress (2026-11-21):** `GameBoard.tsx`, `MultiplayerLobby.tsx` (join panel and waiting room), `GameModals.tsx` (five confirmation modals), `game-url.ts`, `settings-storage.ts` and `app-hooks.ts` (viewport height, page visibility, joinable-games poller) are out of `App.tsx`, which went from 2,705 to about 1,770 lines. The socket hook and the solitaire/multiplayer views below are still to do.
+> **Progress (2026-11-21):** `GameBoard.tsx`, `useGameSocket.ts` (the socket connection and its listeners), `MultiplayerLobby.tsx` (join panel and waiting room), `GameModals.tsx` (five confirmation modals), `game-url.ts`, `settings-storage.ts` and `app-hooks.ts` (viewport height, page visibility, joinable-games poller) are out of `App.tsx`, which went from 2,705 to about 1,640 lines. What is left is the state and the click handlers for solitaire and multiplayer; moving them means splitting them into the two views below, each with its own state.
 
 ---
 

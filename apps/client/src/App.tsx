@@ -1,4 +1,4 @@
-import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, soloHint, useCheatHotkeys, type HintView } from './cheats.js';
+import { cheatStatuses, describeHint, keepCheatCounts, moveKey, soloHint, useCheatHotkeys, type HintView } from './cheats.js';
 import { CheatsPanel } from './CheatsPanel.js';
 import { InviteModal, JoinRequestModal } from './LateJoin.js';
 import { SeatChoice } from './SeatChoice.js';
@@ -13,13 +13,14 @@ import { classifyPlay } from './board-helpers.js';
 import { EndGameStatisticsModal } from './EndGame.js';
 import { SettingsDialog } from './SettingsDialog.js';
 import { useAutoMarkSync, usePlayerPrefs } from './playerPrefs.js';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, randomPresidentName, type CardLookupResult, type CheatUsedEvent, type JoinResolvedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, randomPresidentName, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { GameBoard } from './GameBoard.js';
+import { useGameSocket } from './useGameSocket.js';
 import { BackToLobbyModal, CardLookupModal, EndGameConfirmModal, HostEndedModal, KickedModal } from './GameModals.js';
 import { JoinPanel, WaitingRoom } from './MultiplayerLobby.js';
 import { useJoinablePoller, usePageVisible, useViewportHeight } from './app-hooks.js';
-import { buildInviteLink, INVITE_QUERY_PARAM, normalizeGameId, readGameIdFromLocation, readInviteFromLocation, syncGameIdInUrl } from './game-url.js';
+import { buildInviteLink, normalizeGameId, readGameIdFromLocation, readInviteFromLocation, syncGameIdInUrl } from './game-url.js';
 import { readPersistedPlayerName, readPersistedSettings, SETTINGS_STORAGE_KEY, validateCreateSettings, writePersistedPlayerName, writePersistedSettings } from './settings-storage.js';
 import { io, type Socket } from 'socket.io-client';
 import { ProfileMenu } from './auth/ProfileMenu.js';
@@ -301,147 +302,13 @@ export function App(): JSX.Element {
     setError(null);
   };
 
-  useEffect(() => {
-    if (mode !== 'multiplayer') {
-      return;
-    }
-
-    const socket = getSocket();
-    setConnectionState('connecting');
-
-    const onConnect = (): void => {
-      setConnectionState('connected');
-      const newId = socket.id ?? null;
-      const oldId = previousPlayerIdRef.current;
-      const gameId = activeGameIdRef.current;
-
-      type RejoinAck = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; gone?: boolean };
-      const rejoinToken = rejoinTokenRef.current;
-      if (gameId && oldId && newId && rejoinToken && oldId !== newId) {
-        // We had a seat and our socket ID changed (a dropped connection, or a page opened again): take the seat back.
-        socket.emit('game:rejoin', { gameId, previousPlayerId: oldId, rejoinToken }, (response: RejoinAck) => {
-          if (response?.ok && response.data) adoptSeat(response.data);
-          else if (response?.gone) { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); } // seat gone: no stale board
-          else setError('Could not rejoin your game yet. Reload the page to try again.');
-        });
-      } else if (!gameId && newId) {
-        // No seat in memory. A signed-in player may still hold seats in games being played (another device, cleared storage, a
-        // server restart); a guest holds none and is told so with nothing shown. One game goes straight back; several ask.
-        socket.emit('game:mySeats', {}, (seats: { ok: boolean; data?: { gameIds: string[] } }) => {
-          const gameIds = seats?.ok ? seats.data?.gameIds ?? [] : [];
-          if (gameIds.length === 1) rejoinMine(gameIds[0]!);
-          else if (gameIds.length > 1) setSeatChoices(gameIds);
-        });
-      }
-
-      setPlayerId(newId);
-      previousPlayerIdRef.current = newId;
-    };
-
-    const onDisconnect = (): void => {
-      setConnectionState('disconnected');
-    };
-
-    const onConnectError = (): void => {
-      setConnectionState('disconnected');
-    };
-
-    const onUpdated = (state: GameState): void => {
-      // If a new game starts while a pending lobby transition is held, clear it
-      if (state.gamePhase !== 'lobby') {
-        setPendingLobbyState(null);
-      }
-      setMultiplayerState((prev) => {
-        // Non-host players should not be auto-navigated to lobby when the host
-        // ends the session after a natural game end (won/lost). Hold the state
-        // and let them choose to join or leave.
-        if (
-          prev &&
-          (prev.gamePhase === 'won' || prev.gamePhase === 'lost') &&
-          state.gamePhase === 'lobby' &&
-          state.hostId !== playerIdRef.current
-        ) {
-          setPendingLobbyState(state);
-          return prev;
-        }
-        return state;
-      });
-    };
-
-    const onReactionsUpdated = (reactions: ReactionState): void => {
-      setGameReactions(reactions);
-    };
-
-    const onSpecialPlay = (data: { pileId: number }): void => {
-      setSpecialPlayPileId(data.pileId);
-      if (specialPlayTimerRef.current) clearTimeout(specialPlayTimerRef.current);
-      specialPlayTimerRef.current = setTimeout(() => setSpecialPlayPileId(null), 1500);
-    };
-
-    const onKicked = (data: { gameId: string }): void => {
-      forgetSeatRef.current();
-      setKickedFromGameId(data.gameId);
-      setMultiplayerState(null);
-      setPendingLobbyState(null);
-      setMultiplayerSelectedCardId(null);
-      activeGameIdRef.current = null;
-    };
-
-    const onCheatUsed = (event: CheatUsedEvent): void => {
-      if (cheatNoticeTimerRef.current) clearTimeout(cheatNoticeTimerRef.current);
-      setCheatNotice(cheatNoticeText(event));
-      cheatNoticeTimerRef.current = setTimeout(() => setCheatNotice(null), 3500);
-    };
-
-    socket.on('connect', onConnect);
-    socket.on('disconnect', onDisconnect);
-    socket.on('connect_error', onConnectError);
-    socket.on('game:updated', onUpdated);
-    socket.on('game:reactionsUpdated', onReactionsUpdated);
-    socket.on('game:specialPlay', onSpecialPlay);
-    socket.on('game:kicked', onKicked);
-    socket.on('game:cheatUsed', onCheatUsed);
-    const onJoinRequest = (event: { requestId: string; playerName: string }): void => setJoinRequests((all) => (all.some((r) => r.requestId === event.requestId) ? all : [...all, event]));
-    const onJoinRequestCancelled = (event: { requestId: string }): void => setJoinRequests((all) => all.filter((r) => r.requestId !== event.requestId));
-    const onJoinResolved = (event: JoinResolvedEvent): void => {
-      setJoinWaiting(false);
-      if (!event.approved) {
-        setError(event.reason);
-        return;
-      }
-      // Let in. The invitation is used up, so it comes out of the address.
-      inviteTokenRef.current = null;
-      const url = new URL(window.location.href);
-      url.searchParams.delete(INVITE_QUERY_PARAM);
-      window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
-      adoptSeat({ gameState: event.gameState, playerId: event.playerId, rejoinToken: event.rejoinToken });
-    };
-    socket.on('game:joinRequest', onJoinRequest);
-    socket.on('game:joinRequestCancelled', onJoinRequestCancelled);
-    socket.on('game:joinResolved', onJoinResolved);
-
-    if (!socket.connected) {
-      socket.connect();
-    }
-
-    return () => {
-      socket.off('connect', onConnect);
-      socket.off('disconnect', onDisconnect);
-      socket.off('connect_error', onConnectError);
-      socket.off('game:updated', onUpdated);
-      socket.off('game:reactionsUpdated', onReactionsUpdated);
-      socket.off('game:specialPlay', onSpecialPlay);
-      socket.off('game:kicked', onKicked);
-      socket.off('game:cheatUsed', onCheatUsed);
-      socket.off('game:joinRequest', onJoinRequest);
-      socket.off('game:joinRequestCancelled', onJoinRequestCancelled);
-      socket.off('game:joinResolved', onJoinResolved);
-      socket.disconnect();
-      setConnectionState('disconnected');
-      setGameReactions({});
-      setSpecialPlayPileId(null);
-    };
-  }, [mode]);
+  useGameSocket({
+    mode, getSocket, setConnectionState, previousPlayerIdRef, activeGameIdRef, rejoinTokenRef, playerIdRef, adoptSeat,
+    resetToLanding: () => resetToLanding(), setKickedWhileAway, setKickedFromGameId, setError, rejoinMine, setSeatChoices,
+    setPlayerId, setPendingLobbyState, setMultiplayerState, setGameReactions, setSpecialPlayPileId, specialPlayTimerRef,
+    forgetSeatRef, setMultiplayerSelectedCardId, setCheatNotice, cheatNoticeTimerRef, setJoinRequests, setJoinWaiting,
+    inviteTokenRef
+  });
 
 
   useEffect(() => {

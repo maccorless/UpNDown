@@ -122,7 +122,7 @@ All interfaces shared between client and server belong here:
 - Rate limits are defined in `eventRateLimits` at the top of `index.ts`. Every `socket.on` event must appear in that map.
 
 ### Client (`apps/client`)
-- `App.tsx` is ~1,800 lines (monolithic — known tech debt; GameBoard, the lobby screens, the confirmation modals, URL and storage helpers and small hooks are already out). A full decomposition plan lives in `APP_DECOMPOSITION_PLAN.md`. Do **not** make it larger. When adding new UI, prefer extracting a component or hook first.
+- `App.tsx` is ~1,650 lines (monolithic — known tech debt; GameBoard, the socket hook, the lobby screens, the confirmation modals, URL and storage helpers and small hooks are already out). A full decomposition plan lives in `APP_DECOMPOSITION_PLAN.md`. Do **not** make it larger. When adding new UI, prefer extracting a component or hook first.
 - `sounds.ts` — audio side effects only, no game logic.
 - `App.css` — single stylesheet, scoped with class names. No CSS modules or Tailwind.
 
@@ -203,7 +203,7 @@ If a test is non-trivially broken and cannot be fixed in the same PR, leave a `/
 
 ## Known Tech Debt (do not add to without discussion)
 
-1. **`App.tsx` is ~1,800 lines.** Decomposition plan: `APP_DECOMPOSITION_PLAN.md`. Execute one phase at a time with a full test gate between phases.
+1. **`App.tsx` is ~1,650 lines.** Decomposition plan: `APP_DECOMPOSITION_PLAN.md`. Execute one phase at a time with a full test gate between phases.
 2. **Persistence only where a database is connected.** Without one (Skiff) a restart loses all active games.
 3. **No auth/sessions.** Players are identified by a server-assigned `playerId` UUID stored in the socket. Rejoining is possible within the same server process.
 
