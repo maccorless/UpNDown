@@ -3,7 +3,7 @@ import { senderLevel } from '@upndown/engine';
 import { defaultMultiplayerSettings } from '../src/game-manager.js';
 import { lobbyWithUsers, rig } from './helpers/rig.js';
 
-const settings = { ...defaultMultiplayerSettings, allowUndo: true, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off', automark: 'unlimited' } as const };
+const settings = { ...defaultMultiplayerSettings, allowUndo: true };
 
 const started = () => {
   const l = lobbyWithUsers([{ id: 'p1' }, { id: 'p2' }], settings);
@@ -48,10 +48,17 @@ describe('auto-mark', () => {
     expect(l.manager.getReactions(l.gameId)[onTurn]).toBeUndefined();
   });
 
-  it('is refused when the game has the cheat off', () => {
+  it('needs no cheat to be allowed: the default game has every cheat off and a player can still switch it on', () => {
     const l = lobbyWithUsers([{ id: 'p1' }, { id: 'p2' }], { ...settings, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off' } });
     l.manager.startGame('p1', l.gameId);
-    expect(() => l.manager.setAutoMark('p2', l.gameId, true)).toThrow('not enabled');
+    l.manager.setAutoMark('p2', l.gameId, true);
+    expect(l.room().gameState.players.find((p) => p.id === 'p2')!.autoMark).toBe(true);
+    expect(l.room().gameState.statistics.players.p2!.hintsUsed).toBe(0);
+  });
+
+  it('is refused before the game starts, because the seats are dealt fresh at the start', () => {
+    const l = lobbyWithUsers([{ id: 'p1' }, { id: 'p2' }], settings);
+    expect(() => l.manager.setAutoMark('p2', l.gameId, true)).toThrow('while a game is being played');
   });
 
   it('stays on after the player on turn undoes a play, because an undo takes back a play and not a setting', () => {

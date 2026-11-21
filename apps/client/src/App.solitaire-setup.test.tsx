@@ -38,9 +38,8 @@ describe('starting solitaire', () => {
     await user.click(await screen.findByTestId('mode-solitaire'));
     await user.click(screen.getByTestId('solitaire-change-settings'));
     expect(screen.queryByText('View only')).toBeNull(); // editable, not frozen
-    await user.click(screen.getByText('Cheat codes'));
     await user.click(screen.getAllByLabelText('Unlimited')[1]!); // the Hint row
-    await user.click(screen.getByRole('button', { name: 'Save settings' }));
+    await user.click(screen.getByRole('button', { name: 'Save game rules' }));
     expect(screen.getByTestId('solitaire-summary').textContent).toContain('Hint (unlimited)');
     expect(screen.queryAllByTestId(/hand-card-/)).toHaveLength(0);
     await user.click(screen.getByTestId('start-solitaire'));

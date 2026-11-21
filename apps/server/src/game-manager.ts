@@ -49,7 +49,7 @@ interface GameRoom {
   // Requests waiting for the host's answer.
   pendingJoins: Map<string, PendingJoin>;
   // Cheats a signed-in account used before it was removed from the game, so being let back in does not refresh a "once".
-  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'hintsUsed' | 'automarksUsed'>>;
+  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'hintsUsed'>>;
 }
 
 export interface PendingJoin {
@@ -652,10 +652,10 @@ export class GameManager {
     return nextState;
   }
 
-  // Auto-mark: the server marks the piles for this person, by the robots' rule, while they are off turn. Turning it off takes their marks down.
+  // Auto-mark (a player setting): the server marks the piles for this person, by the robots' rule, while they are off turn. Turning it off takes their marks down.
   setAutoMark(playerId: string, gameId: string, enabled: boolean): GameState {
     const room = this.requireRoom(gameId);
-    if (room.gameState.gamePhase !== 'playing') throw new Error('Cheats can only be used while a game is being played');
+    if (room.gameState.gamePhase !== 'playing') throw new Error('Auto-mark can be changed while a game is being played');
     room.gameState = setAutoMark(room.gameState, playerId, enabled);
     if (!enabled) this.clearPlayerReactions(gameId, playerId);
     room.updatedAtMs = Date.now();
@@ -879,7 +879,7 @@ export class GameManager {
     const kickedUser = room.userIdByPlayerId.get(payload.targetPlayerId);
     const kickedStats = gameState.statistics.players[payload.targetPlayerId];
     if (kickedUser && kickedStats) {
-      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, hintsUsed: kickedStats.hintsUsed, automarksUsed: kickedStats.automarksUsed });
+      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, hintsUsed: kickedStats.hintsUsed });
     }
     room.userIdByPlayerId.delete(payload.targetPlayerId);
     room.disconnectedAtMs.delete(payload.targetPlayerId);

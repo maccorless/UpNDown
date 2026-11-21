@@ -34,7 +34,7 @@ const settings = {
   minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2,
   autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false, showArrows: true
 };
-const stat = { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 };
+const stat = { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 };
 
 function playing(limits: CheatLimits = { lookup: 'unlimited', skip: 'once', trade: 'once', hint: 'off' }, used: Partial<Record<'skipsUsed' | 'tradesUsed' | 'lookupsUsed', number>> = {}): GameState {
   return {
@@ -202,26 +202,6 @@ describe('App: cheats in a multiplayer game', () => {
     expect(asked).toEqual([{ gameId: 'ABC123' }]);
     expect(screen.getByTestId('hand-card-c-21').className).toContain('hinted');
     expect(screen.getByTestId('pile-0').closest('.pile-unit')!.className).toContain('hinted');
-  });
-
-  it('switches auto-mark on and off through the server, and shows which it is', async () => {
-    const sent: unknown[] = [];
-    const state = playing({ lookup: 'off', skip: 'off', trade: 'off', hint: 'off', automark: 'unlimited' });
-    const user = await hostGame(state, (event, payload, ack) => {
-      if (event !== 'game:setAutoMark') return false;
-      sent.push(payload);
-      const on = (payload as { enabled: boolean }).enabled;
-      ack?.({ ok: true, data: { gameState: { ...state, players: state.players.map((p) => (p.id === 'socket-1' ? { ...p, autoMark: on } : p)) } } });
-      return true;
-    });
-    await user.click(screen.getByTestId('open-cheats'));
-    expect(screen.getByTestId('cheat-automark').textContent).toBe('Auto-mark piles: off');
-    await user.click(screen.getByTestId('cheat-automark'));
-    await waitFor(() => expect(sent).toEqual([{ gameId: 'ABC123', enabled: true }]));
-    await user.click(screen.getByTestId('open-cheats'));
-    expect(screen.getByTestId('cheat-automark').textContent).toBe('Auto-mark piles: on');
-    await user.click(screen.getByTestId('cheat-automark'));
-    await waitFor(() => expect(sent).toEqual([{ gameId: 'ABC123', enabled: true }, { gameId: 'ABC123', enabled: false }]));
   });
 
   it('takes the hint away when the game moves on', async () => {

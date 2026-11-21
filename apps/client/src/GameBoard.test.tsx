@@ -33,7 +33,7 @@ const WON_STATE: GameState = {
         cardsPlayed: 0,
         totalMovement: 0,
         specialPlays: 0,
-        nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0
+        nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0
       }
     }
   },
@@ -59,10 +59,21 @@ const WON_STATE: GameState = {
 };
 
 describe('GameBoard', () => {
+  it('shows the pile arrows only when this viewer has them on, whatever the game settings say', () => {
+    const board = (showArrows: boolean) => (
+      <GameBoard mode="solitaire" showArrows={showArrows} gameState={{ ...WON_STATE, settings: { ...WON_STATE.settings, showArrows: !showArrows } }} selectedCardId={null} setSelectedCardId={() => {}} onPlayPile={() => {}} />
+    );
+    const { container, rerender } = render(board(true));
+    expect(container.querySelectorAll('.pile-arrow').length).toBeGreaterThan(0);
+    rerender(board(false));
+    expect(container.querySelectorAll('.pile-arrow')).toHaveLength(0);
+  });
+
   it('dismisses end-state splash on Escape', () => {
     render(
       <GameBoard
         mode="solitaire"
+        showArrows
         gameState={WON_STATE}
         selectedCardId={null}
         setSelectedCardId={() => {}}
@@ -100,6 +111,7 @@ describe('GameBoard', () => {
   const renderPlaying = (playerId: string, selectedCardId: string | null) => render(
     <GameBoard
       mode="multiplayer"
+      showArrows
       gameState={PLAYING_STATE}
       playerId={playerId}
       selectedCardId={selectedCardId}

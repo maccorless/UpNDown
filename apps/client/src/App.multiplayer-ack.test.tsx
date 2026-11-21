@@ -99,7 +99,7 @@ function createLobbyState(): GameState {
           cardsPlayed: 0,
           totalMovement: 0,
           specialPlays: 0,
-          nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0
+          nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0
         }
       }
     },
@@ -128,8 +128,8 @@ function createEndedState(): GameState {
       startedAtMs: Date.now(),
       endedAtMs: Date.now(),
       players: {
-        'socket-1': { cardsPlayed: 3, totalMovement: 33, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 1, tradesUsed: 1, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 },
-        'socket-2': { cardsPlayed: 2, totalMovement: 18, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 }
+        'socket-1': { cardsPlayed: 3, totalMovement: 33, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 1, tradesUsed: 1, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 },
+        'socket-2': { cardsPlayed: 2, totalMovement: 18, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 }
       }
     },
     nasCheat: {
@@ -158,8 +158,8 @@ function createPlayingState(): GameState {
       startedAtMs: Date.now(),
       endedAtMs: null,
       players: {
-        'socket-1': { cardsPlayed: 1, totalMovement: 10, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 },
-        'socket-2': { cardsPlayed: 1, totalMovement: 9, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 }
+        'socket-1': { cardsPlayed: 1, totalMovement: 10, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 },
+        'socket-2': { cardsPlayed: 1, totalMovement: 9, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 }
       }
     },
     nasCheat: {
@@ -264,8 +264,8 @@ describe('multiplayer ack handling', () => {
         startedAtMs: null,
         endedAtMs: null,
         players: {
-          'socket-1': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 },
-          'socket-2': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 }
+          'socket-1': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 },
+          'socket-2': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 }
         }
       },
       nasCheat: {

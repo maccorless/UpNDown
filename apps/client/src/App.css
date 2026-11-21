@@ -1647,57 +1647,6 @@ dialog.modal-dialog::backdrop {
   align-content: start;
 }
 
-.settings-groups {
-  display: grid;
-  gap: 16px;
-}
-
-/* Wide sheet: Cards on the left, Players and display options on the right; Difficulty spans the top. */
-@container (min-width: 38rem) {
-  .settings-groups {
-    grid-template-columns: 1fr 1fr;
-    column-gap: 26px;
-    align-items: start;
-  }
-
-  .settings-group-wide {
-    grid-column: 1 / -1;
-  }
-
-  .settings-cards {
-    grid-row: 2 / span 3;
-  }
-}
-
-.settings-group {
-  border: 0;
-  margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 12px;
-  min-inline-size: 0;
-}
-
-.settings-group > legend {
-  padding: 0;
-  margin-block-end: 2px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--muted-strong);
-}
-
-.settings-banner {
-  margin: 0;
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid var(--line);
-  background: var(--soft);
-  font-size: 0.85rem;
-  font-weight: 600;
-}
-
 .settings-summary {
   margin: 0;
   padding: 8px 12px;
@@ -1883,17 +1832,26 @@ dialog.modal-dialog::backdrop {
 }
 
 .settings-adv {
-  border-block-start: 1px solid var(--line);
-  padding-block-start: 6px;
+  margin-block-start: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 0 14px;
+}
+
+.settings-adv[open] {
+  padding-block-end: 12px;
 }
 
 .settings-adv > summary {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  min-block-size: 36px;
+  gap: 2px 12px;
+  min-block-size: 48px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
   font-weight: 700;
   list-style: none;
 }
@@ -1904,11 +1862,182 @@ dialog.modal-dialog::backdrop {
 
 .settings-adv > summary::after {
   content: '+';
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  margin-inline-start: auto;
 }
 
 .settings-adv[open] > summary::after {
   content: '\2212';
+}
+
+.settings-adv-now {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--muted-strong);
+}
+
+.settings-adv[open] .settings-row {
+  margin-block-start: 12px;
+}
+
+/* Two tabs, split by who a setting affects: the game's rules (the table) and my settings (only me). */
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 16px 0;
+  border-block-end: 2px solid var(--line);
+}
+
+.settings-tabs [role='tab'] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-block-size: 48px;
+  padding: 6px 14px;
+  margin-block-end: -2px;
+  border: 2px solid transparent;
+  border-block-end: 0;
+  border-radius: 10px 10px 0 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--muted-strong);
+  text-align: start;
+}
+
+.settings-tabs [role='tab'] small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.settings-tabs [role='tab'][aria-selected='true'] {
+  background: var(--soft);
+  border-color: var(--line);
+  color: var(--text);
+}
+
+.settings-tabs svg {
+  inline-size: 20px;
+  block-size: 20px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+@media (max-width: 640px) {
+  .settings-tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .settings-tabs [role='tab'] {
+    justify-content: center;
+  }
+
+  .settings-tabs [role='tab'] small {
+    display: none;
+  }
+}
+
+.settings-panel {
+  display: grid;
+  gap: 4px;
+  align-content: start;
+}
+
+.settings-scope {
+  margin: 0 -16px 4px;
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  background: var(--soft);
+  border-block-end: 1px solid var(--line);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+
+.settings-section {
+  display: grid;
+  gap: 8px;
+  padding-block: 14px;
+  border-block-end: 1px solid var(--line);
+}
+
+.settings-section:last-of-type {
+  border-block-end: 0;
+}
+
+.settings-section h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+
+.settings-why {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--muted-strong);
+}
+
+.preset-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(7.5rem, 1fr));
+  gap: 10px;
+}
+
+.preset-card {
+  position: relative;
+  display: block;
+}
+
+.preset-card input {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.preset-card-face {
+  display: grid;
+  gap: 2px;
+  align-content: start;
+  min-block-size: 76px;
+  padding: 10px 12px;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.preset-card-face b {
+  font-size: 1rem;
+}
+
+.preset-card-face span {
+  font-size: 0.8rem;
+  color: var(--muted-strong);
+  line-height: 1.3;
+}
+
+.preset-card:has(input:checked) .preset-card-face {
+  border-color: var(--accent-strong);
+  background: var(--soft);
+  box-shadow: 0 0 0 2px var(--accent-strong) inset;
+}
+
+.preset-card:has(input:focus-visible) .preset-card-face {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .settings-facts {

@@ -13,6 +13,7 @@ import { classifyPlay, deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgre
 import { EndGameSplash, EndGameStatisticsModal } from './EndGame.js';
 import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
+import { useAutoMarkSync, usePlayerPrefs } from './playerPrefs.js';
 import { deckFitMessage, defaultMultiplayerSettings, defaultSolitaireSettings, gameSettingsSchema, maxPlayersFor, randomPresidentName, type Card, type CardLookupResult, type CheatUsedEvent, type JoinResolvedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { io, type Socket } from 'socket.io-client';
@@ -226,6 +227,8 @@ interface GameBoardProps {
   // A card and a pile to light up for a hint.
   hintCardId?: string | undefined;
   hintPileId?: number | undefined;
+  // The viewer's own setting (arrows beside each pile card).
+  showArrows: boolean;
   playerId?: string | null;
   interactionDisabled?: boolean;
   onSetReaction?: (pileId: number, reactionType: ReactionType | null) => void;
@@ -263,6 +266,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     onInvite,
     hintCardId,
     hintPileId,
+    showArrows,
     playerId,
     interactionDisabled,
     onSetReaction,
@@ -390,7 +394,6 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             const hasReactionRows = leftPlayers.length > 0 || rightPlayers.length > 0;
             const isSpecialFlash = specialPlayPileIdProp === pile.id;
             const specialLabel = pile.type === 'ascending' ? '🔥 -10! 🔥' : '🔥 +10! 🔥';
-            const showArrows = gameState.settings.showArrows;
             const pileArrow = (
               <svg className={`pile-arrow ${pile.type === 'ascending' ? 'up' : 'down'}`} viewBox="0 0 14 22" aria-hidden="true" focusable="false">
                 <path d="M7 0 L14 9 L9.5 9 L9.5 22 L4.5 22 L4.5 9 L0 9 Z" />
@@ -1214,6 +1217,20 @@ export function App(): JSX.Element {
     }
   };
 
+  // This person's own settings (arrows, auto-mark), and telling the server what they chose for auto-mark.
+  const prefs = usePlayerPrefs();
+  useAutoMarkSync({
+    autoMark: prefs.autoMark,
+    state: multiplayerState,
+    playerId,
+    connected: connectionState === 'connected',
+    send: async (gameId, enabled) => {
+      const ack = await requestSocketAck<{ gameState: GameState }>('game:setAutoMark', { gameId, enabled });
+      if (ack.ok) setMultiplayerState(ack.data.gameState);
+      return ack.ok;
+    }
+  });
+
   const refreshJoinableGames = async (options?: { background?: boolean }): Promise<boolean> => {
     if (mode !== 'multiplayer' || multiplayerState) {
       return false;
@@ -1555,18 +1572,6 @@ export function App(): JSX.Element {
     }
     setError(null);
     setMultiplayerSelectedCardId(null);
-    setMultiplayerState(ack.data.gameState);
-  };
-
-  // Auto-mark is a switch at a table; the server marks the piles and sends them with the next update.
-  const handleCheatAutoMark = async (enabled: boolean): Promise<void> => {
-    if (!multiplayerState) return;
-    const ack = await emitWithAck<{ gameState: GameState }>('game:setAutoMark', { gameId: multiplayerState.gameId, enabled }, 'cheat');
-    if (!ack.ok) {
-      setError(ack.error);
-      return;
-    }
-    setError(null);
     setMultiplayerState(ack.data.gameState);
   };
 
@@ -2146,6 +2151,7 @@ export function App(): JSX.Element {
         solitaireActive ? (
         <GameBoard
           mode="solitaire"
+          showArrows={prefs.showArrows}
           gameState={solitaireState}
           selectedCardId={solitaireSelectedCardId}
           setSelectedCardId={setSolitaireSelectedCardId}
@@ -2402,6 +2408,7 @@ export function App(): JSX.Element {
             amInMultiplayerGame ? (
               <GameBoard
                 mode="multiplayer"
+                showArrows={prefs.showArrows}
                 gameState={multiplayerState}
                 selectedCardId={multiplayerSelectedCardId}
                 setSelectedCardId={setMultiplayerSelectedCardId}
@@ -2484,6 +2491,10 @@ export function App(): JSX.Element {
           onChange={(next) => { setSettingsSaveError(null); setSettingsDraft(next); }}
           enableSounds={enableSounds}
           onToggleSounds={changeSounds}
+          showArrows={prefs.showArrows}
+          onToggleArrows={prefs.changeShowArrows}
+          autoMark={prefs.autoMark}
+          onToggleAutoMark={prefs.changeAutoMark}
         />
       ) : null}
 
@@ -2621,7 +2632,6 @@ export function App(): JSX.Element {
           onHint={() => { void handleCheatHint(); }}
           onSkip={() => { void handleCheatSkip(); }}
           onTrade={() => { void handleCheatTrade(); }}
-          onAutoMark={(enabled) => { void handleCheatAutoMark(enabled); }}
         />
       ) : null}
 

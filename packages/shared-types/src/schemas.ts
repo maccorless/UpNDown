@@ -28,8 +28,7 @@ export const gameSettingsSchema = z
       lookup: z.enum(['off', 'once', 'unlimited']),
       skip: z.enum(['off', 'once', 'unlimited']),
       trade: z.enum(['off', 'once', 'unlimited']),
-      hint: z.enum(['off', 'once', 'unlimited']),
-      automark: z.enum(['off', 'once', 'unlimited']).optional()
+      hint: z.enum(['off', 'once', 'unlimited'])
     }).optional()
   })
   .superRefine((settings, ctx) => {
@@ -221,7 +220,6 @@ export const gameStateSchema = z.object({
       tradesUsed: z.number().int().min(0).optional(),
       lookupsUsed: z.number().int().min(0).default(0),
       hintsUsed: z.number().int().min(0).default(0),
-      automarksUsed: z.number().int().min(0).default(0),
       undosUsed: z.number().int().min(0).default(0),
       marksPlaced: z.number().int().min(0).default(0)
     }).transform((stats) => ({ ...stats, tradesUsed: stats.tradesUsed ?? stats.nasCheatsUsed })))

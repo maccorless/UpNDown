@@ -7,7 +7,7 @@ import { createElement } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { cheatNoticeText, cheatStatuses, describeHint, keepCheatCounts, moveKey, soloHint, useCheatHotkeys } from './cheats.js';
 
-const game = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint' | 'automark', CheatLimit>>, over: Partial<GameState> = {}): GameState => ({
+const game = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint', CheatLimit>>, over: Partial<GameState> = {}): GameState => ({
   ...createStartedGameState({
     gameId: 'ABC123', hostId: 'p1',
     players: [{ id: 'p1', name: 'Ann' }, { id: 'p2', name: 'Bob' }],
@@ -18,29 +18,6 @@ const game = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint' | 'aut
 });
 const find = (state: GameState, player: string, kind: string, selected: string | null = 'c-5') =>
   cheatStatuses(state, player, selected).find((s) => s.kind === kind);
-
-describe('auto-mark', () => {
-  const withMark = (state: GameState, id: string, on: boolean): GameState => ({ ...state, players: state.players.map((p) => (p.id === id ? { ...p, autoMark: on } : p)) });
-
-  it('is offered at a table, off turn as well as on, and never in solitaire where nobody can react', () => {
-    const state = game({ automark: 'unlimited' });
-    expect(find(state, 'p1', 'automark')).toMatchObject({ available: true, on: false });
-    expect(find(state, 'p2', 'automark')?.available).toBe(true);
-    const solo = createStartedGameState({ gameId: 'ABC123', hostId: 'solo', players: [{ id: 'solo', name: 'Me' }], settings: { ...defaultSolitaireSettings, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off', automark: 'unlimited' } }, isSolitaire: true, deck: buildDeck(defaultSolitaireSettings) });
-    expect(cheatStatuses(solo, 'solo', null).map((s) => s.kind)).not.toContain('automark');
-  });
-
-  it('under "once", can still be switched off after it was used, but not back on', () => {
-    const base = withMark(game({ automark: 'once' }), 'p2', true);
-    const used: GameState = { ...base, statistics: { ...base.statistics, players: { ...base.statistics.players, p2: { ...base.statistics.players.p2!, automarksUsed: 1 } } } };
-    expect(find(used, 'p2', 'automark')).toMatchObject({ available: true, on: true });
-    expect(find(withMark(used, 'p2', false), 'p2', 'automark')).toMatchObject({ available: false, reason: 'Already used', on: false });
-  });
-
-  it('is announced to the table in words', () => {
-    expect(cheatNoticeText({ playerName: 'Bob', kind: 'automark' })).toBe('Bob turned on auto-mark');
-  });
-});
 
 describe('which cheats a player is offered', () => {
   it('lists only the cheats the game has turned on', () => {

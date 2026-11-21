@@ -43,7 +43,6 @@ export function emptyPlayerStats(): PlayerStatistics {
     tradesUsed: 0,
     lookupsUsed: 0,
     hintsUsed: 0,
-    automarksUsed: 0,
     undosUsed: 0,
     marksPlaced: 0
   };
@@ -393,7 +392,7 @@ export function carryAfterUndo(restored: GameState, current: GameState, undoingP
       players: Object.fromEntries(Object.entries(restored.statistics.players).map(([id, stats]) => {
         const now = current.statistics.players[id];
         const kept = now
-          ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed, automarksUsed: now.automarksUsed, marksPlaced: now.marksPlaced, undosUsed: now.undosUsed }
+          ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed, marksPlaced: now.marksPlaced, undosUsed: now.undosUsed }
           : stats;
         return [id, id === undoingPlayerId ? { ...kept, undosUsed: kept.undosUsed + 1 } : kept];
       }))
@@ -475,7 +474,7 @@ export function settleAfterRemoval(state: GameState): GameState {
 // A cheat is allowed when its setting is not off and, under "once", this player has not used it yet. Counts are the
 // player's own, so a rejoin (which moves the seat's statistics) keeps them.
 const usedCount = (stats: PlayerStatistics, kind: CheatKind): number =>
-  kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : kind === 'automark' ? stats.automarksUsed : stats.hintsUsed;
+  kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : stats.hintsUsed;
 
 export function assertCheatAvailable(state: GameState, playerId: string, kind: CheatKind): void {
   const limit = cheatLimitOf(state.settings, kind);
@@ -490,7 +489,7 @@ export function assertCheatAvailable(state: GameState, playerId: string, kind: C
 
 function withCheatCounted(state: GameState, playerId: string, kind: CheatKind): GameState {
   const stats = state.statistics.players[playerId] ?? emptyPlayerStats();
-  const field = kind === 'skip' ? 'skipsUsed' : kind === 'trade' ? 'tradesUsed' : kind === 'lookup' ? 'lookupsUsed' : kind === 'automark' ? 'automarksUsed' : 'hintsUsed';
+  const field = kind === 'skip' ? 'skipsUsed' : kind === 'trade' ? 'tradesUsed' : kind === 'lookup' ? 'lookupsUsed' : 'hintsUsed';
   return {
     ...state,
     statistics: {
@@ -512,8 +511,8 @@ export function recordCheatUse(state: GameState, playerId: string, kind: CheatKi
   return withCheatCounted(state, playerId, kind);
 }
 
-// Turns auto-mark on or off for one person at a table. Turning it on is a cheat use (so "once" means once); turning it off is always
-// allowed, and being on already is not counted again. Solitaire has no one to react to the player, so it is refused there.
+// Turns auto-mark on or off for one person at a table. It is a player setting, not a cheat: no limit, nothing counted.
+// Solitaire has no one to react to the player, so it is refused there.
 export function setAutoMark(state: GameState, playerId: string, enabled: boolean): GameState {
   if (state.isSolitaire) {
     throw new EngineError('INVALID_PLAY', 'Auto-mark is for tables with other players');
@@ -523,8 +522,7 @@ export function setAutoMark(state: GameState, playerId: string, enabled: boolean
     throw new EngineError('NOT_PLAYER_TURN', 'Player not found in game');
   }
   if (!!player.autoMark === enabled) return state;
-  const counted = enabled ? recordCheatUse(state, playerId, 'automark') : state;
-  return { ...counted, players: counted.players.map((p) => (p.id === playerId ? { ...p, autoMark: enabled } : p)) };
+  return { ...state, players: state.players.map((p) => (p.id === playerId ? { ...p, autoMark: enabled } : p)) };
 }
 
 // Deals a new player into a game being played. They are given a hand from the BOTTOM of the draw pile: refills come off the

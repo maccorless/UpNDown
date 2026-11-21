@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { SettingsDialog } from './SettingsDialog.js';
 
 const show = (saveError: string | null) => render(
-  <SettingsDialog mode="multiplayer" open settings={defaultMultiplayerSettings} editable validationError={null} saveError={saveError} onClose={vi.fn()} onSave={vi.fn()} onChange={vi.fn()} enableSounds onToggleSounds={vi.fn()} />
+  <SettingsDialog mode="multiplayer" open settings={defaultMultiplayerSettings} editable validationError={null} saveError={saveError} onClose={vi.fn()} onSave={vi.fn()} onChange={vi.fn()} enableSounds onToggleSounds={vi.fn()} showArrows onToggleArrows={vi.fn()} autoMark={false} onToggleAutoMark={vi.fn()} />
 );
 
 describe('SettingsDialog save error', () => {

@@ -164,7 +164,7 @@ describe('statistics from before cheats were counted by kind', () => {
       turns: 3, startedAtMs: 1, endedAtMs: null,
       players: { p1: { cardsPlayed: 4, totalMovement: 9, specialPlays: 1, nasCheatsUsed: 2 } }
     });
-    expect(parsed.players.p1).toEqual({ cardsPlayed: 4, totalMovement: 9, specialPlays: 1, nasCheatsUsed: 2, skipsUsed: 0, tradesUsed: 2, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 });
+    expect(parsed.players.p1).toEqual({ cardsPlayed: 4, totalMovement: 9, specialPlays: 1, nasCheatsUsed: 2, skipsUsed: 0, tradesUsed: 2, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 });
   });
 });
 

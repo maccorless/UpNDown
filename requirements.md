@@ -109,10 +109,10 @@ A cooperative multiplayer card game where players work together to play all thei
 - **Status**: ✅ **Implemented**
 
 #### Foundation Pile Arrows
-- When `showArrows` is on (default), each pile shows one arrow on each side of its card: up for ascending, down for descending
+- When the player's own Pile arrows setting is on (default, kept on their device), each pile shows one arrow on each side of its card: up for ascending, down for descending
 - The arrows stay visible for the whole game; they do not fade
 - The pile's text tag and rule hint are not shown on screen; the backward-ten rule is learned through play
-- Turning `showArrows` off hides the arrows for every player in that game
+- Pile arrows are a per-player setting (My settings tab); turning them off hides them for that player only. The old game-level `showArrows` field is still stored but no longer read
 - **Status**: ✅ **Implemented**
 
 #### In-Game Chat
@@ -147,7 +147,7 @@ tests/e2e               Playwright smoke tests
 - **Player Names**: a new player starts with a random name made of a US president's first and last name (for example "Donald Washington"), kept in `localStorage` for guests, and can type their own at any time. In a game a generated name is shown as first name and last initial ("Donald W"); a name someone typed is never shortened. Signed-in players have the name stored on the account and the landing field follows it, so edits are saved
 - **First sign-in name prompt**: the server hands every account a random name, but it only becomes the player's own once they say so. On first sign-in a dialog asks "Input your player name or accept a random one": a field holding the suggestion (selected), a shuffle button for another random name, a line showing how other players will see it ("Grover A"), and Continue. It cannot be dismissed with Esc the first time. Accounts that existed before this are asked once. Signed-in players can reopen it from "Change name" on the landing screen
 - **Name collisions (multiplayer)**: names are compared as shown, ignoring case. The first player to take a name keeps it; the next gets `-1`, then `-2`, and so on (`Abe`, `Abe-1`, `abe-2`; `Donald W`, `Donald W-1`). A name is freed when its owner is kicked
-- **Cheat limits and counters**: every cheat (card seeker `lookup`, `skip`, `trade`, `hint`, and `automark` for tables only) has a per-game limit setting `cheatLimits` of off, once (one use per player per game) or unlimited; absent means off, except that the old `allowCardLookup` switch still means the card seeker is unlimited when no `cheatLimits` is given, and the server writes both forms. Each player's statistics count `skipsUsed`, `tradesUsed`, `lookupsUsed`, `hintsUsed` and `automarksUsed` (the old `nasCheatsUsed` is read as trades in saved games). Stored result rows carry `my_skips`, `my_trades`, `my_lookups`, `my_hints` (migration 003); `my_nas_cheats` keeps older counts and a trade count is `my_trades + my_nas_cheats`
+- **Cheat limits and counters**: every cheat (card seeker `lookup`, `skip`, `trade`, `hint`) has a per-game limit setting `cheatLimits` of off, once (one use per player per game) or unlimited; absent means off, except that the old `allowCardLookup` switch still means the card seeker is unlimited when no `cheatLimits` is given, and the server writes both forms. Each player's statistics count `skipsUsed`, `tradesUsed`, `lookupsUsed` and `hintsUsed` (the old `nasCheatsUsed` is read as trades in saved games). Stored result rows carry `my_skips`, `my_trades`, `my_lookups`, `my_hints` (migration 003); `my_nas_cheats` keeps older counts and a trade count is `my_trades + my_nas_cheats`
 - **Multiplayer results (signed in)**: when a multiplayer game is won or lost, each signed-in player gets a private history row with the team result and their own counters (cards played, net movement, backward 10s, Nas cheats), plus game length, turns, player count and the settings used. Co-players are not stored, only how many there were. Guests get nothing. If the host ends a game that is still being played, only the host gets an "abandoned" row; other players are unaffected, and ending a finished game records nothing. Every start of a room is its own game, and a result is never written twice. Recording is best effort: a database problem never slows or breaks play
 - **Settings sync (signed in)**: solitaire and multiplayer settings, sounds and the player name follow the account across devices. The first sign-in on a device takes the account's settings when it has any, otherwise uploads the device's; after that changes are saved automatically (last write wins). Guests keep everything in the browser as before
 - **Landing screen**: a large wordmark (Up in the ascending-pile teal, Down in the descending-pile coral), a one-line tagline, two mode cards (Solitaire, and Multiplayer as the single primary) and, under them, either the optional Google sign-in with its reason or a welcome line with Change name. The entrance animation plays once per page load and not under reduced motion
@@ -187,9 +187,9 @@ tests/e2e               Playwright smoke tests
 | allowUndo        | false   | on/off           |                                 |
 | privateGame      | false   | on/off           | Hides from public join list     |
 | allowCardLookup  | false   | on/off           | Old card seeker switch; `cheatLimits` (off, once, unlimited per cheat) replaces it |
-| showArrows       | true    | on/off           | Up/down arrow each side of pile card |
+| showArrows       | true    | on/off           | Legacy, no longer read: pile arrows are each player's own setting on the device |
 
-Settings dialog: Difficulty presets (Trivial/Easy/Normal/Hard, with a Custom state), Cards (highest card slider, hand size, cards per turn, auto refill, lowest card under Advanced), Players (maximum, private game), pile arrows and the card-lookup cheat. Non-hosts and in-game viewers see a read-only summary. Sound effects are a per-device preference, not a game setting.
+Settings dialog: two tabs, split by who a setting affects, each with a one-line banner saying so. **Game rules** (everyone at the table; the host sets them before the game starts, and one Save button, "Save game rules", covers them): How hard should it be? (four difficulty cards, each stating its deck, hand and cards per turn, with a Custom state; a closed "Fine-tune the deal" row holds highest card, lowest card, hand size, cards per turn and auto refill, and opens by itself for a Custom level), Who can play? (maximum players, private game; tables only) and Cheats (each Off, Once or Unlimited, always visible). Non-hosts and in-game viewers see a read-only summary. **My settings** (only the player; applied at once, kept on the device, no Save): Sound effects, Pile arrows, and Auto-mark piles (tables only).
 
 - **Status**: ✅ **Implemented**
 
@@ -264,7 +264,7 @@ All Socket.IO events are rate-limited server-side per socket using a sliding-win
 - ✅ **Cards Played**: Total count
 - ✅ **Total Movement**: Net progress along each pile's direction (a backward 10 counts as −10); the team total equals how far the piles ended from their starts
 - ✅ **Special Plays**: Count of backward-10 moves
-- ✅ **Cheats Used**: skips, trades, card lookups, hints and auto-marks per player
+- ✅ **Cheats Used**: skips, trades, card lookups and hints per player
 
 #### Statistics Display
 End-game statistics modal shows:
@@ -362,7 +362,7 @@ Client  ──Socket.IO event──►  Server
 | `game:skip`           | Skip your turn (cheat; before playing a card) |
 | `game:trade`          | Trade a hand card for the next draw card (cheat) |
 | `game:hint`           | Ask for a hint (cheat; the answer is private and counted) |
-| `game:setAutoMark`    | Switch auto-mark on or off (cheat, tables only; the server marks the piles for the player by the robots' rule) |
+| `game:setAutoMark`    | Switch auto-mark on or off (a player setting, not a cheat; tables only, while a game is being played; the server marks the piles for the player by the robots' rule) |
 | `game:createInvite`   | Host makes a single-use invitation to a game in progress |
 | `game:requestJoin`    | Ask to join a game in progress with an invitation (the host decides) |
 | `game:resolveJoin`    | Host lets a requester in, or declines |

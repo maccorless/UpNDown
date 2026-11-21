@@ -808,7 +808,7 @@ export function createRealtimeServer(
       }
     });
 
-    // Switching auto-mark on is announced like any cheat; switching it off is not. The marks go out with the next state broadcast.
+    // Auto-mark is a player setting: nobody is told. The marks go out with the next state broadcast (or, when it is switched off, now).
     socket.on('game:setAutoMark', (payload, ack?: Ack<{ gameState: unknown }>) => {
       if (!passesRateLimit(socket.id, 'game:setAutoMark')) {
         reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
@@ -816,9 +816,7 @@ export function createRealtimeServer(
       }
       try {
         const parsed = setAutoMarkPayloadSchema.parse(payload);
-        const before = manager.peekState(parsed.gameId)?.players.find((p) => p.id === socket.id)?.autoMark === true;
         const gameState = manager.setAutoMark(socket.id, parsed.gameId, parsed.enabled);
-        if (parsed.enabled && !before) announceCheat(gameState.gameId, 'automark');
         if (!parsed.enabled) io.to(gameState.gameId).emit('game:reactionsUpdated', manager.getReactions(gameState.gameId));
         broadcastState(gameState.gameId, gameState);
         reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });

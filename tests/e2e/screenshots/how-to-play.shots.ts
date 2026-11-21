@@ -43,10 +43,9 @@ test('pictures for the How to Play page', async ({ page }) => {
   await page.getByTestId('add-robot').click();
   await expect(page.locator('.players-list')).toContainText('[Robot]');
   await shot(page, 'lobby');
-  // Settings, as the host, where they can be changed, with the cheat codes opened.
+  // Settings, as the host, where they can be changed: the game rules tab, scrolled to the cheats.
   await page.getByRole('button', { name: /settings/i }).first().click();
   await expect(page.locator('dialog[open]')).toBeVisible();
-  await page.locator('dialog[open] summary', { hasText: 'Cheat codes' }).click();
   await page.locator('dialog[open]').getByText('Trade a card').first().scrollIntoViewIfNeeded();
   await shot(page, 'settings');
   await page.keyboard.press('Escape');
