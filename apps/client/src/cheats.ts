@@ -6,7 +6,8 @@ export const CHEAT_TITLES: Record<CheatKind, string> = {
   lookup: 'Card seeker',
   skip: 'Skip turn',
   trade: 'Trade a card',
-  hint: 'Hint'
+  hint: 'Hint',
+  automark: 'Auto-mark piles'
 };
 
 export interface CheatStatus {
@@ -15,6 +16,8 @@ export interface CheatStatus {
   limit: 'once' | 'unlimited';
   used: number;
   available: boolean;
+  // Only for switches (auto-mark): whether it is on now.
+  on?: boolean;
   // Why a cheat cannot be used right now (never set when it can).
   reason?: string;
 }
@@ -22,28 +25,29 @@ export interface CheatStatus {
 const usedOf = (state: GameState, playerId: string | null, kind: CheatKind): number => {
   const stats = playerId ? state.statistics.players[playerId] : undefined;
   if (!stats) return 0;
-  return kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : stats.hintsUsed;
+  return kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : kind === 'automark' ? stats.automarksUsed : stats.hintsUsed;
 };
 
 // The cheats this game offers this player, and whether each can be used this moment. Cheats the game has turned off are not
-// listed at all. Skip needs a table (there is no turn to skip alone).
+// listed at all. Skip and auto-mark need a table (there is no turn to skip alone, and no one to react to a lone player).
 export function cheatStatuses(state: GameState, playerId: string | null, selectedCardId: string | null): CheatStatus[] {
   const mine = !!playerId && state.players[state.currentPlayerIndex]?.id === playerId;
   const playing = state.gamePhase === 'playing';
   const out: CheatStatus[] = [];
-  for (const kind of ['lookup', 'hint', 'skip', 'trade'] as const) {
+  for (const kind of ['lookup', 'hint', 'skip', 'trade', 'automark'] as const) {
     const limit = cheatLimitOf(state.settings, kind);
-    if (limit === 'off' || (kind === 'skip' && state.isSolitaire)) continue;
+    if (limit === 'off' || ((kind === 'skip' || kind === 'automark') && state.isSolitaire)) continue;
     const used = usedOf(state, playerId, kind);
+    const on = kind === 'automark' && state.players.find((p) => p.id === playerId)?.autoMark === true;
     let reason: string | undefined;
     if (!playing) reason = 'The game is not being played';
-    else if (limit === 'once' && used >= 1) reason = 'Already used';
+    else if (limit === 'once' && used >= 1 && !on) reason = 'Already used';
     else if ((kind === 'skip' || kind === 'hint') && !mine) reason = 'Only on your turn';
     else if (kind === 'skip' && state.cardsPlayedThisTurn > 0) reason = 'Only before you play a card this turn';
     else if (kind === 'trade' && !state.isSolitaire && !mine) reason = 'Only on your turn';
     else if (kind === 'trade' && state.drawPile.length === 0) reason = 'The draw pile is empty';
     else if (kind === 'trade' && !selectedCardId) reason = 'Select a card in your hand first';
-    out.push({ kind, limit, used, available: !reason, ...(reason ? { reason } : {}) });
+    out.push({ kind, limit, used, available: !reason, ...(kind === 'automark' ? { on } : {}), ...(reason ? { reason } : {}) });
   }
   return out;
 }
@@ -53,6 +57,7 @@ export function cheatNoticeText(event: Pick<CheatUsedEvent, 'playerName' | 'kind
   if (event.kind === 'skip') return `${who} skipped a turn`;
   if (event.kind === 'trade') return `${who} traded a card`;
   if (event.kind === 'lookup') return `${who} used the card seeker`;
+  if (event.kind === 'automark') return `${who} turned on auto-mark`;
   return `${who} used a hint`;
 }
 
@@ -95,7 +100,7 @@ export function useCheatHotkeys({ active, onLookup, onSkip, onTrade }: HotkeyArg
 export const keepCheatCounts = (restored: GameState, current: GameState, undoingPlayerId: string): GameState => carryAfterUndo(restored, current, undoingPlayerId);
 
 // Every cheat a player used, counted. The old card-swap count is the same thing as trades and is not added twice.
-export const cheatCount = (stats: PlayerStatistics): number => stats.skipsUsed + stats.tradesUsed + stats.lookupsUsed + stats.hintsUsed;
+export const cheatCount = (stats: PlayerStatistics): number => stats.skipsUsed + stats.tradesUsed + stats.lookupsUsed + stats.hintsUsed + stats.automarksUsed;
 
 // "2 skips, 1 trade" for the end screen, or a dash when the player used none.
 export function describeCheats(stats: PlayerStatistics): string {
@@ -105,6 +110,7 @@ export function describeCheats(stats: PlayerStatistics): string {
   add(stats.tradesUsed, 'trade', 'trades');
   add(stats.lookupsUsed, 'card lookup', 'card lookups');
   add(stats.hintsUsed, 'hint', 'hints');
+  add(stats.automarksUsed, 'auto-mark', 'auto-marks');
   return parts.length > 0 ? parts.join(', ') : 'None';
 }
 

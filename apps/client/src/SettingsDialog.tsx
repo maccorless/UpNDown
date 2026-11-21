@@ -9,8 +9,10 @@ const CHEAT_ROWS: Array<{ kind: CheatKind; label: string; hint: string }> = [
   { kind: 'lookup', label: 'Card seeker', hint: 'Find where a card is (Ctrl/Cmd-P). Only the asker sees the answer; the others are told one was used.' },
   { kind: 'hint', label: 'Hint', hint: 'Suggests the best play from what you can see. Only you see it; it is counted in the statistics.' },
   { kind: 'skip', label: 'Skip turn', hint: 'Pass your turn without the minimum (Ctrl/Cmd-S, after a confirmation). Before you are stuck, not after.' },
-  { kind: 'trade', label: 'Trade a card', hint: 'Swap a hand card for the next draw card (Ctrl/Cmd-Shift-X). The card you give goes back in at random.' }
+  { kind: 'trade', label: 'Trade a card', hint: 'Swap a hand card for the next draw card (Ctrl/Cmd-Shift-X). The card you give goes back in at random.' },
+  { kind: 'automark', label: 'Auto-mark piles', hint: 'Marks every pile for you while others are on turn, by the robots\' rule. Tables only. Under Once, you can switch it off but not back on.' }
 ];
+const cheatRowsFor = (isSolitaire: boolean) => CHEAT_ROWS.filter((row) => !(isSolitaire && (row.kind === 'skip' || row.kind === 'automark')));
 
 type PresetName = 'trivial' | 'easy' | 'normal' | 'hard';
 
@@ -193,7 +195,7 @@ function OpenSettingsDialog({
                 </>
               )}
               <div><dt>Pile arrows</dt><dd>{yesNo(settings.showArrows)}</dd></div>
-              {CHEAT_ROWS.filter((row) => !(isSolitaire && row.kind === 'skip')).map((row) => (
+              {cheatRowsFor(isSolitaire).map((row) => (
                 <div key={row.kind}><dt>{row.label}</dt><dd>{LIMIT_LABELS[cheatLimitOf(settings, row.kind)]}</dd></div>
               ))}
             </dl>
@@ -354,7 +356,7 @@ function OpenSettingsDialog({
           {editable ? (
             <details className="settings-adv">
               <summary>Cheat codes</summary>
-              {CHEAT_ROWS.filter((row) => !(isSolitaire && row.kind === 'skip')).map((row) => (
+              {cheatRowsFor(isSolitaire).map((row) => (
                 <div className="settings-row" key={row.kind}>
                   <span className="settings-row-label" id={`settings-cheat-${row.kind}-label`}>{row.label}</span>
                   <Segmented

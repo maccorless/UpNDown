@@ -49,7 +49,7 @@ describe('turnProgress', () => {
 describe('classifyPlay', () => {
   const base = (tops: number[], played: number, special = 0): GameState => ({
     foundationPiles: tops.map((value, id) => ({ id, type: 'ascending', topCard: { id: `t${id}-${value}`, value } })),
-    statistics: { players: { a: { cardsPlayed: played, totalMovement: 0, specialPlays: special, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 } } }
+    statistics: { players: { a: { cardsPlayed: played, totalMovement: 0, specialPlays: special, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 } } }
   } as unknown as GameState);
 
   it('cheers for a backward ten, which the engine counts as a special play', () => {
@@ -77,7 +77,7 @@ describe('statsHighlights', () => {
       turns: 1,
       startedAtMs: 0,
       endedAtMs: 1,
-      players: Object.fromEntries(specials.map((n, i) => [`p${i}`, { cardsPlayed: 4, totalMovement: movement[i] ?? 0, specialPlays: n, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 }]))
+      players: Object.fromEntries(specials.map((n, i) => [`p${i}`, { cardsPlayed: 4, totalMovement: movement[i] ?? 0, specialPlays: n, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, automarksUsed: 0, undosUsed: 0, marksPlaced: 0 }]))
     }
   });
 

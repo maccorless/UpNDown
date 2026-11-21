@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Action } from '@upndown/engine';
-import { buildDeck, carryAfterUndo, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import { buildDeck, carryAfterUndo, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, setAutoMark, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type { HintAdvisor, RobotBrain } from './robot-brain.js';
 import { pickRobotName } from './robot-names.js';
 import type {
@@ -49,7 +49,7 @@ interface GameRoom {
   // Requests waiting for the host's answer.
   pendingJoins: Map<string, PendingJoin>;
   // Cheats a signed-in account used before it was removed from the game, so being let back in does not refresh a "once".
-  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'hintsUsed'>>;
+  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'hintsUsed' | 'automarksUsed'>>;
 }
 
 export interface PendingJoin {
@@ -652,6 +652,16 @@ export class GameManager {
     return nextState;
   }
 
+  // Auto-mark: the server marks the piles for this person, by the robots' rule, while they are off turn. Turning it off takes their marks down.
+  setAutoMark(playerId: string, gameId: string, enabled: boolean): GameState {
+    const room = this.requireRoom(gameId);
+    if (room.gameState.gamePhase !== 'playing') throw new Error('Cheats can only be used while a game is being played');
+    room.gameState = setAutoMark(room.gameState, playerId, enabled);
+    if (!enabled) this.clearPlayerReactions(gameId, playerId);
+    room.updatedAtMs = Date.now();
+    return room.gameState;
+  }
+
   trade(playerId: string, payload: TradePayload): GameState {
     const room = this.requireRoom(payload.gameId);
     const previous = room.gameState;
@@ -869,7 +879,7 @@ export class GameManager {
     const kickedUser = room.userIdByPlayerId.get(payload.targetPlayerId);
     const kickedStats = gameState.statistics.players[payload.targetPlayerId];
     if (kickedUser && kickedStats) {
-      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, hintsUsed: kickedStats.hintsUsed });
+      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, hintsUsed: kickedStats.hintsUsed, automarksUsed: kickedStats.automarksUsed });
     }
     room.userIdByPlayerId.delete(payload.targetPlayerId);
     room.disconnectedAtMs.delete(payload.targetPlayerId);
@@ -1139,7 +1149,7 @@ export class GameManager {
   }
 
   // Robots show honest reactions, as a diligent player would: after every play, each robot not on turn marks every pile by how good its best card for
-  // it is (the rule in How to Play), and a robot on turn shows none. Returns whether anything changed, so the caller can tell the table.
+  // it is (the rule in How to Play), and a robot on turn shows none. A person with auto-mark on is marked the same way. Returns whether anything changed, so the caller can tell the table.
   syncRobotReactions(gameId: string): boolean {
     const room = this.rooms.get(gameId);
     if (!room || room.gameState.gamePhase !== 'playing' || room.gameState.isSolitaire) return false;
@@ -1148,7 +1158,7 @@ export class GameManager {
     const board = this.reactions.get(gameId) ?? new Map<string, Map<number, ReactionType>>();
     let changed = false;
     for (const player of state.players) {
-      if (!player.robot) continue;
+      if (!player.robot && !player.autoMark) continue;
       const want = new Map<number, ReactionType>();
       if (player.id !== onTurn) {
         for (const pile of state.foundationPiles) {

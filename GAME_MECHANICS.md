@@ -18,7 +18,8 @@ Each cheat is off, once (one use per player per game) or unlimited, set per game
 - **Skip (`skip`)**: on your turn, before playing a card, pass without the minimum. Not offered in solitaire. No refill. A full round of skips with no card played by anyone ends the game as a loss. Ctrl/Cmd-S, with a confirmation.
 - **Trade (`trade`)**: swap a hand card for the next draw card; the card you give goes back into the draw pile at a random position. Active player only. Ctrl/Cmd-Shift-X.
 - **Hint (`hint`)**: suggests the best play (or to end the turn, skip or trade) from what the asker can see: their own hand, the pile tops, the size of the draw pile and of the other hands, never the cards in the draw pile or other hands. Only the asker sees it, nobody is notified, it is counted in the statistics. Worked out by the server in multiplayer (`game:hint`) and in the browser in solitaire. With the screen-only network (`packages/engine/models/hint.json`, which has no access to the played-card record) the answer comes with a headline and one to three reasons a player can check: the size of the move, a backward 10, which of your cards it leaves able to follow, cards it would strand, what a teammate has marked, or, when none of those explains the move, a plain statement that the trained model weighs the whole hand. In solitaire the network file is fetched once, the first time a hint is asked for (it carries no data); with no connection, or on any error, the written strategy gives the hint without reasons, as before. Skip and trade suggestions always come from the written strategy. `HINT_BRAIN=heuristic` switches the network off.
-- Skip and trade clear the undo history. A lookup or hint is not refunded by undo.
+- **Auto-mark piles (`automark`)**: tables only (never in solitaire, where nobody can react to the player). A switch (`game:setAutoMark`, payload `{ gameId, enabled }`): while it is on the server marks every pile for that person, like, love or really love, by the same rule the robots use (`senderLevel`), after every play; a person on turn shows no marks, and switching it off takes their marks down. Switching it on counts as a use (`automarksUsed`) and tells the table; switching it off is always allowed. Under once, a player can switch it off but not back on. Stored on the player as `autoMark`.
+- Skip and trade clear the undo history. A lookup or hint is not refunded by undo, and an undo does not change the auto-mark switch.
 - The panel opens by double tapping the logo or from the Cheats button; the keys are accelerators only.
 
 ## Game Overview
@@ -245,7 +246,7 @@ interface GameSettings {
   allowUndo: boolean;        // Default: false
   privateGame: boolean;      // Default: false
   allowCardLookup: boolean;  // Default: false. Old switch for the card seeker; read as `unlimited` when cheatLimits is absent
-  cheatLimits?: Record<'lookup' | 'skip' | 'trade' | 'hint', 'off' | 'once' | 'unlimited'>;  // Default: all off
+  cheatLimits?: Record<'lookup' | 'skip' | 'trade' | 'hint' | 'automark', 'off' | 'once' | 'unlimited'>;  // Default: all off (automark may be absent, meaning off)
   showArrows: boolean;       // Default: true (pile direction arrows)
 }
 ```
@@ -304,6 +305,7 @@ All Socket.IO events are rate-limited per socket ID using a sliding-window count
 | `game:skip`          | 10    | 10 s    |
 | `game:trade`         | 10    | 10 s    |
 | `game:hint`          | 20    | 10 s    |
+| `game:setAutoMark`   | 10    | 10 s    |
 | `game:endTurn`       | 30    | 10 s    |
 | `game:undoPlay`      | 30    | 10 s    |
 | `game:endGame`       | 10    | 30 s    |
@@ -321,7 +323,7 @@ Limits are per socket. `game:lookup` and `game:join` are also limited per client
 - **Cards Played**: Total count
 - **Total Movement**: Net progress of the piles: each play adds how far it moved the pile in its own direction, so a backward 10 subtracts 10. The team total equals the sum of how far each pile ended from its start.
 - **Special Plays**: Count of backward-10 moves
-- **Cheats Used**: skips, trades, card lookups and hints, counted per player and shown on the end screen (the old Nas swap count is read as trades)
+- **Cheats Used**: skips, trades, card lookups, hints and auto-marks, counted per player and shown on the end screen (the old Nas swap count is read as trades)
 - **Undos** (`undosUsed`) and **pile marks placed** (`marksPlaced`): counted per player and not refunded by an undo. They feed the profile badges, not the end screen. A mark is counted when it is placed or changed to a reaction, not when it is cleared.
 
 **Aggregate** (in `GameStatistics`):

@@ -9,28 +9,31 @@ interface CheatsPanelProps {
   onHint: () => void;
   onSkip: () => void;
   onTrade: () => void;
+  onAutoMark: (enabled: boolean) => void;
   // Open straight on the skip confirmation (the keyboard shortcut).
   startWithSkipConfirm?: boolean;
   // True while a request is in flight, so a double click cannot use a cheat twice.
   busy: boolean;
 }
 
-const HELP: Record<'lookup' | 'hint' | 'skip' | 'trade', string> = {
+const HELP: Record<CheatStatus['kind'], string> = {
   hint: 'Suggests a play. Only you see it.',
   lookup: 'Find out where a card is. Only you see the answer.',
   skip: 'Pass your turn without playing the minimum. Use it before you are stuck.',
-  trade: 'Swap the selected card for the next card from the draw pile.'
+  trade: 'Swap the selected card for the next card from the draw pile.',
+  automark: 'Marks every pile for you, like, love or really love, by the same rule the robots use. Others see the marks, not that they are automatic.'
 };
 
 // The cheats a game allows, each a button. One already used up under a "once" limit is grayed out and says so in words, not
 // only in color. Opened by double tapping the logo, the Cheats menu entry, or the keyboard.
-export function CheatsPanel({ statuses, onClose, onLookup, onHint, onSkip, onTrade, busy, startWithSkipConfirm = false }: CheatsPanelProps): JSX.Element {
+export function CheatsPanel({ statuses, onClose, onLookup, onHint, onSkip, onTrade, onAutoMark, busy, startWithSkipConfirm = false }: CheatsPanelProps): JSX.Element {
   const [confirmingSkip, setConfirmingSkip] = useState(startWithSkipConfirm);
   const act = (kind: CheatStatus['kind']): void => {
     if (kind === 'skip') setConfirmingSkip(true);
     else if (kind === 'trade') { onTrade(); onClose(); }
     else if (kind === 'lookup') { onLookup(); onClose(); }
     else if (kind === 'hint') { onHint(); onClose(); }
+    else if (kind === 'automark') { onAutoMark(!statuses.find((s) => s.kind === 'automark')?.on); onClose(); }
   };
 
   if (confirmingSkip) {
@@ -52,21 +55,21 @@ export function CheatsPanel({ statuses, onClose, onLookup, onHint, onSkip, onTra
       {statuses.length === 0 ? <p>This game has no cheats turned on.</p> : (
         <ul className="cheats-list">
           {statuses.map((status) => {
-            const kind = status.kind as 'lookup' | 'hint' | 'skip' | 'trade';
             return (
               <li key={status.kind} className="cheats-item">
                 <button
                   type="button"
                   className="secondary"
                   data-testid={`cheat-${status.kind}`}
+                  {...(status.kind === 'automark' ? { 'aria-pressed': !!status.on } : {})}
                   aria-disabled={!status.available || busy}
                   disabled={!status.available || busy}
                   onClick={() => act(status.kind)}
                 >
-                  {CHEAT_TITLES[status.kind]}
+                  {CHEAT_TITLES[status.kind]}{status.kind === 'automark' ? (status.on ? ': on' : ': off') : ''}
                 </button>
                 <span className="cheats-note">
-                  {status.reason ?? HELP[kind]}
+                  {status.reason ?? HELP[status.kind]}
                   {status.limit === 'once' && !status.reason ? ' One use per game.' : ''}
                 </span>
               </li>

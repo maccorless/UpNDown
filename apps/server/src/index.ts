@@ -13,6 +13,7 @@ import {
   requestJoinPayloadSchema,
   resolveJoinPayloadSchema,
   skipPayloadSchema,
+  setAutoMarkPayloadSchema,
   tradePayloadSchema,
   playCardPayloadSchema,
   rejoinGamePayloadSchema,
@@ -87,6 +88,7 @@ const eventRateLimits: Record<
   | 'game:removeRobot'
   | 'game:skip'
   | 'game:hint'
+  | 'game:setAutoMark'
   | 'game:trade'
   | 'game:endTurn'
   | 'game:undoPlay'
@@ -114,6 +116,7 @@ const eventRateLimits: Record<
   'game:removeRobot':    { limit: 10, windowMs: 10_000 },
   'game:skip':           { limit: 10, windowMs: 10_000 },
   'game:hint':           { limit: 20, windowMs: 10_000 },
+  'game:setAutoMark':    { limit: 10, windowMs: 10_000 },
   'game:trade':          { limit: 10, windowMs: 10_000 },
   'game:endTurn':        { limit: 30, windowMs: 10_000 },
   'game:undoPlay':       { limit: 30, windowMs: 10_000 },
@@ -801,6 +804,27 @@ export function createRealtimeServer(
       } catch (err) {
         const message = normalizeError(err, 'Unable to give a hint');
         log('warn', 'game.hint_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    // Switching auto-mark on is announced like any cheat; switching it off is not. The marks go out with the next state broadcast.
+    socket.on('game:setAutoMark', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:setAutoMark')) {
+        reply(ack, { ok: false, error: 'Too many attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = setAutoMarkPayloadSchema.parse(payload);
+        const before = manager.peekState(parsed.gameId)?.players.find((p) => p.id === socket.id)?.autoMark === true;
+        const gameState = manager.setAutoMark(socket.id, parsed.gameId, parsed.enabled);
+        if (parsed.enabled && !before) announceCheat(gameState.gameId, 'automark');
+        if (!parsed.enabled) io.to(gameState.gameId).emit('game:reactionsUpdated', manager.getReactions(gameState.gameId));
+        broadcastState(gameState.gameId, gameState);
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to change auto-mark');
+        log('warn', 'game.set_auto_mark_failed', { socketId: socket.id, error: message });
         reply(ack, { ok: false, error: message });
       }
     });

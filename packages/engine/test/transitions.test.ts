@@ -3,7 +3,7 @@ import type { Card, GameSettings } from '@upndown/shared-types';
 import { buildDeck } from '../src/init.js';
 import { EngineError } from '../src/errors.js';
 import { isValidPlay } from '../src/rules.js';
-import { admitPlayer, createStartedGameState, endTurn, playCard, recordCheatUse, settleAfterRemoval, skipTurn, tradeCard } from '../src/transitions.js';
+import { admitPlayer, createStartedGameState, endTurn, playCard, recordCheatUse, setAutoMark, settleAfterRemoval, skipTurn, tradeCard } from '../src/transitions.js';
 
 const settings: GameSettings = {
   minCardValue: 2,
@@ -374,7 +374,7 @@ describe('solitaire loss detection', () => {
   });
 });
 
-const cheatSettings = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint', 'off' | 'once' | 'unlimited'>>): GameSettings => ({
+const cheatSettings = (limits: Partial<Record<'lookup' | 'skip' | 'trade' | 'hint' | 'automark', 'off' | 'once' | 'unlimited'>>): GameSettings => ({
   ...settings,
   cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off', ...limits }
 });
@@ -587,3 +587,43 @@ describe('admitPlayer', () => {
   });
 });
 
+
+describe('setAutoMark', () => {
+  const autoMarkOf = (state: ReturnType<typeof table>, id: string) => state.players.find((p) => p.id === id)!.autoMark === true;
+
+  it('turns marking on for that player only, and counts it as a cheat use', () => {
+    const on = setAutoMark(table({ automark: 'unlimited' }), 'p2', true);
+    expect(autoMarkOf(on, 'p2')).toBe(true);
+    expect(autoMarkOf(on, 'p1')).toBe(false);
+    expect(on.statistics.players.p2!.automarksUsed).toBe(1);
+  });
+
+  it('is refused when the game has it off, because it gives a player marks the rules did not offer', () => {
+    expect(() => setAutoMark(table({}), 'p2', true)).toThrow('not enabled');
+  });
+
+  it('does not count a second "on" while already on, so leaving it on is one use', () => {
+    const on = setAutoMark(table({ automark: 'once' }), 'p2', true);
+    const again = setAutoMark(on, 'p2', true);
+    expect(again.statistics.players.p2!.automarksUsed).toBe(1);
+  });
+
+  it('under "once" lets a player turn it off but not back on, and under "unlimited" counts every switch on', () => {
+    const once = setAutoMark(setAutoMark(table({ automark: 'once' }), 'p2', true), 'p2', false);
+    expect(autoMarkOf(once, 'p2')).toBe(false);
+    expect(() => setAutoMark(once, 'p2', true)).toThrow('already used');
+    const free = setAutoMark(setAutoMark(setAutoMark(table({ automark: 'unlimited' }), 'p2', true), 'p2', false), 'p2', true);
+    expect(free.statistics.players.p2!.automarksUsed).toBe(2);
+  });
+
+  it('turning off is allowed even when the game has since turned the cheat off', () => {
+    const on = setAutoMark(table({ automark: 'unlimited' }), 'p2', true);
+    const off = setAutoMark({ ...on, settings: cheatSettings({}) }, 'p2', false);
+    expect(autoMarkOf(off, 'p2')).toBe(false);
+  });
+
+  it('is for tables only: reactions need other players', () => {
+    const solo = { ...table({ automark: 'unlimited' }), isSolitaire: true };
+    expect(() => setAutoMark(solo, 'p1', true)).toThrow();
+  });
+});

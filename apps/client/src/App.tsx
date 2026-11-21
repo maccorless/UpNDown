@@ -1558,6 +1558,18 @@ export function App(): JSX.Element {
     setMultiplayerState(ack.data.gameState);
   };
 
+  // Auto-mark is a switch at a table; the server marks the piles and sends them with the next update.
+  const handleCheatAutoMark = async (enabled: boolean): Promise<void> => {
+    if (!multiplayerState) return;
+    const ack = await emitWithAck<{ gameState: GameState }>('game:setAutoMark', { gameId: multiplayerState.gameId, enabled }, 'cheat');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setMultiplayerState(ack.data.gameState);
+  };
+
   const handleCheatTrade = async (): Promise<void> => {
     if (mode === 'solitaire') {
       if (!solitaireSelectedCardId) return;
@@ -2609,6 +2621,7 @@ export function App(): JSX.Element {
           onHint={() => { void handleCheatHint(); }}
           onSkip={() => { void handleCheatSkip(); }}
           onTrade={() => { void handleCheatTrade(); }}
+          onAutoMark={(enabled) => { void handleCheatAutoMark(enabled); }}
         />
       ) : null}
 

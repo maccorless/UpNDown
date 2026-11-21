@@ -23,6 +23,8 @@ export interface Player {
   color?: PlayerColor;
   // A seat played by the server, not by a person: no connection, no account, no result recorded.
   robot?: boolean | undefined;
+  // A person who has turned on the auto-mark cheat: the server marks the piles for them, by the robots' rule, while they are off turn.
+  autoMark?: boolean | undefined;
 }
 
 export interface GameSettings {
@@ -42,11 +44,12 @@ export interface GameSettings {
   cheatLimits?: CheatLimits | undefined;
 }
 
-export type CheatKind = 'lookup' | 'skip' | 'trade' | 'hint';
+export type CheatKind = 'lookup' | 'skip' | 'trade' | 'hint' | 'automark';
 // off: not available. once: one use per player per game. unlimited: no limit.
 export type CheatLimit = 'off' | 'once' | 'unlimited';
-export type CheatLimits = Record<CheatKind, CheatLimit>;
-export const CHEAT_KINDS: readonly CheatKind[] = ['lookup', 'skip', 'trade', 'hint'];
+// automark is optional: games and clients from before it existed do not have it, and that means off.
+export type CheatLimits = Record<Exclude<CheatKind, 'automark'>, CheatLimit> & { automark?: CheatLimit | undefined };
+export const CHEAT_KINDS: readonly CheatKind[] = ['lookup', 'skip', 'trade', 'hint', 'automark'];
 
 export interface PlayerStatistics {
   cardsPlayed: number;
@@ -58,6 +61,7 @@ export interface PlayerStatistics {
   tradesUsed: number;
   lookupsUsed: number;
   hintsUsed: number;
+  automarksUsed: number;
   // Undos this player took, and pile marks they placed. Neither is refunded by an undo (see carryAfterUndo).
   undosUsed: number;
   marksPlaced: number;

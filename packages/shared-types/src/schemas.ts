@@ -28,7 +28,8 @@ export const gameSettingsSchema = z
       lookup: z.enum(['off', 'once', 'unlimited']),
       skip: z.enum(['off', 'once', 'unlimited']),
       trade: z.enum(['off', 'once', 'unlimited']),
-      hint: z.enum(['off', 'once', 'unlimited'])
+      hint: z.enum(['off', 'once', 'unlimited']),
+      automark: z.enum(['off', 'once', 'unlimited']).optional()
     }).optional()
   })
   .superRefine((settings, ctx) => {
@@ -121,6 +122,11 @@ export const removeRobotPayloadSchema = z.object({
   playerId: z.string().min(1).max(100)
 });
 
+export const setAutoMarkPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
+  enabled: z.boolean()
+});
+
 export const skipPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/)
 });
@@ -189,6 +195,7 @@ export const gameStateSchema = z.object({
     hand: z.array(cardSchema).max(200),
     isHost: z.boolean(),
     robot: z.boolean().optional(),
+    autoMark: z.boolean().optional(),
     color: z.enum(['red', 'orange', 'green', 'cyan', 'purple', 'pink']).optional()
   })).max(6),
   foundationPiles: z.array(z.object({
@@ -214,6 +221,7 @@ export const gameStateSchema = z.object({
       tradesUsed: z.number().int().min(0).optional(),
       lookupsUsed: z.number().int().min(0).default(0),
       hintsUsed: z.number().int().min(0).default(0),
+      automarksUsed: z.number().int().min(0).default(0),
       undosUsed: z.number().int().min(0).default(0),
       marksPlaced: z.number().int().min(0).default(0)
     }).transform((stats) => ({ ...stats, tradesUsed: stats.tradesUsed ?? stats.nasCheatsUsed })))
