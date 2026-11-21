@@ -1597,7 +1597,7 @@ dialog.modal-dialog::backdrop {
 
 .settings-form {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
   min-block-size: 0;
   max-block-size: inherit;
 }
@@ -3019,7 +3019,7 @@ button.mode-card:not(:disabled):active {
     "notices notices"
     "foundation players"
     "hand hand";
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
 }
 
 @media (max-width: 900px) {
