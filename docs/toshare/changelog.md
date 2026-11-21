@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-21 | audit-5 | Chore: moved the multiplayer lobby screens and the five confirmation modals out of App.tsx (now about 1,770 lines), no behaviour change |
 | 2026-11-21 | audit-5 | Chore: moved GameBoard, URL and storage helpers and three small hooks out of App.tsx (2,705 to about 2,080 lines), no behaviour change |
 | 2026-11-21 | audit-6,7 | Chore: removed unused plan documents, mockups and an empty file; pinned the Docker base image by digest |
 | 2026-11-21 | audit-3,4 | Fix: other players no longer receive your auto-mark choice; removed the unused game-level showArrows setting |

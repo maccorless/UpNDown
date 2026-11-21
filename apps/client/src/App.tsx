@@ -9,14 +9,15 @@ import { useSavedSeat } from './useSavedSeat.js';
 import type { Action } from '@upndown/engine';
 import { buildDeck, createStartedGameState, playCard as playCardEngine, recordCheatUse, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
-import { classifyPlay, PLAYER_COLOR_HEX } from './board-helpers.js';
+import { classifyPlay } from './board-helpers.js';
 import { EndGameStatisticsModal } from './EndGame.js';
-import { Modal } from './Modal.js';
 import { SettingsDialog } from './SettingsDialog.js';
 import { useAutoMarkSync, usePlayerPrefs } from './playerPrefs.js';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, maxPlayersFor, randomPresidentName, type CardLookupResult, type CheatUsedEvent, type JoinResolvedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, randomPresidentName, type CardLookupResult, type CheatUsedEvent, type JoinResolvedEvent, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { GameBoard } from './GameBoard.js';
+import { BackToLobbyModal, CardLookupModal, EndGameConfirmModal, HostEndedModal, KickedModal } from './GameModals.js';
+import { JoinPanel, WaitingRoom } from './MultiplayerLobby.js';
 import { useJoinablePoller, usePageVisible, useViewportHeight } from './app-hooks.js';
 import { buildInviteLink, INVITE_QUERY_PARAM, normalizeGameId, readGameIdFromLocation, readInviteFromLocation, syncGameIdInUrl } from './game-url.js';
 import { readPersistedPlayerName, readPersistedSettings, SETTINGS_STORAGE_KEY, validateCreateSettings, writePersistedPlayerName, writePersistedSettings } from './settings-storage.js';
@@ -1541,241 +1542,44 @@ export function App(): JSX.Element {
       ) : mode === 'multiplayer' ? (
         <>
           {!multiplayerState ? (
-            <section className="panel lobby" aria-label="multiplayer lobby">
-              <h2>Multiplayer</h2>
-              <div className="lobby-grid">
-                <label htmlFor="player-name-input">
-                  Player Name
-                  <input
-                    id="player-name-input"
-                    value={playerName}
-                    onChange={(e) => { setPlayerName(e.target.value); confirmName(); }}
-                    name="playerName"
-                    autoComplete="nickname"
-                    autoCapitalize="words"
-                    spellCheck={false}
-                    maxLength={32}
-                    placeholder="Your Name"
-                    disabled={multiplayerInteractionDisabled}
-                  />
-                </label>
-              </div>
-              {multiplayerFlow === 'choose' ? (
-                <div className="flow-choice" data-testid="flow-choice">
-                  <button
-                    type="button"
-                    className="choice-card primary"
-                    onClick={() => {
-                      void handleCreateGame();
-                      setShowJoinById(false);
-                      setJoinLookup(null);
-                      setError(null);
-                    }}
-                    disabled={multiplayerInteractionDisabled || !playerName.trim() || !!createSettingsError}
-                    data-testid="flow-host"
-                  >
-                    {pendingAction === 'create' ? 'Hosting...' : 'Host Game'}
-                  </button>
-                  <button
-                    type="button"
-                    className="choice-card secondary"
-                    onClick={() => {
-                      setMultiplayerFlow('join');
-                      setShowJoinById(false);
-                      setJoinLookup(null);
-                      setError(null);
-                    }}
-                    disabled={multiplayerInteractionDisabled}
-                    data-testid="flow-join"
-                  >
-                    Join Game
-                  </button>
-                </div>
-              ) : null}
-
-              {multiplayerFlow === 'join' ? (
-                <>
-                  <div className="button-row">
-                    <button type="button" className="secondary" onClick={() => { void refreshJoinableGames(); }} disabled={multiplayerInteractionDisabled || loadingJoinableGames}>
-                      {loadingJoinableGames ? 'Refreshing...' : 'Refresh Games'}
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => setMultiplayerFlow('choose')}
-                      disabled={multiplayerInteractionDisabled}
-                    >
-                      Back
-                    </button>
-                  </div>
-
-                  <section className="joinable-list" aria-labelledby="joinable-games-title">
-                    <h3 id="joinable-games-title">Public Games</h3>
-                    {joinableGames.length === 0 ? (
-                      <div className="info-message">No public lobby games right now.</div>
-                    ) : (
-                      joinableGames.map((game) => (
-                        <div key={game.gameId} className="joinable-item">
-                          <span>{game.hostName} • {game.playerCount}/{game.maxPlayers}</span>
-                          <button
-                            type="button"
-                            className="secondary"
-                            onClick={() => { void handleJoinGame(game.gameId); }}
-                            disabled={multiplayerInteractionDisabled || !playerName.trim()}
-                            data-testid={`join-list-${game.gameId}`}
-                          >
-                            Join
-                          </button>
-                        </div>
-                      ))
-                    )}
-                  </section>
-
-                  <div className="button-row">
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => {
-                        setShowJoinById((value) => {
-                          const next = !value;
-                          if (!next) {
-                            setJoinLookup(null);
-                          }
-                          return next;
-                        });
-                      }}
-                      disabled={multiplayerInteractionDisabled}
-                      data-testid="show-join-by-id"
-                    >
-                      {showJoinById ? 'Hide Join by ID' : 'Join by ID'}
-                    </button>
-                  </div>
-
-                  {showJoinById ? (
-                    <div className="private-join">
-                      <label htmlFor="game-id-input">
-                        Private Game ID
-                        <input
-                          id="game-id-input"
-                          value={joinGameId}
-                          onChange={(e) => setJoinGameId(e.target.value.toUpperCase())}
-                          maxLength={6}
-                          disabled={multiplayerInteractionDisabled}
-                        />
-                      </label>
-                      <div className="button-row">
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => { void handleLookupGame(); }}
-                          disabled={multiplayerInteractionDisabled || joinGameId.trim().length !== 6}
-                          data-testid="lookup-game"
-                        >
-                          {pendingAction === 'lookup' ? 'Checking...' : 'Check'}
-                        </button>
-                        <button
-                          type="button"
-                          className="primary"
-                          onClick={() => { void handleJoinGame(); }}
-                          disabled={multiplayerInteractionDisabled || !playerName.trim() || joinGameId.trim().length !== 6}
-                          data-testid="join-game"
-                        >
-                          {pendingAction === 'join' ? 'Joining...' : 'Join Private'}
-                        </button>
-                      </div>
-                    </div>
-                  ) : null}
-
-                  {showJoinById && joinLookup ? (
-                    <div className="info-message" data-testid="private-lookup-result">
-                      {joinLookup.privateGame ? 'Private' : 'Public'} game • {joinLookup.playerCount}/{joinLookup.maxPlayers} joined
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-
-              {createSettingsError ? <div className="error">{createSettingsError}</div> : null}
-            </section>
+            <JoinPanel
+              playerName={playerName}
+              setPlayerName={setPlayerName}
+              confirmName={confirmName}
+              multiplayerInteractionDisabled={multiplayerInteractionDisabled}
+              multiplayerFlow={multiplayerFlow}
+              setMultiplayerFlow={setMultiplayerFlow}
+              pendingAction={pendingAction}
+              createSettingsError={createSettingsError}
+              handleCreateGame={handleCreateGame}
+              setShowJoinById={setShowJoinById}
+              setJoinLookup={setJoinLookup}
+              setError={setError}
+              refreshJoinableGames={refreshJoinableGames}
+              loadingJoinableGames={loadingJoinableGames}
+              joinableGames={joinableGames}
+              handleJoinGame={handleJoinGame}
+              showJoinById={showJoinById}
+              joinGameId={joinGameId}
+              setJoinGameId={setJoinGameId}
+              handleLookupGame={handleLookupGame}
+              joinLookup={joinLookup}
+            />
           ) : multiplayerState.gamePhase === 'lobby' ? (
-            <section className="panel lobby" aria-label="waiting room">
-              <h2>Game {multiplayerState.gameId}</h2>
-              <div className="invite-share">
-                <label htmlFor="invite-link-input">
-                  Invite Link
-                  <input id="invite-link-input" value={buildInviteLink(multiplayerState.gameId)} readOnly data-testid="invite-link-input" />
-                </label>
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => { void handleCopyInviteLink(); }}
-                  disabled={multiplayerInteractionDisabled}
-                  data-testid="copy-invite-link"
-                >
-                  {inviteCopied ? 'Copied' : 'Copy Link'}
-                </button>
-              </div>
-              {inviteCopied ? <div className="info-message">Invite link copied.</div> : null}
-              <div className="pill">
-                Players in Lobby: {multiplayerState.players.length}/{maxPlayersFor(multiplayerState.settings)}
-              </div>
-              <div className="players-list">
-                {multiplayerState.players.map((player, index) => (
-                  <div className="player-line" key={player.id}>
-                    <span>
-                      {player.color && <span className="player-color-pip" style={{ background: PLAYER_COLOR_HEX[player.color] }} aria-hidden="true" />}
-                      {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}{player.robot ? ' [Robot]' : ''}
-                    </span>
-                    {isHostInLobby && player.id !== playerId && !player.isHost ? (
-                      <button
-                        type="button"
-                        className="kick-btn"
-                        onClick={() => { void (player.robot ? handleRemoveRobot(player.id) : handleKickPlayer(player.id)); }}
-                        disabled={!!pendingAction}
-                        title={`Remove ${player.name}`}
-                        data-testid={`kick-${player.id}`}
-                      >
-                        ✕
-                      </button>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <div className="button-row">
-                {isHostInLobby ? (
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={() => { void handleStartGame(); }}
-                    disabled={multiplayerInteractionDisabled}
-                    data-testid="start-game"
-                  >
-                    {pendingAction === 'start' ? 'Starting...' : 'Start Game'}
-                  </button>
-                ) : (
-                  <div className="info-message">Only host can start the game.</div>
-                )}
-                {isHostInLobby ? (
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => { void handleAddRobot(); }}
-                    disabled={multiplayerInteractionDisabled || multiplayerState.players.length >= maxPlayersFor(multiplayerState.settings)}
-                    data-testid="add-robot"
-                  >
-                    Add Robot
-                  </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => { void handleLeaveMultiplayer(); }}
-                  disabled={multiplayerInteractionDisabled}
-                  data-testid="leave-game"
-                >
-                  {pendingAction === 'leave' ? 'Leaving...' : 'Leave'}
-                </button>
-              </div>
-            </section>
+            <WaitingRoom
+              multiplayerState={multiplayerState}
+              playerId={playerId}
+              isHostInLobby={isHostInLobby}
+              multiplayerInteractionDisabled={multiplayerInteractionDisabled}
+              pendingAction={pendingAction}
+              inviteCopied={inviteCopied}
+              handleCopyInviteLink={handleCopyInviteLink}
+              handleRemoveRobot={handleRemoveRobot}
+              handleKickPlayer={handleKickPlayer}
+              handleStartGame={handleStartGame}
+              handleAddRobot={handleAddRobot}
+              handleLeaveMultiplayer={handleLeaveMultiplayer}
+            />
           ) : (
             amInMultiplayerGame ? (
               <GameBoard
@@ -1871,111 +1675,19 @@ export function App(): JSX.Element {
       ) : null}
 
       {showEndGameConfirm ? (
-        <Modal className="panel end-game-confirm-modal" dismiss="esc" label="confirm end game" onClose={() => setShowEndGameConfirm(false)}>
-          <h2>End Game?</h2>
-          <p>This will end the active game for all players and return everyone to the lobby.</p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="danger"
-              onClick={() => { void executeEndGame(); }}
-              disabled={pendingAction === 'endgame'}
-            >
-              {pendingAction === 'endgame' ? 'Ending...' : 'End Game'}
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              data-autofocus
-              onClick={() => setShowEndGameConfirm(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </Modal>
+        <EndGameConfirmModal pending={pendingAction === 'endgame'} onConfirm={() => { void executeEndGame(); }} onCancel={() => setShowEndGameConfirm(false)} />
       ) : null}
 
       {hostEndedModalGameId ? (
-        <Modal className="panel host-ended-modal" dismiss="none" label="host ended the game" onClose={() => undefined}>
-          <h2>Host Ended The Game</h2>
-          <p>The host ended game {hostEndedModalGameId}. Return to home to join or host another game.</p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => { void handleAcknowledgeHostEnded(); }}
-              disabled={pendingAction === 'leave'}
-            >
-              {pendingAction === 'leave' ? 'Returning...' : 'Back To Home'}
-            </button>
-          </div>
-        </Modal>
+        <HostEndedModal gameId={hostEndedModalGameId} pending={pendingAction === 'leave'} onAcknowledge={() => { void handleAcknowledgeHostEnded(); }} />
       ) : null}
 
       {pendingLobbyState ? (
-        <Modal className="panel host-ended-modal" dismiss="none" label="host returned to lobby" onClose={() => undefined}>
-          <h2>Back to Lobby?</h2>
-          <p>The host has returned to the lobby. Join them for another round, or leave.</p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => {
-                setMultiplayerState(pendingLobbyState);
-                setPendingLobbyState(null);
-                setMultiplayerSelectedCardId(null);
-              }}
-            >
-              Back to Lobby
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={() => {
-                setPendingLobbyState(null);
-                void handleLeaveMultiplayer();
-              }}
-              disabled={pendingAction === 'leave'}
-            >
-              {pendingAction === 'leave' ? 'Leaving...' : 'Leave'}
-            </button>
-          </div>
-        </Modal>
+        <BackToLobbyModal pending={pendingAction === 'leave'} onBack={() => { setMultiplayerState(pendingLobbyState); setPendingLobbyState(null); setMultiplayerSelectedCardId(null); }} onLeave={() => { setPendingLobbyState(null); void handleLeaveMultiplayer(); }} />
       ) : null}
 
       {cardLookupOpen ? (
-        <Modal className="panel card-lookup-modal" dismiss="any" label="card lookup" onClose={() => setCardLookupOpen(false)}>
-          <h2>Card Lookup</h2>
-          <p>Enter a card number to see where it is.</p>
-          <input
-            className="card-lookup-input"
-            type="number"
-            min={1}
-            max={999}
-            value={cardLookupValue}
-            autoFocus
-            onChange={(e) => setCardLookupValue(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleCardLookupSubmit();
-              } else if (e.key === 'Escape') {
-                setCardLookupOpen(false);
-              }
-            }}
-            placeholder="e.g. 34"
-          />
-          <div className="button-row">
-            <button type="button" className="secondary" onClick={() => setCardLookupOpen(false)}>Cancel</button>
-            <button
-              type="button"
-              className="primary"
-              disabled={!cardLookupValue}
-              onClick={() => handleCardLookupSubmit()}
-            >
-              Look Up
-            </button>
-          </div>
-        </Modal>
+        <CardLookupModal value={cardLookupValue} onChange={setCardLookupValue} onSubmit={handleCardLookupSubmit} onClose={() => setCardLookupOpen(false)} />
       ) : null}
 
       {joinWaiting ? <p className="join-waiting" aria-live="polite" data-testid="join-waiting">Asking the host to let you in. This page will open the game when they say yes.</p> : null}
@@ -2022,23 +1734,7 @@ export function App(): JSX.Element {
       ) : null}
 
       {kickedFromGameId ? (
-        <Modal className="panel host-ended-modal" dismiss="none" label="kicked from game" onClose={() => undefined}>
-          <h2>Kicked From Game</h2>
-          <p>{kickedWhileAway ? `You were removed from game ${kickedFromGameId} while you were disconnected.` : `The host removed you from game ${kickedFromGameId}.`}</p>
-          <div className="button-row">
-            <button
-              type="button"
-              className="primary"
-              onClick={() => {
-                setKickedFromGameId(null);
-                setKickedWhileAway(false);
-                resetToLanding();
-              }}
-            >
-              Back To Home
-            </button>
-          </div>
-        </Modal>
+        <KickedModal gameId={kickedFromGameId} whileAway={kickedWhileAway} onBackHome={() => { setKickedFromGameId(null); setKickedWhileAway(false); resetToLanding(); }} />
       ) : null}
 
       {statsModalOpen && activeStatsSummary && activeStatsState ? (
