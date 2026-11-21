@@ -35,6 +35,13 @@ describe('what removes rooms with nobody connected', () => {
     expect(l.manager.reapOrphanedRooms(new Set(['p2']), touched + 24 * 60 * MIN)).toEqual([]);
   });
 
+  it('removes a lobby nobody has touched for an hour even while someone is connected, but never a started game', () => {
+    const lobby = lobbyWithUsers([{ id: 'p1' }, { id: 'p2' }]);
+    const touched = (lobby.manager as unknown as { rooms: Map<string, { updatedAtMs: number }> }).rooms.get(lobby.gameId)!.updatedAtMs;
+    expect(lobby.manager.reapOrphanedRooms(new Set(['p1']), touched + 59 * MIN)).toEqual([]);
+    expect(lobby.manager.reapOrphanedRooms(new Set(['p1']), touched + 60 * MIN)).toEqual([lobby.gameId]);
+  });
+
   it('forgets the room\'s reactions with the room, so nothing is left behind', () => {
     const l = startedRoom();
     const manager = l.manager as unknown as { reactions: Map<string, unknown> };

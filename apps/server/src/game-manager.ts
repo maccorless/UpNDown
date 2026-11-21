@@ -1390,15 +1390,17 @@ export class GameManager {
   reapOrphanedRooms(activePlayerIds: ReadonlySet<string>, nowMs = Date.now()): string[] {
     const deleted: string[] = [];
     const lobbyTtlMs = 5 * 60 * 1000;
+    // A lobby nobody has touched for this long goes even with someone connected, so a forgotten open tab cannot hold a room.
+    const idleLobbyMs = 60 * 60 * 1000;
     const activeTtlMs = this.activeTtlMs ?? this.hooks.activeTtlMs ?? 30 * 60 * 1000;
 
     for (const [gameId, room] of this.rooms) {
       const connectedCount = room.gameState.players.filter((player) => activePlayerIds.has(player.id)).length;
-      if (connectedCount > 0) {
+      const ageMs = nowMs - room.updatedAtMs;
+      if (connectedCount > 0 && !(room.gameState.gamePhase === 'lobby' && ageMs >= idleLobbyMs)) {
         continue;
       }
 
-      const ageMs = nowMs - room.updatedAtMs;
       const ttlMs = room.gameState.gamePhase === 'lobby' ? lobbyTtlMs : activeTtlMs;
       if (ageMs >= ttlMs) {
         this.rooms.delete(gameId);

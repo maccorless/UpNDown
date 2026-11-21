@@ -580,6 +580,25 @@ describe('socket integration', () => {
     extra.disconnect();
   });
 
+  // Reconnecting gives a socket a fresh per-socket bucket, so without an address-wide limit one script can open many sockets
+  // and make a room on each until the server is full for everyone else.
+  it('stops one address making rooms by reconnecting, even when each socket stays under its own limit', async () => {
+    const sockets: Socket[] = [];
+    const acks: Array<Ack<unknown>> = [];
+    for (let i = 0; i < 12; i += 1) {
+      const socket = await connect();
+      sockets.push(socket);
+      acks.push(await new Promise<Ack<unknown>>((resolve) => {
+        socket.emit('game:create', { playerName: `Host${i}`, isSolitaire: false, settings: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 4, minCardsPerTurn: 2, autoRefillHand: false, allowUndo: false, privateGame: true, allowCardLookup: false, showArrows: true } }, (ack: Ack<unknown>) => resolve(ack));
+      }));
+    }
+    expect(acks.filter((ack) => ack.ok)).toHaveLength(10);
+    const refused = acks.filter((ack): ack is AckFailure => !ack.ok);
+    expect(refused).toHaveLength(2);
+    expect(refused[0]?.error).toContain('Too many create attempts');
+    sockets.forEach((socket) => socket.disconnect());
+  });
+
   it('rate limits repeated lookup attempts', async () => {
     const host = await connect();
     const guest = await connect();

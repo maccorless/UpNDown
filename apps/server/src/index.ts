@@ -132,7 +132,8 @@ const eventRateLimits: Record<
 const ipRateLimits: Partial<Record<keyof typeof eventRateLimits, RateLimitRule>> = {
   'game:lookup': { limit: 60, windowMs: 10_000 },
   'game:join':   { limit: 30, windowMs: 10_000 },
-  'game:requestJoin': { limit: 20, windowMs: 30_000 }
+  'game:requestJoin': { limit: 20, windowMs: 30_000 },
+  'game:create': { limit: 10, windowMs: 10 * 60_000 }
 };
 
 function parseAllowedOrigins(raw: string | undefined): string[] {
@@ -518,7 +519,7 @@ export function createRealtimeServer(
     });
 
     socket.on('game:create', (payload, ack?: Ack<{ gameState: unknown; playerId: string; rejoinToken: string }>) => {
-      if (!passesRateLimit(socket.id, 'game:create')) {
+      if (!passesRateLimit(socket.id, 'game:create') || !passesIpRateLimit(socket, 'game:create')) {
         const message = 'Too many create attempts. Please wait a moment and try again.';
         log('warn', 'game.create_rate_limited', { socketId: socket.id });
         reply(ack, { ok: false, error: message });
