@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import type { GameState } from '@upndown/shared-types';
 import { describe, expect, it } from 'vitest';
-import { GameBoard } from './App.js';
+import { GameBoard } from './GameBoard.js';
 
 const WON_STATE: GameState = {
   gameId: 'LOCAL',

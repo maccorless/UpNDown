@@ -16,6 +16,8 @@ This file does too much. It is hard to read, hard to test in isolation, hard to 
 > **This is a plan only. No code is changed by this document.**
 > Execute one phase at a time, running the full test suite after each phase before merging.
 
+> **Progress (2026-11-21):** `GameBoard.tsx`, `game-url.ts`, `settings-storage.ts` and `app-hooks.ts` (viewport height, page visibility, joinable-games poller) are out of `App.tsx`, which went from 2,705 to about 2,080 lines. The socket hook, the modals and the views below are still to do.
+
 ---
 
 ## Target Directory Structure

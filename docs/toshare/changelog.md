@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-21 | audit-5 | Chore: moved GameBoard, URL and storage helpers and three small hooks out of App.tsx (2,705 to about 2,080 lines), no behaviour change |
 | 2026-11-21 | audit-6,7 | Chore: removed unused plan documents, mockups and an empty file; pinned the Docker base image by digest |
 | 2026-11-21 | audit-3,4 | Fix: other players no longer receive your auto-mark choice; removed the unused game-level showArrows setting |
 | 2026-11-21 | audit-1,2 | Fix: one address can no longer fill the server with rooms (per-IP create limit), and a lobby idle for an hour is removed even with a tab open |
