@@ -40,4 +40,12 @@ describe('toPlayerView', () => {
     const view = toPlayerView(startedGame(), 'stranger');
     expect(view.players.every((p) => p.hand.every((card) => card.value === 0))).toBe(true);
   });
+
+  it('keeps a player\'s auto-mark choice private: only they get it back, nobody else sees the key', () => {
+    const state = startedGame();
+    const withMark = { ...state, players: state.players.map((p) => (p.id === 'host' ? { ...p, autoMark: true } : p)) };
+    expect(toPlayerView(withMark, 'host').players.find((p) => p.id === 'host')!.autoMark).toBe(true);
+    const seenByGuest = toPlayerView(withMark, 'guest').players.find((p) => p.id === 'host')!;
+    expect('autoMark' in seenByGuest).toBe(false);
+  });
 });

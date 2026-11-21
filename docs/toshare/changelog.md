@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-21 | audit-3,4 | Fix: other players no longer receive your auto-mark choice; removed the unused game-level showArrows setting |
 | 2026-11-21 | audit-1,2 | Fix: one address can no longer fill the server with rooms (per-IP create limit), and a lobby idle for an hour is removed even with a tab open |
 | 2026-11-21 | — | Feat: Settings is rebuilt around who each setting affects. Two tabs: Game rules (everyone at the table, set by the host before the game starts, one "Save game rules" button) and My settings (only you, applied at once, remembered on this device). Game rules is ordered as a new player asks: pick a difficulty (cards that state their numbers), fine-tune the deal if you want, who can play, then cheats (now always visible, not folded away). Pile arrows moved from a host setting to a personal one, so each player chooses for themselves. Auto-mark piles is no longer a cheat: it is a plain on/off in My settings, with no "once", nothing counted and nobody told, applying at tables only |
 | 2026-11-21 | — | Feat: new cheat, Auto-mark piles (tables only, not solitaire): a switch in the Cheats panel that has the server mark every pile for you, like, love or really love, by the same rule the robots use, while others are on turn. Set Off, Once or Unlimited in Settings like the other cheats; switching it on is counted and announced, switching it off takes your marks down |

@@ -23,7 +23,6 @@ export const gameSettingsSchema = z
     allowUndo: z.boolean(),
     privateGame: z.boolean(),
     allowCardLookup: z.boolean(),
-    showArrows: z.boolean(),
     cheatLimits: z.object({
       lookup: z.enum(['off', 'once', 'unlimited']),
       skip: z.enum(['off', 'once', 'unlimited']),

@@ -33,7 +33,7 @@ vi.mock('socket.io-client', () => ({ io: () => mock.socket }));
 
 const settings = {
   minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2,
-  autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false, showArrows: true
+  autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false
 };
 const stat = { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 };
 

@@ -19,7 +19,7 @@ const validSettings = {
   autoRefillHand: true,
   allowUndo: false,
   privateGame: false,
-  allowCardLookup: false, showArrows: true
+  allowCardLookup: false
 };
 
 describe('gameSettingsSchema', () => {

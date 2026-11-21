@@ -280,7 +280,7 @@ describe('auth routes', () => {
       await store.createSession(userId, hashToken(`token-${googleId}`), new Date(Date.now() + 1e9));
       return new Map([['__Host-upndown_session', `token-${googleId}`]]);
     };
-    const solitaire = { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 1, maxPlayers: 1, minCardsPerTurn: 2, autoRefillHand: true, allowUndo: true, privateGame: false, allowCardLookup: false, showArrows: true };
+    const solitaire = { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 1, maxPlayers: 1, minCardsPerTurn: 2, autoRefillHand: true, allowUndo: true, privateGame: false, allowCardLookup: false };
 
     it('names a new account with a president mash-up and keeps that name', async () => {
       await boot();

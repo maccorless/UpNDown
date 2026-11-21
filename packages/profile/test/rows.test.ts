@@ -6,7 +6,7 @@ import { resultRowFromState } from '../src/rows.js';
 
 const settings: GameSettings = {
   minCardValue: 2, maxCardValue: 30, handSize: 5, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2, autoRefillHand: false,
-  allowUndo: false, privateGame: false, allowCardLookup: false, showArrows: true,
+  allowUndo: false, privateGame: false, allowCardLookup: false,
   cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off' }
 };
 

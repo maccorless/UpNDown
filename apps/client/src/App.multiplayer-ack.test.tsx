@@ -72,7 +72,7 @@ const multiplayerSettings: GameSettings = {
   autoRefillHand: false,
   allowUndo: false,
   privateGame: false,
-  allowCardLookup: false, showArrows: true
+  allowCardLookup: false
 };
 
 function createLobbyState(): GameState {

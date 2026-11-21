@@ -73,7 +73,7 @@ describe('socket integration', () => {
         isSolitaire: false,
         settings: {
           minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2,
-          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false, showArrows: true
+          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup: false
         }
       });
       if (!created.ok) throw new Error('create failed');
@@ -158,7 +158,7 @@ describe('socket integration', () => {
         isSolitaire: false,
         settings: {
           minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2,
-          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup, showArrows: true
+          autoRefillHand: false, allowUndo: false, privateGame: false, allowCardLookup
         }
       });
       if (!created.ok) throw new Error('create failed');
@@ -267,7 +267,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -320,7 +320,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -367,7 +367,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -397,7 +397,7 @@ describe('socket integration', () => {
             autoRefillHand: true,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { settings: { handSize: number } } }>) => resolve(ack)
@@ -421,7 +421,7 @@ describe('socket integration', () => {
             autoRefillHand: true,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { settings: { handSize: number; autoRefillHand: boolean } } }>) => resolve(ack)
@@ -448,7 +448,7 @@ describe('socket integration', () => {
             autoRefillHand: true,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { settings: { minPlayers: number } } }>) => resolve(ack)
@@ -480,7 +480,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: false,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -536,7 +536,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: true,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)
@@ -589,7 +589,7 @@ describe('socket integration', () => {
       const socket = await connect();
       sockets.push(socket);
       acks.push(await new Promise<Ack<unknown>>((resolve) => {
-        socket.emit('game:create', { playerName: `Host${i}`, isSolitaire: false, settings: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 4, minCardsPerTurn: 2, autoRefillHand: false, allowUndo: false, privateGame: true, allowCardLookup: false, showArrows: true } }, (ack: Ack<unknown>) => resolve(ack));
+        socket.emit('game:create', { playerName: `Host${i}`, isSolitaire: false, settings: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 4, minCardsPerTurn: 2, autoRefillHand: false, allowUndo: false, privateGame: true, allowCardLookup: false } }, (ack: Ack<unknown>) => resolve(ack));
       }));
     }
     expect(acks.filter((ack) => ack.ok)).toHaveLength(10);
@@ -619,7 +619,7 @@ describe('socket integration', () => {
             autoRefillHand: false,
             allowUndo: false,
             privateGame: true,
-            allowCardLookup: false, showArrows: true
+            allowCardLookup: false
           }
         },
         (ack: Ack<{ gameState: { gameId: string } }>) => resolve(ack)

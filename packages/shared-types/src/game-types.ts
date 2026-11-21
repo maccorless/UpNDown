@@ -38,7 +38,6 @@ export interface GameSettings {
   allowUndo: boolean;
   privateGame: boolean;
   allowCardLookup: boolean;
-  showArrows: boolean;
   // Per-game limit on each cheat. Absent means off, except that a saved game or setting from before this existed keeps
   // meaning what allowCardLookup said for the card seeker. Use cheatLimitOf to read it.
   cheatLimits?: CheatLimits | undefined;
@@ -230,8 +229,7 @@ export const defaultMultiplayerSettings: GameSettings = {
   autoRefillHand: false,
   allowUndo: false,
   privateGame: false,
-  allowCardLookup: false,
-  showArrows: true
+  allowCardLookup: false
 };
 
 export const defaultSolitaireSettings: GameSettings = {
@@ -244,8 +242,7 @@ export const defaultSolitaireSettings: GameSettings = {
   autoRefillHand: true,
   allowUndo: false,
   privateGame: false,
-  allowCardLookup: false,
-  showArrows: true
+  allowCardLookup: false
 };
 
 // Cards in the deck for these settings (every value from the lowest to the highest). The four foundation piles are

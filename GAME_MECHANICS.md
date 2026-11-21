@@ -247,7 +247,6 @@ interface GameSettings {
   privateGame: boolean;      // Default: false
   allowCardLookup: boolean;  // Default: false. Old switch for the card seeker; read as `unlimited` when cheatLimits is absent
   cheatLimits?: Record<'lookup' | 'skip' | 'trade' | 'hint', 'off' | 'once' | 'unlimited'>;  // Default: all off
-  showArrows: boolean;       // Legacy: no longer read. Pile arrows are each player's own setting on the device
 }
 ```
 

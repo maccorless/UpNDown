@@ -112,7 +112,7 @@ A cooperative multiplayer card game where players work together to play all thei
 - When the player's own Pile arrows setting is on (default, kept on their device), each pile shows one arrow on each side of its card: up for ascending, down for descending
 - The arrows stay visible for the whole game; they do not fade
 - The pile's text tag and rule hint are not shown on screen; the backward-ten rule is learned through play
-- Pile arrows are a per-player setting (My settings tab); turning them off hides them for that player only. The old game-level `showArrows` field is still stored but no longer read
+- Pile arrows are a per-player setting (My settings tab); turning them off hides them for that player only
 - **Status**: ✅ **Implemented**
 
 #### In-Game Chat
@@ -187,7 +187,6 @@ tests/e2e               Playwright smoke tests
 | allowUndo        | false   | on/off           |                                 |
 | privateGame      | false   | on/off           | Hides from public join list     |
 | allowCardLookup  | false   | on/off           | Old card seeker switch; `cheatLimits` (off, once, unlimited per cheat) replaces it |
-| showArrows       | true    | on/off           | Legacy, no longer read: pile arrows are each player's own setting on the device |
 
 Settings dialog: two tabs, split by who a setting affects, each with a one-line banner saying so. **Game rules** (everyone at the table; the host sets them before the game starts, and one Save button, "Save game rules", covers them): How hard should it be? (four difficulty cards, each stating its deck, hand and cards per turn, with a Custom state; a closed "Fine-tune the deal" row holds highest card, lowest card, hand size, cards per turn and auto refill, and opens by itself for a Custom level), Who can play? (maximum players, private game; tables only) and Cheats (each Off, Once or Unlimited, always visible). Non-hosts and in-game viewers see a read-only summary. **My settings** (only the player; applied at once, kept on the device, no Save): Sound effects, Pile arrows, and Auto-mark piles (tables only).
 

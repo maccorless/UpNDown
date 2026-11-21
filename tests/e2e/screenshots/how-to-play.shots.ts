@@ -11,8 +11,8 @@ const shot = async (page: Page, name: string): Promise<void> => {
 
 // Multiplayer settings with every cheat on (once), so the cheats panel has something to show.
 const withCheats = (): string => JSON.stringify({
-  solitaire: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 1, maxPlayers: 1, minCardsPerTurn: 2, autoRefillHand: true, allowUndo: false, privateGame: false, allowCardLookup: false, showArrows: true },
-  multiplayer: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2, autoRefillHand: false, allowUndo: true, privateGame: false, allowCardLookup: false, showArrows: true, cheatLimits: { lookup: 'once', skip: 'once', trade: 'once', hint: 'once' } }
+  solitaire: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 1, maxPlayers: 1, minCardsPerTurn: 2, autoRefillHand: true, allowUndo: false, privateGame: false, allowCardLookup: false },
+  multiplayer: { minCardValue: 2, maxCardValue: 99, handSize: 7, minPlayers: 2, maxPlayers: 6, minCardsPerTurn: 2, autoRefillHand: false, allowUndo: true, privateGame: false, allowCardLookup: false, cheatLimits: { lookup: 'once', skip: 'once', trade: 'once', hint: 'once' } }
 });
 
 test('pictures for the How to Play page', async ({ page }) => {

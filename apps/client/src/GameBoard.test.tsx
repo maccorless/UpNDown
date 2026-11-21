@@ -53,15 +53,15 @@ const WON_STATE: GameState = {
     autoRefillHand: true,
     allowUndo: false,
     privateGame: false,
-    allowCardLookup: false, showArrows: true
+    allowCardLookup: false
   },
   isSolitaire: true
 };
 
 describe('GameBoard', () => {
-  it('shows the pile arrows only when this viewer has them on, whatever the game settings say', () => {
+  it('shows the pile arrows only when this viewer has them on', () => {
     const board = (showArrows: boolean) => (
-      <GameBoard mode="solitaire" showArrows={showArrows} gameState={{ ...WON_STATE, settings: { ...WON_STATE.settings, showArrows: !showArrows } }} selectedCardId={null} setSelectedCardId={() => {}} onPlayPile={() => {}} />
+      <GameBoard mode="solitaire" showArrows={showArrows} gameState={WON_STATE} selectedCardId={null} setSelectedCardId={() => {}} onPlayPile={() => {}} />
     );
     const { container, rerender } = render(board(true));
     expect(container.querySelectorAll('.pile-arrow').length).toBeGreaterThan(0);
