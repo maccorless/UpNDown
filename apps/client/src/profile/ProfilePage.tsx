@@ -55,11 +55,13 @@ export function ProfilePage({ auth, view, history, authEnabled, seen, tab, onTab
       <header className="profile-head">
         <button type="button" className="secondary" onClick={onBack}>Back</button>
         <div>
-          <h2 id={titleId}>Your profile</h2>
+          <div className="profile-title-row">
+            <h2 id={titleId}>Your profile</h2>
+            {signedIn && onChangeName ? <button type="button" className="link-action" onClick={onChangeName}>Change name</button> : null}
+          </div>
           <p className="profile-identity">
             {signedIn ? `${auth.playerName ?? 'Signed in'}, signed in with Google` : 'Guest on this device'}
             {!signedIn ? <span className="profile-chip">This device only</span> : null}
-            {signedIn && onChangeName ? <>{' '}<button type="button" className="link-action" onClick={onChangeName}>Change name</button></> : null}
           </p>
         </div>
       </header>

@@ -24,7 +24,7 @@ async function load() {
   return (await import('./Landing.js')).Landing;
 }
 
-const handlers = () => ({ onSolitaire: vi.fn(), onMultiplayer: vi.fn(), onChangeName: vi.fn(), solitaireSaves: [] as Array<{ runId: string; claimId: string; cardsLeft: number; savedAtMs: number }>, onResumeSolitaire: vi.fn(), onDiscardSolitaire: vi.fn(), rejoinSeats: [] as Array<{ seatKey: string; gameId: string; claimId: string }>, onRejoin: vi.fn() });
+const handlers = () => ({ onSolitaire: vi.fn(), onMultiplayer: vi.fn(), solitaireSaves: [] as Array<{ runId: string; claimId: string; cardsLeft: number; savedAtMs: number }>, onResumeSolitaire: vi.fn(), onDiscardSolitaire: vi.fn(), rejoinSeats: [] as Array<{ seatKey: string; gameId: string; claimId: string }>, onRejoin: vi.fn() });
 
 describe('Landing', () => {
   beforeEach(() => vi.resetModules());
@@ -52,15 +52,14 @@ describe('Landing', () => {
     expect(off.container.querySelector('.welcome')).toBeNull();
   });
 
-  it('greets a signed-in player by the short form of their name, and lets them change it', async () => {
+  it('greets a signed-in player by the short form of their name, and leaves changing it to the profile page', async () => {
     const Landing = await load();
     const h = handlers();
     render(<Landing auth={makeAuth({ status: 'signedIn', playerName: 'Grover Arthur' })} firstVisit={false} {...h} />);
     expect(screen.getByText(/Welcome back,/).textContent).toContain('Grover A');
     expect(screen.getByText(/Welcome back,/).textContent).not.toContain('Arthur');
     expect(screen.queryByRole('button', { name: 'Continue with Google' })).toBeNull();
-    await userEvent.click(screen.getByRole('button', { name: 'Change name' }));
-    expect(h.onChangeName).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Change name' })).toBeNull();
   });
 
   it('shows the first-visit hint only on a first visit', async () => {

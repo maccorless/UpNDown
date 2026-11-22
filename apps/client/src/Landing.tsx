@@ -33,10 +33,9 @@ interface LandingProps {
   // Games being played that this browser still has a seat in and no other tab has open, and how to go back to one.
   rejoinSeats: SeatOffer[];
   onRejoin: (seatKey: string) => void;
-  onChangeName: () => void;
 }
 
-export function Landing({ auth, firstVisit, onSolitaire, solitaireSaves, onResumeSolitaire, onDiscardSolitaire, onMultiplayer, rejoinSeats, onRejoin, onChangeName }: LandingProps): JSX.Element {
+export function Landing({ auth, firstVisit, onSolitaire, solitaireSaves, onResumeSolitaire, onDiscardSolitaire, onMultiplayer, rejoinSeats, onRejoin }: LandingProps): JSX.Element {
   const [enter] = useState(() => {
     const first = !introPlayed;
     introPlayed = true;
@@ -82,8 +81,7 @@ export function Landing({ auth, firstVisit, onSolitaire, solitaireSaves, onResum
         <SignInCard auth={auth} />
         {auth.status === 'signedIn' ? (
           <p className="welcome">
-            Welcome back, <strong>{auth.playerName ? shortPlayerName(auth.playerName) : 'player'}</strong>.{' '}
-            <button type="button" className="link-action" onClick={onChangeName}>Change name</button>
+            Welcome back, <strong>{auth.playerName ? shortPlayerName(auth.playerName) : 'player'}</strong>.
           </p>
         ) : null}
       </div>

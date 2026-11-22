@@ -1337,7 +1337,6 @@ export function App(): JSX.Element {
         <Landing
           auth={auth}
           firstVisit={firstVisit}
-          onChangeName={() => setEditingName(true)}
           onSolitaire={() => {
             setMode('solitaire');
             setMultiplayerFlow('choose');

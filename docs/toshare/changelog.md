@@ -6,7 +6,8 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
-| 2026-11-22 | — | Feat: a signed-in player can change their name from the profile page (a Change name link beside the name), not only from a link on the landing page. A guest's name is still the one typed in the multiplayer lobby |
+| 2026-11-22 | — | Change: Change name is on the profile page only, to the right of "Your profile"; the link is removed from the landing page |
+| 2026-11-22 | — | Feat: a signed-in player changes their name from the profile page (a Change name link to the right of "Your profile"); the link on the landing page is gone. A guest's name is still the one typed in the multiplayer lobby |
 | 2026-11-22 | — | Feat: the host can set the pause before each robot play in the table settings (new Robots section: 0.1, 0.4, 0.8, 1.5 or 3 seconds, each plus up to as much again at random; 0.8 is the old behaviour and the default). A table of robots alone keeps its short pause. Other players see the choice in the read-only summary |
 | 2026-11-21 | audit-5 | Chore: moved the socket connection and its listeners out of App.tsx into useGameSocket (App.tsx now about 1,640 lines), no behaviour change |
 | 2026-11-21 | audit-5 | Chore: moved the multiplayer lobby screens and the five confirmation modals out of App.tsx (now about 1,770 lines), no behaviour change |

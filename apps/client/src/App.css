@@ -3176,6 +3176,7 @@ button.mode-card:not(:disabled):active {
 }
 
 .profile-head h2 { margin: 0; font-size: 1.2rem; }
+.profile-title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .profile-identity { margin: 2px 0 0; color: var(--muted-strong); font-size: 0.9rem; }
 
 .profile-chip {

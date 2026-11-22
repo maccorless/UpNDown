@@ -32,7 +32,8 @@ describe('changing your name from the profile', () => {
     render(<App />);
     await user.click(await screen.findByRole('button', { name: /Pat/ }));
     await user.click(await screen.findByRole('menuitem', { name: /profile/i }));
-    // The landing page behind the profile has its own Change name link; this one is the profile's.
+    // The one place to change a name: the landing page no longer has a link of its own.
+    expect(screen.getAllByRole('button', { name: 'Change name' })).toHaveLength(1);
     await screen.findByText('Your profile');
     await user.click(within(document.querySelector('dialog.profile-page') as HTMLElement).getByRole('button', { name: 'Change name' }));
     const field = await screen.findByLabelText('Player name');
