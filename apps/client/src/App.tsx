@@ -1517,7 +1517,7 @@ export function App(): JSX.Element {
         />
       ) : null}
 
-      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={seenBadges.seen} markSeen={seenBadges.markSeen} onClose={() => setProfileOpen(false)} />
+      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={seenBadges.seen} markSeen={seenBadges.markSeen} onClose={() => setProfileOpen(false)} onChangeName={mode === 'solitaire' || multiplayerState !== null ? undefined : () => setEditingName(true)} />
       <BadgeToasts toasts={badgeToasts.toasts} onDismiss={badgeToasts.dismiss} />
       <MoveHistoryDialog auth={auth} history={localHistory} source={profileSource} markSeen={seenBadges.markSeen} />
 

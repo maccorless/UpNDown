@@ -22,12 +22,14 @@ interface Props {
   onBack: () => void;
   onSignIn: () => void;
   onPlay: () => void;
+  // Opens the name dialog. Absent where it cannot be asked for (in a game), and for a guest, whose name is the one typed in the multiplayer lobby.
+  onChangeName?: (() => void) | undefined;
 }
 
 const TABS: Array<{ id: ProfileTab; label: string }> = [{ id: 'stats', label: 'Statistics' }, { id: 'achievements', label: 'Achievements' }];
 
 // The player's profile as a full-screen sheet over whatever they were doing, so a game in progress keeps running underneath.
-export function ProfilePage({ auth, view, history, authEnabled, seen, tab, onTab, onBack, onSignIn, onPlay }: Props): JSX.Element {
+export function ProfilePage({ auth, view, history, authEnabled, seen, tab, onTab, onBack, onSignIn, onPlay, onChangeName }: Props): JSX.Element {
   const titleId = useId();
   const tz = deviceTimeZone();
   const signedIn = auth.status === 'signedIn';
@@ -57,6 +59,7 @@ export function ProfilePage({ auth, view, history, authEnabled, seen, tab, onTab
           <p className="profile-identity">
             {signedIn ? `${auth.playerName ?? 'Signed in'}, signed in with Google` : 'Guest on this device'}
             {!signedIn ? <span className="profile-chip">This device only</span> : null}
+            {signedIn && onChangeName ? <>{' '}<button type="button" className="link-action" onClick={onChangeName}>Change name</button></> : null}
           </p>
         </div>
       </header>

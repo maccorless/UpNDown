@@ -11,10 +11,11 @@ interface Props {
   seen: Record<string, number>;
   markSeen: (map: Record<string, number>) => void;
   onClose: () => void;
+  onChangeName?: (() => void) | undefined;
 }
 
 // The profile sheet and what it needs, kept out of App.tsx. Nothing loads until it is opened.
-export function ProfileLayer({ auth, history, open, seen, markSeen, onClose }: Props): JSX.Element | null {
+export function ProfileLayer({ auth, history, open, seen, markSeen, onClose, onChangeName }: Props): JSX.Element | null {
   const [tab, setTab] = useState<ProfileTab>('stats');
   const view = useProfile(auth, history, open);
   // Looking at the achievements is seeing them: what is shown there is not announced again later.
@@ -35,6 +36,7 @@ export function ProfileLayer({ auth, history, open, seen, markSeen, onClose }: P
       onBack={onClose}
       onSignIn={auth.signIn}
       onPlay={onClose}
+      onChangeName={onChangeName}
     />
   );
 }

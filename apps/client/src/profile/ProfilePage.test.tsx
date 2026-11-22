@@ -111,3 +111,24 @@ describe('erasing the history on this device', () => {
     expect(screen.queryByRole('button', { name: 'Erase history on this device' })).toBeNull();
   });
 });
+
+describe('changing your name from the profile', () => {
+  const signedIn = authOf({ status: 'signedIn', playerName: 'Ann Lee' });
+
+  it('offers Change name to a signed-in player, and asks for the name dialog when it is pressed', () => {
+    const onChangeName = vi.fn();
+    setup({ auth: signedIn, onChangeName });
+    fireEvent.click(screen.getByRole('button', { name: 'Change name' }));
+    expect(onChangeName).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not offer it where the name cannot be asked for (in a game), or to a guest, whose name is the one typed in the lobby', () => {
+    setup({ auth: signedIn });
+    expect(screen.queryByRole('button', { name: 'Change name' })).toBeNull();
+  });
+
+  it('does not offer it to a guest even when the page could ask', () => {
+    setup({ onChangeName: vi.fn() });
+    expect(screen.queryByRole('button', { name: 'Change name' })).toBeNull();
+  });
+});
