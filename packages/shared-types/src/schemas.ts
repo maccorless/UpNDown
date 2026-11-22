@@ -28,7 +28,8 @@ export const gameSettingsSchema = z
       skip: z.enum(['off', 'once', 'unlimited']),
       trade: z.enum(['off', 'once', 'unlimited']),
       hint: z.enum(['off', 'once', 'unlimited'])
-    }).optional()
+    }).optional(),
+    robotPauseMs: z.number().int().min(0).max(5000).optional()
   })
   .superRefine((settings, ctx) => {
     if (settings.maxCardValue <= settings.minCardValue) {

@@ -313,7 +313,7 @@ export function createRealtimeServer(
   const robotPlanned = new Map<string, string>();
   const robotPause = robotPauseFromEnv();
   // A pause after EACH robot step (every card it plays and its end of turn, not once per turn), in which the others (people, and robots re-marking their piles) can react. Tests fix it with timing.robotDelayMs.
-  const robotDelay = (gameId: string): number => timing.robotDelayMs ?? pickRobotPause(robotPause, manager.hasHumanSeat(gameId));
+  const robotDelay = (gameId: string): number => timing.robotDelayMs ?? pickRobotPause(robotPause, manager.hasHumanSeat(gameId), Math.random, manager.peekState(gameId)?.settings.robotPauseMs);
   const scheduleRobot = (gameId: string): void => {
     const due = manager.robotToAct(gameId);
     if (!due || robotPlanned.get(gameId) === due.turnKey) return;

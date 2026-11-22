@@ -20,6 +20,10 @@ export function robotPauseFromEnv(env: NodeJS.ProcessEnv = process.env): RobotPa
   return { humanMs: number(env['ROBOT_PAUSE_MS'], 800), jitterMs: number(env['ROBOT_PAUSE_JITTER_MS'], 800), robotsOnlyMs: number(env['ROBOT_PAUSE_ROBOTS_ONLY_MS'], 150) };
 }
 
-export function pickRobotPause(config: RobotPause, personAtTable: boolean, random: () => number = Math.random): number {
-  return personAtTable ? config.humanMs + Math.floor(random() * (config.jitterMs + 1)) : config.robotsOnlyMs;
+// hostMs is the host's choice for the table (robotPauseMs in the game settings). With a person at the table it replaces both the base and the jitter, so a choice of 800 is
+// the usual 0.8 to 1.6 seconds and a choice of 100 is 0.1 to 0.2. A table of robots alone keeps its short pause whatever the host chose.
+export function pickRobotPause(config: RobotPause, personAtTable: boolean, random: () => number = Math.random, hostMs?: number): number {
+  if (!personAtTable) return config.robotsOnlyMs;
+  if (hostMs !== undefined) return hostMs + Math.floor(random() * (hostMs + 1));
+  return config.humanMs + Math.floor(random() * (config.jitterMs + 1));
 }

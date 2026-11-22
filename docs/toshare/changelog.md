@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-22 | — | Feat: the host can set the pause before each robot play in the table settings (new Robots section: 0.1, 0.4, 0.8, 1.5 or 3 seconds, each plus up to as much again at random; 0.8 is the old behaviour and the default). A table of robots alone keeps its short pause. Other players see the choice in the read-only summary |
 | 2026-11-21 | audit-5 | Chore: moved the socket connection and its listeners out of App.tsx into useGameSocket (App.tsx now about 1,640 lines), no behaviour change |
 | 2026-11-21 | audit-5 | Chore: moved the multiplayer lobby screens and the five confirmation modals out of App.tsx (now about 1,770 lines), no behaviour change |
 | 2026-11-21 | audit-5 | Chore: moved GameBoard, URL and storage helpers and three small hooks out of App.tsx (2,705 to about 2,080 lines), no behaviour change |

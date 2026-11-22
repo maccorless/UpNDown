@@ -41,7 +41,13 @@ export interface GameSettings {
   // Per-game limit on each cheat. Absent means off, except that a saved game or setting from before this existed keeps
   // meaning what allowCardLookup said for the card seeker. Use cheatLimitOf to read it.
   cheatLimits?: CheatLimits | undefined;
+  // How long a robot waits before each thing it does (every card and the end of its turn), in milliseconds, when a person is at the table. The wait is this
+  // long plus a random 0 to this much more. Absent means the server's default (800). Use ROBOT_PAUSE_DEFAULT_MS for that default.
+  robotPauseMs?: number | undefined;
 }
+
+export const ROBOT_PAUSE_DEFAULT_MS = 800;
+export const ROBOT_PAUSE_CHOICES_MS: readonly number[] = [100, 400, 800, 1500, 3000];
 
 export type CheatKind = 'lookup' | 'skip' | 'trade' | 'hint';
 // off: not available. once: one use per player per game. unlimited: no limit.

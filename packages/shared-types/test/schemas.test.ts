@@ -22,6 +22,17 @@ const validSettings = {
   allowCardLookup: false
 };
 
+describe('the robot pause setting', () => {
+  it('is optional, and accepts a whole number of milliseconds up to 5 seconds', () => {
+    expect(gameSettingsSchema.safeParse(validSettings).success).toBe(true);
+    for (const ms of [0, 100, 800, 5000]) expect(gameSettingsSchema.safeParse({ ...validSettings, robotPauseMs: ms }).success).toBe(true);
+  });
+
+  it('refuses a negative, fractional or very long pause, so a table cannot be made to stall', () => {
+    for (const ms of [-1, 1.5, 5001, 600000, '800']) expect(gameSettingsSchema.safeParse({ ...validSettings, robotPauseMs: ms }).success).toBe(false);
+  });
+});
+
 describe('gameSettingsSchema', () => {
   it('accepts valid settings', () => {
     const parsed = gameSettingsSchema.safeParse(validSettings);

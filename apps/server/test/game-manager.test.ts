@@ -173,6 +173,16 @@ describe('settings that the deck cannot deal', () => {
   });
 });
 
+describe('the robot pause is a table setting', () => {
+  it('is kept when the host saves it, and the table starts with none chosen', () => {
+    const manager = new GameManager();
+    const room = manager.createGame('host', { playerName: 'Host', settings: defaultMultiplayerSettings, isSolitaire: false });
+    expect(manager.peekState(room.gameId)?.settings.robotPauseMs).toBeUndefined();
+    manager.updateSettings('host', { gameId: room.gameId, settings: { ...defaultMultiplayerSettings, robotPauseMs: 100 } });
+    expect(manager.peekState(room.gameId)?.settings.robotPauseMs).toBe(100);
+  });
+});
+
 describe('changing settings in a lobby that is not full yet', () => {
   it('lets a host who is alone save settings (players are still joining; starting enforces the minimum)', () => {
     const manager = new GameManager();

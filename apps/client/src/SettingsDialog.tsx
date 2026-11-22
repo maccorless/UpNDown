@@ -1,4 +1,4 @@
-import { cheatLimitOf, deckFitMessage, maxPlayersFor, withCheatLimits, type CheatKind, type CheatLimit, type GameSettings } from '@upndown/shared-types';
+import { cheatLimitOf, deckFitMessage, maxPlayersFor, ROBOT_PAUSE_CHOICES_MS, ROBOT_PAUSE_DEFAULT_MS, withCheatLimits, type CheatKind, type CheatLimit, type GameSettings } from '@upndown/shared-types';
 import { useState, type KeyboardEvent } from 'react';
 import { Modal } from './Modal.js';
 import { APP_VERSION } from './version.js';
@@ -11,6 +11,7 @@ const CHEAT_ROWS: Array<{ kind: CheatKind; label: string; hint: string }> = [
   { kind: 'skip', label: 'Skip turn', hint: 'Pass your turn without the minimum (Ctrl/Cmd-S, after a confirmation). Before you are stuck, not after.' },
   { kind: 'trade', label: 'Trade a card', hint: 'Swap a hand card for the next draw card (Ctrl/Cmd-Shift-X). The card you give goes back in at random.' }
 ];
+const pauseLabel = (ms: number): string => `${ms / 1000} s`;
 const cheatRowsFor = (isSolitaire: boolean) => CHEAT_ROWS.filter((row) => !(isSolitaire && row.kind === 'skip'));
 
 type PresetName = 'trivial' | 'easy' | 'normal' | 'hard';
@@ -251,6 +252,7 @@ function OpenSettingsDialog({
                       <div><dt>Auto refill hand</dt><dd>{yesNo(settings.autoRefillHand)}</dd></div>
                       <div><dt>Maximum players</dt><dd>{settings.maxPlayers}</dd></div>
                       <div><dt>Private game</dt><dd>{yesNo(settings.privateGame)}</dd></div>
+                      <div><dt>Robot pause</dt><dd>{pauseLabel(settings.robotPauseMs ?? ROBOT_PAUSE_DEFAULT_MS)}</dd></div>
                     </>
                   )}
                   {cheatRowsFor(isSolitaire).map((row) => (
@@ -374,6 +376,24 @@ function OpenSettingsDialog({
                         checked={settings.privateGame}
                         onChange={(checked) => update({ privateGame: checked })}
                       />
+                    </section>
+                  )}
+
+                  {isSolitaire ? null : (
+                    <section className="settings-section" aria-labelledby="settings-robots-title">
+                      <h3 id="settings-robots-title">Robots</h3>
+                      <div className="settings-row">
+                        <span className="settings-row-label" id="settings-robot-pause-label">Pause before each robot play</span>
+                        <Segmented
+                          name="settings-robot-pause"
+                          labelId="settings-robot-pause-label"
+                          describedBy="settings-robot-pause-hint"
+                          current={String(settings.robotPauseMs ?? ROBOT_PAUSE_DEFAULT_MS)}
+                          onPick={(value) => update({ robotPauseMs: Number(value) })}
+                          options={ROBOT_PAUSE_CHOICES_MS.map((ms) => ({ value: String(ms), label: pauseLabel(ms) }))}
+                        />
+                        <span className="settings-hint" id="settings-robot-pause-hint">How long a robot waits before each card it plays and before ending its turn (up to as long again, at random). A short pause leaves people no time to mark piles before the robot plays.</span>
+                      </div>
                     </section>
                   )}
 
