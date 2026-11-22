@@ -13,3 +13,7 @@ test-results
 # Google OAuth client downloads (contain secrets)
 client_secret*.json
 lclient_secret*.json
+
+# Local helper script and locally installed skills
+restart.sh
+.claude/skills/better-*/
