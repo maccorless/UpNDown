@@ -1,6 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { maxPlayersFor, type GameState, type JoinableGameSummary, type JoinLookupSummary } from '@upndown/shared-types';
 import { PLAYER_COLOR_HEX } from './board-helpers.js';
+import { RejoinNotice } from './RejoinNotice.js';
+import type { SeatOffer } from './useSavedSeat.js';
 import { buildInviteLink } from './game-url.js';
 
 type Task = void | Promise<void>;
@@ -28,11 +30,15 @@ export function JoinPanel(props: {
   setJoinGameId: (id: string) => void;
   handleLookupGame: () => Task;
   joinLookup: JoinLookupSummary | null;
+  // Games in progress this browser can go back to. Offered here as well as on the front page, since this is where players go.
+  rejoinSeats: SeatOffer[];
+  onRejoin: (seatKey: string) => void;
 }): JSX.Element {
   const { playerName, setPlayerName, confirmName, multiplayerInteractionDisabled, multiplayerFlow, setMultiplayerFlow, pendingAction, createSettingsError, handleCreateGame, setShowJoinById, setJoinLookup, setError, refreshJoinableGames, loadingJoinableGames, joinableGames, handleJoinGame, showJoinById, joinGameId, setJoinGameId, handleLookupGame, joinLookup } = props;
   return (
     <section className="panel lobby" aria-label="multiplayer lobby">
       <h2>Multiplayer</h2>
+      {multiplayerFlow === 'choose' ? <RejoinNotice seats={props.rejoinSeats} onRejoin={props.onRejoin} /> : null}
       <div className="lobby-grid">
         <label htmlFor="player-name-input">
           Player Name

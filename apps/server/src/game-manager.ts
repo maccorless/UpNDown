@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomInt, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { Action } from '@upndown/engine';
-import { buildDeck, carryAfterUndo, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, observe, admitPlayer, playCard, recordCheatUse, senderLevel, setAutoMark, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
+import { assertCheatAvailable, buildDeck, carryAfterUndo, createStartedGameState, emptyPlayerStats, endTurn, chooseAction, fullMontyCells, observe, admitPlayer, playCard, recordCheatUse, senderLevel, setAutoMark, settleAfterRemoval, shuffle, skipTurn, tradeCard } from '@upndown/engine';
 import type { HintAdvisor, RobotBrain } from './robot-brain.js';
 import { pickRobotName } from './robot-names.js';
 import type {
@@ -22,7 +22,7 @@ import type {
   ReactionType,
   UpdateSettingsPayload
 } from '@upndown/shared-types';
-import { deckFitMessage, defaultMultiplayerSettings, maxPlayersFor, PLAYER_COLORS, withCheatLimits } from '@upndown/shared-types';
+import { deckFitMessage, defaultMultiplayerSettings, inCardRange, maxPlayersFor, PLAYER_COLORS, withCheatLimits, type CardLookupStatus, type MontyCell } from '@upndown/shared-types';
 import { createFoundationPiles } from '@upndown/engine';
 import { uniqueInGameName } from './player-names.js';
 import { buildResultRows } from './profile/result-rows.js';
@@ -49,7 +49,7 @@ interface GameRoom {
   // Requests waiting for the host's answer.
   pendingJoins: Map<string, PendingJoin>;
   // Cheats a signed-in account used before it was removed from the game, so being let back in does not refresh a "once".
-  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'hintsUsed'>>;
+  departedCheats: Map<string, Pick<PlayerStatistics, 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'nasChecksUsed' | 'montyUsed' | 'hintsUsed'>>;
 }
 
 export interface PendingJoin {
@@ -134,6 +134,14 @@ function generateGameId(): string {
   return id;
 }
 
+// What one play did that the table should see: a backward 10 flashes on its pile, and a lifeline says so. Null for any other play.
+export function specialOf(before: GameState, after: GameState, playerId: string, pileId: number): { pileId: number; lifeline: boolean } | null {
+  const was = before.statistics.players[playerId];
+  const now = after.statistics.players[playerId];
+  if ((now?.specialPlays ?? 0) <= (was?.specialPlays ?? 0)) return null;
+  return { pileId, lifeline: (now?.lifelines ?? 0) > (was?.lifelines ?? 0) };
+}
+
 export interface GameManagerHooks {
   // Called with the rows to record, never awaited: a slow or failing database must not slow or break play.
   onResults?: (rows: GameResultRow[]) => void;
@@ -155,6 +163,16 @@ const LOBBY_LIST_LIMIT = 50;
 const DEFAULT_MAX_ROOMS = 500;
 const DEFAULT_NOTICE_MS = 10_000;
 const DEFAULT_KICK_MS = 90_000;
+// A game in progress that nobody has touched for this long is removed, unless every person at the table is signed in: such a
+// game keeps for a week, so a group can play it over several days. Guests get the short time.
+const GUEST_ACTIVE_TTL_MS = 30 * 60 * 1000;
+export const SIGNED_IN_ACTIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Every person at the table has a signed-in account. Robots have no account and do not count, and a table with no person is not one.
+export function everyPersonSignedIn(room: { gameState: GameState; userIdByPlayerId: ReadonlyMap<string, string> }): boolean {
+  const people = room.gameState.players.filter((player) => !player.robot);
+  return people.length > 0 && people.every((player) => room.userIdByPlayerId.has(player.id));
+}
 
 export class GameManager {
   constructor(private readonly hooks: GameManagerHooks = {}) {}
@@ -352,11 +370,6 @@ export class GameManager {
     return this.rooms.get(gameId)?.gameState;
   }
 
-  getSpecialPlays(gameId: string, playerId: string): number {
-    const room = this.rooms.get(gameId);
-    if (!room) return 0;
-    return room.gameState.statistics.players[playerId]?.specialPlays ?? 0;
-  }
 
   private accountHoldsSeat(room: GameRoom, userId: string): boolean {
     for (const [playerId, seatUser] of room.userIdByPlayerId) {
@@ -574,10 +587,18 @@ export class GameManager {
     return started;
   }
 
+  // The seated people whose own hand-placed mark is up on this pile. Auto-mark and robot marks are the server's doing, so
+  // they earn no follow for anyone.
+  private handMarkersOn(room: GameRoom, pileId: number): string[] {
+    const board = this.reactions.get(room.gameState.gameId);
+    if (!board) return [];
+    return room.gameState.players.filter((p) => !p.robot && !p.autoMark && board.get(p.id)?.has(pileId)).map((p) => p.id);
+  }
+
   playCard(playerId: string, payload: PlayCardPayload): GameState {
     const room = this.requireRoom(payload.gameId);
     const previous = room.gameState;
-    const nextState = playCard(previous, playerId, payload.cardId, payload.pileId);
+    const nextState = playCard(previous, playerId, payload.cardId, payload.pileId, this.handMarkersOn(room, payload.pileId));
     if (previous.settings.allowUndo) {
       room.turnUndoStack.push(structuredClone(previous));
       if (room.turnUndoStack.length > MAX_UNDO_SNAPSHOTS) {
@@ -879,7 +900,7 @@ export class GameManager {
     const kickedUser = room.userIdByPlayerId.get(payload.targetPlayerId);
     const kickedStats = gameState.statistics.players[payload.targetPlayerId];
     if (kickedUser && kickedStats) {
-      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, hintsUsed: kickedStats.hintsUsed });
+      room.departedCheats.set(kickedUser, { skipsUsed: kickedStats.skipsUsed, tradesUsed: kickedStats.tradesUsed, lookupsUsed: kickedStats.lookupsUsed, nasChecksUsed: kickedStats.nasChecksUsed, montyUsed: kickedStats.montyUsed, hintsUsed: kickedStats.hintsUsed });
     }
     room.userIdByPlayerId.delete(payload.targetPlayerId);
     room.disconnectedAtMs.delete(payload.targetPlayerId);
@@ -1201,10 +1222,11 @@ export class GameManager {
   }
 
   // One step for the robot whose turn it is. Returns what was done, or null when it was not (or is no longer) a robot's turn.
-  robotStep(gameId: string, expectedTurnKey: string): { robotId: string; step: 'play' | 'endTurn' | 'skip' | 'trade' } | null {
+  robotStep(gameId: string, expectedTurnKey: string): { robotId: string; step: 'play' | 'endTurn' | 'skip' | 'trade'; special: { pileId: number; lifeline: boolean } | null } | null {
     const due = this.robotToAct(gameId);
     if (!due || due.turnKey !== expectedTurnKey) return null;
     const state = this.requireRoom(gameId).gameState;
+    let special: { pileId: number; lifeline: boolean } | null = null;
     // The written strategy decides cheats (skip, trade), which the network was not trained on; otherwise the network decides when there is one.
     const rule = chooseAction(observe(state, due.robotId));
     let brainAction: Action | null = null;
@@ -1215,7 +1237,10 @@ export class GameManager {
     let action: Action = rule;
     for (const candidate of brainAction ? [brainAction, rule] : [rule]) {
       try {
-        if (candidate.type === 'play') this.playCard(due.robotId, { gameId, cardId: candidate.cardId, pileId: candidate.pileId });
+        if (candidate.type === 'play') {
+          const after = this.playCard(due.robotId, { gameId, cardId: candidate.cardId, pileId: candidate.pileId });
+          special = specialOf(state, after, due.robotId, candidate.pileId);
+        }
         else if (candidate.type === 'endTurn') this.endTurn(due.robotId, gameId);
         else if (candidate.type === 'skip') this.skip(due.robotId, { gameId });
         else if (candidate.type === 'trade') this.trade(due.robotId, { gameId, cardId: candidate.cardId });
@@ -1227,7 +1252,7 @@ export class GameManager {
       }
     }
     if (action.type === 'none') return null;
-    return { robotId: due.robotId, step: action.type };
+    return { robotId: due.robotId, step: action.type, special };
   }
 
   // A table that has robots and no person left: the robots stop, and after the kick time the game is over, recorded as
@@ -1237,6 +1262,8 @@ export class GameManager {
     if (!room || room.gameState.gamePhase !== 'playing') return false;
     const { players } = room.gameState;
     if (!players.some((player) => player.robot)) return false;
+    // A signed-in table is kept for a week while people are away, so robots alone do not end it.
+    if (everyPersonSignedIn(room)) return false;
     const kickMs = this.hooks.kickMs ?? DEFAULT_KICK_MS;
     const humans = players.filter((player) => !player.robot);
     const allAway = humans.every((player) => {
@@ -1352,7 +1379,7 @@ export class GameManager {
 
   // Answers only the asker. Counts the use (and refuses it under "once" a second time); the others are told a lookup
   // happened, never what it found.
-  lookupCardStatus(gameId: string, playerId: string, cardValue: number): { status: 'in-draw' | 'in-hand' | 'played'; playerName: string; holderName?: string } {
+  lookupCardStatus(gameId: string, playerId: string, cardValue: number, kind: 'lookup' | 'nas' = 'lookup'): { status: CardLookupStatus; playerName: string; holderName?: string } {
     const room = this.requireRoom(gameId);
     const { gameState } = room;
 
@@ -1363,8 +1390,14 @@ export class GameManager {
     if (!player) {
       throw new Error('You are not in this game');
     }
-    // Throws when the card seeker is off for this game, or its single use is spent.
-    room.gameState = recordCheatUse(gameState, playerId, 'lookup');
+    // A card outside this game's range is not one anyone holds, so it is answered as such and is not counted as a use. The check
+    // still refuses a cheat that is off or spent.
+    if (!inCardRange(gameState.settings, cardValue)) {
+      assertCheatAvailable(gameState, playerId, kind);
+      return { status: 'out-of-range', playerName: player.name };
+    }
+    // Throws when the cheat is off for this game, its single use is spent, or (for the Nas check) the player is not named Nas.
+    room.gameState = recordCheatUse(gameState, playerId, kind);
     room.updatedAtMs = Date.now();
 
     if (gameState.drawPile.some((c) => c.value === cardValue)) {
@@ -1377,6 +1410,15 @@ export class GameManager {
     }
 
     return { status: 'played', playerName: player.name };
+  }
+
+  // The full Monty: where every card from 1 to 100 is, for the one asking. Counted as a use, like the other checks. Nobody else
+  // is told what it showed, though the others are told a cheat was used.
+  fullMonty(gameId: string, playerId: string): MontyCell[] {
+    const room = this.requireRoom(gameId);
+    room.gameState = recordCheatUse(room.gameState, playerId, 'monty');
+    room.updatedAtMs = Date.now();
+    return fullMontyCells(room.gameState);
   }
 
   private requireRoom(gameId: string): GameRoom {
@@ -1392,7 +1434,7 @@ export class GameManager {
     const lobbyTtlMs = 5 * 60 * 1000;
     // A lobby nobody has touched for this long goes even with someone connected, so a forgotten open tab cannot hold a room.
     const idleLobbyMs = 60 * 60 * 1000;
-    const activeTtlMs = this.activeTtlMs ?? this.hooks.activeTtlMs ?? 30 * 60 * 1000;
+    const overrideTtlMs = this.activeTtlMs ?? this.hooks.activeTtlMs;
 
     for (const [gameId, room] of this.rooms) {
       const connectedCount = room.gameState.players.filter((player) => activePlayerIds.has(player.id)).length;
@@ -1401,6 +1443,7 @@ export class GameManager {
         continue;
       }
 
+      const activeTtlMs = overrideTtlMs ?? (everyPersonSignedIn(room) ? SIGNED_IN_ACTIVE_TTL_MS : GUEST_ACTIVE_TTL_MS);
       const ttlMs = room.gameState.gamePhase === 'lobby' ? lobbyTtlMs : activeTtlMs;
       if (ageMs >= ttlMs) {
         this.rooms.delete(gameId);

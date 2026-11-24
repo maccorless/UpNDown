@@ -15,3 +15,4 @@ export * from './search.js';
 export * from './netinput.js';
 export * from './network.js';
 export * from './explain.js';
+export * from './monty.js';

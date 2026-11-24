@@ -6,7 +6,7 @@
 - Without a database (the Skiff version) a server restart clears active games.
 - Orphaned game cleanup:
   - Lobby games with no connected players: removed after 5 minutes.
-  - Active games with no connected players: removed after 30 minutes.
+  - Active games with no connected players: removed after 30 minutes, or after 7 days when every person at the table is signed in.
   - Cleanup loop runs every 60 seconds.
 
 ## Health and Logs

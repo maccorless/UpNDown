@@ -1,4 +1,4 @@
-import { defaultMultiplayerSettings, defaultSolitaireSettings, type GameSettings } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, normalSolitaireSettings, type GameSettings } from '@upndown/shared-types';
 
 // The tables training and evaluation use (docs/plans/2026-11-15-training-mode-plan.md, section 4.4). All of them are played with
 // no cheats and undo off. Stage 1 and 2 are simpler (a lower top card, bigger hands); stage 3 is the shipped defaults, and is
@@ -14,7 +14,8 @@ export interface StageTable {
 const NO_CHEATS = { cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off' }, allowCardLookup: false, allowUndo: false } as const;
 
 function table(stage: 1 | 2 | 3, players: number, topCard: number, handSize: number, perTurn?: number): StageTable {
-  const base = players === 1 ? defaultSolitaireSettings : defaultMultiplayerSettings;
+  // Solitaire tables keep the Normal preset whatever the player default is: the training results were measured on it.
+  const base = players === 1 ? normalSolitaireSettings : defaultMultiplayerSettings;
   const name = players === 1 ? 'solo' : `${players}p`;
   return {
     id: `s${stage}-${name}-${topCard}-h${handSize}${perTurn === undefined ? '' : `-m${perTurn}`}`,

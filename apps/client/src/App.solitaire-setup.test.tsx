@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { App } from './App.js';
@@ -22,14 +22,14 @@ describe('starting solitaire', () => {
     render(<App />);
     await user.click(await screen.findByTestId('mode-solitaire'));
     expect(screen.getByTestId('solitaire-setup')).toBeTruthy();
-    expect(screen.getByTestId('solitaire-summary').textContent).toContain('Cards 2 to 99 (98 cards)');
-    expect(screen.getByTestId('solitaire-summary').textContent).toContain('Hand of 7');
+    expect(screen.getByTestId('solitaire-summary').textContent).toContain('Cards 2 to 59 (58 cards)');
+    expect(screen.getByTestId('solitaire-summary').textContent).toContain('Hand of 8');
     expect(screen.getByTestId('solitaire-summary').textContent).toContain('No cheats');
     expect(screen.queryAllByTestId(/hand-card-/)).toHaveLength(0);
     expect(screen.getByTestId('open-settings').classList.contains('settings-frozen')).toBe(false);
     await user.click(screen.getByTestId('start-solitaire'));
     expect(screen.queryByTestId('solitaire-setup')).toBeNull();
-    expect(screen.getAllByTestId(/hand-card-/)).toHaveLength(7);
+    expect(screen.getAllByTestId(/hand-card-/)).toHaveLength(8);
   });
 
   it('lets the settings be changed first, and the game that starts has them', async () => {
@@ -38,7 +38,7 @@ describe('starting solitaire', () => {
     await user.click(await screen.findByTestId('mode-solitaire'));
     await user.click(screen.getByTestId('solitaire-change-settings'));
     expect(screen.queryByText('View only')).toBeNull(); // editable, not frozen
-    await user.click(screen.getAllByLabelText('Unlimited')[1]!); // the Hint row
+    await user.click(within(screen.getByRole('radiogroup', { name: 'Hint' })).getByLabelText('Unlimited'));
     await user.click(screen.getByRole('button', { name: 'Save game rules' }));
     expect(screen.getByTestId('solitaire-summary').textContent).toContain('Hint (unlimited)');
     expect(screen.queryAllByTestId(/hand-card-/)).toHaveLength(0);

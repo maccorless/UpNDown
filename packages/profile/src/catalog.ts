@@ -56,7 +56,7 @@ export const CATALOG: readonly Badge[] = [
   def({ id: 'regular', name: 'Regular', blurb: 'Finish games. Showing up counts.', category: 'playing', targets: config.regular, track: count(finished) }),
   def({ id: 'long-haul', name: 'Long Haul', blurb: 'Hours spent at the table.', category: 'playing', targets: config.longHaulMs, track: sum((r) => r.durationMs) }),
   def({ id: 'card-shark', name: 'Card Shark', blurb: 'Cards played, all told.', category: 'playing', targets: config.cardShark, track: sum((r) => r.cardsPlayed) }),
-  def({ id: 'frequent-flyer', name: 'Frequent Flyer', blurb: 'The distance your cards have traveled up and down the piles.', category: 'playing', targets: config.frequentFlyer, track: sum((r) => Math.max(0, r.totalMovement)) }),
+  def({ id: 'frequent-flyer', name: 'Frequent Flyer', blurb: 'The net progress your plays made on the piles. A backward 10 takes ten away.', category: 'playing', targets: config.frequentFlyer, track: sum((r) => Math.max(0, r.totalMovement)) }),
   def({
     id: 'habit', name: 'Habit', blurb: 'Finish a game on consecutive days.', category: 'playing', targets: config.habitDays,
     track: (ctx) => {
@@ -100,6 +100,7 @@ export const CATALOG: readonly Badge[] = [
   // The backward 10
   def({ id: 'rewind', name: 'Rewind', blurb: 'Play backward 10s. Time travel is encouraged.', category: 'backward', targets: config.rewind, track: sum((r) => r.specialPlays) }),
   def({ id: 'time-machine', name: 'Time Machine', blurb: 'Play several backward 10s in a single game.', category: 'backward', targets: config.timeMachine, track: highest((r) => (finished(r) ? r.specialPlays : null)) }),
+  def({ id: 'lifeline', name: 'Lifeline', blurb: 'Play a backward 10 when it is the only play in your hand.', category: 'backward', targets: config.lifeline, track: sum((r) => r.lifelines ?? 0) }),
   // The table
   def({ id: 'solo-act', name: 'Solo Act', blurb: 'Win a game of solitaire.', category: 'table', targets: config.solo, track: count((r) => won(r) && r.mode === 'solitaire') }),
   def({ id: 'duet', name: 'Duet', blurb: 'Win a two-player game.', category: 'table', targets: config.duet, track: count((r) => won(r) && r.mode === 'multiplayer' && r.playerCount === 2) }),
@@ -111,6 +112,7 @@ export const CATALOG: readonly Badge[] = [
   def({ id: 'over-my-shoulder', name: 'Over My Shoulder', blurb: 'Ask for hints. No judgment.', category: 'helpers', targets: config.overMyShoulder, track: sum((r) => r.hints) }),
   def({ id: 'swiss-army-knife', name: 'Swiss Army Knife', blurb: 'Use a skip, a trade, a lookup and a hint in one game.', category: 'helpers', targets: [1], track: count((r) => r.skips >= 1 && r.trades >= 1 && r.lookups >= 1 && r.hints >= 1) }),
   def({ id: 'backseat-driver', name: 'Backseat Driver', blurb: 'Place marks on the piles to steer your team.', category: 'helpers', targets: config.backseatDriver, track: sum((r) => r.marks ?? 0) }),
+  def({ id: 'called-it', name: 'Called It', blurb: 'Mark a pile, and a teammate plays on it.', category: 'helpers', targets: config.calledIt, track: sum((r) => r.markFollows ?? 0) }),
   def({ id: 'oops', name: 'Oops', blurb: 'Take back plays with undo.', category: 'helpers', targets: config.oops, track: sum((r) => r.undos ?? 0) }),
   def({ id: 'no-take-backs', name: 'No Take-Backs', blurb: 'Win a game where undo was allowed and you never used it.', category: 'helpers', targets: [1], track: count((r) => won(r) && r.undoAllowed && r.undos === 0) }),
   // Time and quirks

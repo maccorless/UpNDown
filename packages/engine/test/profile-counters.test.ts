@@ -45,12 +45,12 @@ describe('carryAfterUndo', () => {
     const snapshot = structuredClone(before);
     const current = structuredClone(before);
     current.statistics.players.p1 = { ...current.statistics.players.p1!, cardsPlayed: 1, totalMovement: 3, hintsUsed: 1, undosUsed: 2 };
-    current.statistics.players.p2 = { ...current.statistics.players.p2!, marksPlaced: 4, lookupsUsed: 1 };
+    current.statistics.players.p2 = { ...current.statistics.players.p2!, marksPlaced: 4, lookupsUsed: 1, nasChecksUsed: 0, montyUsed: 0 };
 
     const restored = carryAfterUndo(snapshot, current, 'p1');
 
     expect(restored.statistics.players.p1).toMatchObject({ cardsPlayed: 0, totalMovement: 0, hintsUsed: 1, undosUsed: 3 });
-    expect(restored.statistics.players.p2).toMatchObject({ marksPlaced: 4, lookupsUsed: 1, undosUsed: 0 });
+    expect(restored.statistics.players.p2).toMatchObject({ marksPlaced: 4, lookupsUsed: 1, nasChecksUsed: 0, montyUsed: 0, undosUsed: 0 });
     expect(restored.foundationPiles).toBe(snapshot.foundationPiles);
   });
 });

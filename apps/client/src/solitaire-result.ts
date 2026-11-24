@@ -38,6 +38,7 @@ export function buildSolitairePayload(state: GameState, runId: string): Solitair
     lookups: mine.lookupsUsed,
     hints: mine.hintsUsed,
     undos: mine.undosUsed,
+    lifelines: mine.lifelines,
     playedLastCard: state.gamePhase === 'won' ? state.statistics.finishedById === SOLO_PLAYER_ID : false,
     settings: state.settings
   };

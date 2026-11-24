@@ -36,31 +36,48 @@ export function classifyPlay(prev: GameState, next: GameState): PlayKind | null 
   return distance > 20 ? 'groan' : 'card';
 }
 
+export interface Superlative { names: string[]; count: number }
+
 export interface StatsHighlights {
   totalCardsPlayed: number;
   totalSpecialPlays: number;
   totalMovement: number;
   averageMovement: number;
-  topBackwardTen: { names: string[]; count: number } | null;
+  topBackwardTen: Superlative | null;
+  topLifelines: Superlative | null;
+  topFollows: Superlative | null;
 }
 
-// Everything the end-of-game screen shows beyond raw per-player rows. Ties name every tied player rather than picking one.
+// Everything the end-of-game screen shows beyond raw per-player rows. Ties name every tied player rather than picking one, and
+// nobody is named for a count of zero.
 export function statsHighlights(state: Pick<GameState, 'players' | 'statistics'>): StatsHighlights {
   const rows = state.players.map((player) => ({
     name: player.name,
-    stats: state.statistics.players[player.id] ?? emptyPlayerStats()
+    // Merged with the defaults, so a counter a stored game predates reads as zero rather than NaN.
+    stats: { ...emptyPlayerStats(), ...state.statistics.players[player.id] }
   }));
   const sum = (key: 'cardsPlayed' | 'totalMovement' | 'specialPlays'): number => rows.reduce((total, row) => total + row.stats[key], 0);
+  const most = (key: 'specialPlays' | 'lifelines' | 'markFollows'): Superlative | null => {
+    const top = Math.max(0, ...rows.map((row) => row.stats[key]));
+    return top > 0 ? { names: rows.filter((row) => row.stats[key] === top).map((row) => row.name), count: top } : null;
+  };
   const totalCardsPlayed = sum('cardsPlayed');
   const totalMovement = sum('totalMovement');
-  const most = Math.max(0, ...rows.map((row) => row.stats.specialPlays));
   return {
     totalCardsPlayed,
     totalSpecialPlays: sum('specialPlays'),
     totalMovement,
     averageMovement: totalCardsPlayed > 0 ? totalMovement / totalCardsPlayed : 0,
-    topBackwardTen: most > 0 ? { names: rows.filter((row) => row.stats.specialPlays === most).map((row) => row.name), count: most } : null
+    topBackwardTen: most('specialPlays'),
+    topLifelines: most('lifelines'),
+    topFollows: most('markFollows')
   };
+}
+
+// The word on the golden flash over a pile. A lifeline says so, because it was the one way forward, not a choice.
+export function specialFlashLabel(pileType: 'ascending' | 'descending', lifeline: boolean): string {
+  if (lifeline) return '🔥 Lifeline! 🔥';
+  return pileType === 'ascending' ? '🔥 -10! 🔥' : '🔥 +10! 🔥';
 }
 
 export const PLAYER_COLOR_HEX: Record<PlayerColor, string> = {

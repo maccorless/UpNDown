@@ -1,11 +1,11 @@
 import { buildDeck, createStartedGameState, playCard, shuffle } from '@upndown/engine';
-import { defaultSolitaireSettings, solitaireResultPayloadSchema, type GameState } from '@upndown/shared-types';
+import { normalSolitaireSettings, solitaireResultPayloadSchema, type GameState } from '@upndown/shared-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { buildSolitairePayload, newRunId, postSolitaireResult } from './solitaire-result.js';
 
 const fresh = (): GameState => createStartedGameState({
   gameId: 'SOLITAIRE', hostId: 'solo-player', players: [{ id: 'solo-player', name: 'You', color: 'cyan' }],
-  settings: defaultSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(defaultSolitaireSettings))
+  settings: normalSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(normalSolitaireSettings))
 });
 
 // One card from winning, reached through the real engine: the last card is played, not declared.
@@ -14,7 +14,7 @@ function winningGame(): GameState {
   state.drawPile = [];
   state.players[0]!.hand = [{ id: 'c-2', value: 2 }];
   state.statistics.startedAtMs = Date.now() - 600_000;
-  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 };
   return playCard(state, 'solo-player', 'c-2', 0);
 }
 
@@ -22,7 +22,7 @@ function lostGame(): GameState {
   const state = structuredClone(fresh());
   state.statistics.startedAtMs = Date.now() - 300_000;
   state.statistics.endedAtMs = Date.now();
-  state.statistics.players['solo-player'] = { cardsPlayed: 40, totalMovement: 150, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 40, totalMovement: 150, specialPlays: 1, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 };
   state.drawPile = state.drawPile.slice(0, 40);
   state.players[0]!.hand = state.players[0]!.hand.slice(0, 18);
   return { ...state, gamePhase: 'lost' };
@@ -88,7 +88,7 @@ describe('the result a finished solitaire game reports', () => {
 describe('what the result says about help and undo', () => {
   it('reports each kind of cheat used and the undos, so a signed-in game and the same game kept on a device agree (Clean Hands depends on it)', () => {
     const won = winningGame();
-    won.statistics.players['solo-player'] = { ...won.statistics.players['solo-player']!, skipsUsed: 1, tradesUsed: 2, lookupsUsed: 3, hintsUsed: 4, undosUsed: 5 };
+    won.statistics.players['solo-player'] = { ...won.statistics.players['solo-player']!, skipsUsed: 1, tradesUsed: 2, lookupsUsed: 3, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 4, undosUsed: 5 };
     expect(buildSolitairePayload(won, 'run-9')).toMatchObject({ skips: 1, trades: 2, lookups: 3, hints: 4, undos: 5, playedLastCard: true });
   });
 

@@ -6,6 +6,7 @@ import { Server as SocketIOServer, type Socket } from 'socket.io';
 import { z } from 'zod';
 import {
   cardLookupPayloadSchema,
+  fullMontyPayloadSchema,
   createGamePayloadSchema,
   joinGamePayloadSchema,
   kickPlayerPayloadSchema,
@@ -20,10 +21,10 @@ import {
   setReactionPayloadSchema,
   updateSettingsPayloadSchema
 } from '@upndown/shared-types';
-import type { CheatUsedEvent, JoinRequestEvent, JoinResolvedEvent } from '@upndown/shared-types';
+import type { CheatUsedEvent, JoinRequestEvent, JoinResolvedEvent, MontyCell } from '@upndown/shared-types';
 import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
 import { resolveClientIp } from './client-ip.js';
-import { GameManager } from './game-manager.js';
+import { GameManager, specialOf } from './game-manager.js';
 import { loadHintAdvisor, loadRobotBrain } from './robot-brain.js';
 import { pickRobotPause, robotPauseFromEnv } from './robot-pause.js';
 import { toPlayerView } from './player-view.js';
@@ -97,7 +98,8 @@ const eventRateLimits: Record<
   | 'game:leave'
   | 'game:kickPlayer'
   | 'game:setReaction'
-  | 'game:cardLookup',
+  | 'game:cardLookup'
+  | 'game:fullMonty',
   RateLimitRule
 > = {
   'game:create':         { limit: 5,  windowMs: 60_000 },
@@ -125,7 +127,8 @@ const eventRateLimits: Record<
   'game:leave':          { limit: 10, windowMs: 30_000 },
   'game:kickPlayer':     { limit: 10, windowMs: 10_000 },
   'game:setReaction':    { limit: 20, windowMs: 10_000 },
-  'game:cardLookup':     { limit: 10, windowMs: 10_000 }
+  'game:cardLookup':     { limit: 10, windowMs: 10_000 },
+  'game:fullMonty':      { limit: 10, windowMs: 10_000 }
 };
 
 // Per client IP, on top of the per-socket limits: reconnecting resets a socket's bucket, so these stop id guessing.
@@ -324,6 +327,7 @@ export function createRealtimeServer(
       const done = manager.robotStep(gameId, due.turnKey);
       const state = manager.peekState(gameId);
       if (!done || !state) return;
+      if (done.special) io.to(gameId).emit('game:specialPlay', { pileId: done.special.pileId, playerId: done.robotId, lifeline: done.special.lifeline });
       if (done.step === 'endTurn') {
         const next = state.players[state.currentPlayerIndex]?.id;
         if (next) manager.clearPlayerReactions(gameId, next);
@@ -635,11 +639,11 @@ export function createRealtimeServer(
       }
       try {
         const parsed = playCardPayloadSchema.parse(payload);
-        const oldSpecialPlays = manager.getSpecialPlays(parsed.gameId, socket.id);
+        const before = manager.peekState(parsed.gameId);
         const gameState = manager.playCard(socket.id, parsed);
-        const newSpecialPlays = gameState.statistics.players[socket.id]?.specialPlays ?? 0;
-        if (newSpecialPlays > oldSpecialPlays) {
-          io.to(gameState.gameId).emit('game:specialPlay', { pileId: parsed.pileId, playerId: socket.id });
+        const special = before ? specialOf(before, gameState, socket.id, parsed.pileId) : null;
+        if (special) {
+          io.to(gameState.gameId).emit('game:specialPlay', { pileId: special.pileId, playerId: socket.id, lifeline: special.lifeline });
         }
         broadcastState(gameState.gameId, gameState);
         reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
@@ -1002,16 +1006,38 @@ export function createRealtimeServer(
       }
       try {
         const parsed = cardLookupPayloadSchema.parse(payload);
-        const { status, playerName, holderName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue);
+        const kind = parsed.kind ?? 'lookup';
+        const { status, playerName, holderName } = manager.lookupCardStatus(parsed.gameId, socket.id, parsed.cardValue, kind);
         const result = { cardValue: parsed.cardValue, status, playerName, ...(holderName ? { holderName } : {}) };
         // Not the card or what it turned out to be: that is hidden-hand information, and nothing needs it on disk.
-        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, secret: parsed.secret === true });
+        log('info', 'game.card_lookup', { socketId: socket.id, gameId: parsed.gameId, secret: parsed.secret === true, kind });
         // Only the asker sees what was found. The others are told that a lookup happened.
-        announceCheat(parsed.gameId, 'lookup');
+        // The Nas check tells nobody: it is keyed off the name, and the others are not told it was used. A card outside the game
+        // used nothing, so nobody is told about it either. Every other check is announced.
+        if (kind !== 'nas' && status !== 'out-of-range') announceCheat(parsed.gameId, kind);
         reply(ack, { ok: true, data: { result } });
       } catch (err) {
         const message = normalizeError(err, 'Unable to look up card');
         log('warn', 'game.card_lookup_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    // The full Monty: where every card from 1 to 100 is, for this player only. The others are told a cheat was used, and nothing more.
+    socket.on('game:fullMonty', (payload, ack?: Ack<{ cells: MontyCell[] }>) => {
+      if (!passesRateLimit(socket.id, 'game:fullMonty')) {
+        reply(ack, { ok: false, error: 'Too many lookups. Slow down!' });
+        return;
+      }
+      try {
+        const parsed = fullMontyPayloadSchema.parse(payload);
+        const cells = manager.fullMonty(parsed.gameId, socket.id);
+        log('info', 'game.full_monty', { socketId: socket.id, gameId: parsed.gameId });
+        announceCheat(parsed.gameId, 'monty');
+        reply(ack, { ok: true, data: { cells } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to use the full Monty');
+        log('warn', 'game.full_monty_failed', { socketId: socket.id, error: message });
         reply(ack, { ok: false, error: message });
       }
     });

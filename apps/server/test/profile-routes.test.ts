@@ -21,7 +21,7 @@ const valid = (over: Partial<ResultRow> = {}): ResultRow => {
   return {
     gameId: `game-${n}`, mode: 'multiplayer', outcome: 'won', startedAtMs: endedAtMs - 600_000, endedAtMs, durationMs: 600_000, turns: 12,
     playerCount: 2, robotCount: 0, cardsTotal: 98, cardsLeft: 0, cardsPlayed: 40, totalMovement: 50, specialPlays: 1, skips: 0, trades: 0, lookups: 0, hints: 0,
-    undos: 0, marks: 0, playedLastCard: false, handSize: 7, minCardsPerTurn: 2, maxCard: 99, cheatsAllowed: false, undoAllowed: false, ...over
+    undos: 0, marks: 0, playedLastCard: false, lifelines: null, markFollows: null, handSize: 7, minCardsPerTurn: 2, maxCard: 99, cheatsAllowed: false, undoAllowed: false, ...over
   };
 };
 
@@ -79,7 +79,7 @@ describe('profile routes', () => {
     it('count signing in as a badge for an account', async () => {
       const { cookie } = await account('g-badge');
       const { badges } = await (await get('/api/me/achievements?tz=UTC', cookie)).json() as { badges: Array<{ id: string; tier: number }> };
-      expect(badges).toHaveLength(34);
+      expect(badges).toHaveLength(36);
       expect(badges.find((b) => b.id === 'made-official')!.tier).toBe(1);
     });
 

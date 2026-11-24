@@ -53,6 +53,9 @@ export function buildSolitaireRow(userId: string, payload: SolitaireResultPayloa
     robotCount: 0,
     myUndos: payload.undos ?? null,
     myReactions: 0,
+    // Solitaire has no one to mark a pile for, so no follows. Lifelines are reported by the browser, like the other counts.
+    myLifelines: payload.lifelines ?? null,
+    myMarkFollows: 0,
     playedLastCard: payload.playedLastCard ?? null,
     handSize: payload.settings.handSize,
     minCardsPerTurn: payload.settings.minCardsPerTurn,

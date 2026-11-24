@@ -1,3 +1,4 @@
+import { CATALOG } from '@upndown/profile';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { AchievementsTab } from './AchievementsTab.js';
@@ -8,7 +9,7 @@ const show = (rows = [row()], seen: Record<string, number> = {}, signedIn = fals
 describe('the achievements tab', () => {
   it('sums up how many badges are earned and how many are gold', () => {
     show();
-    expect(screen.getByRole('status').textContent).toMatch(/^\d+ of 34 earned, 0 gold$/);
+    expect(screen.getByRole('status').textContent).toMatch(new RegExp(`^\\d+ of ${CATALOG.length} earned, 0 gold$`));
   });
 
   it('names the tier in words and shows progress toward the next, with the date it was earned', () => {

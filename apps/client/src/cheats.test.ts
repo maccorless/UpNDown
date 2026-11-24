@@ -27,7 +27,7 @@ describe('which cheats a player is offered', () => {
 
   it('grays out a "once" cheat after its use, and says why, but never an unlimited one', () => {
     const base = game({ lookup: 'once', trade: 'unlimited' });
-    const used: GameState = { ...base, statistics: { ...base.statistics, players: { ...base.statistics.players, p1: { ...base.statistics.players.p1!, lookupsUsed: 1, tradesUsed: 5 } } } };
+    const used: GameState = { ...base, statistics: { ...base.statistics, players: { ...base.statistics.players, p1: { ...base.statistics.players.p1!, lookupsUsed: 1, nasChecksUsed: 0, montyUsed: 0, tradesUsed: 5 } } } };
     expect(find(used, 'p1', 'lookup')).toMatchObject({ available: false, reason: 'Already used', used: 1 });
     expect(find(used, 'p1', 'trade')).toMatchObject({ available: true, used: 5 });
   });
@@ -66,7 +66,7 @@ describe('what the others are told', () => {
 describe('undo and cheats', () => {
   it('keeps cheats counted since the snapshot, so undoing a play never refunds one', () => {
     const snapshot = game({ lookup: 'once' });
-    const now: GameState = { ...snapshot, statistics: { ...snapshot.statistics, players: { ...snapshot.statistics.players, p1: { ...snapshot.statistics.players.p1!, lookupsUsed: 1 } } } };
+    const now: GameState = { ...snapshot, statistics: { ...snapshot.statistics, players: { ...snapshot.statistics.players, p1: { ...snapshot.statistics.players.p1!, lookupsUsed: 1, nasChecksUsed: 0, montyUsed: 0 } } } };
     expect(keepCheatCounts(snapshot, now, 'p1').statistics.players.p1!.lookupsUsed).toBe(1);
     expect(keepCheatCounts(snapshot, now, 'p1').drawPile).toBe(snapshot.drawPile);
   });

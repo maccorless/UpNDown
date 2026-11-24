@@ -1,9 +1,11 @@
 import { buildNetInput, carryAfterUndo, chooseAction, explainMove, loadNetwork, NET_END, networkLogits, observe, type Action, type Network, type NetworkWeights } from '@upndown/engine';
-import { cheatLimitOf, type CheatKind, type CheatUsedEvent, type GameState, type PlayerStatistics } from '@upndown/shared-types';
+import { cheatLimitOf, isNasName, type CheatKind, type CheatUsedEvent, type GameState, type PlayerStatistics } from '@upndown/shared-types';
 import { useEffect } from 'react';
 
 export const CHEAT_TITLES: Record<CheatKind, string> = {
   lookup: 'Card seeker',
+  nas: 'Nas check',
+  monty: 'The full Monty',
   skip: 'Skip turn',
   trade: 'Trade a card',
   hint: 'Hint'
@@ -22,7 +24,11 @@ export interface CheatStatus {
 const usedOf = (state: GameState, playerId: string | null, kind: CheatKind): number => {
   const stats = playerId ? state.statistics.players[playerId] : undefined;
   if (!stats) return 0;
-  return kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : stats.hintsUsed;
+  // The Nas check and the full Monty are also lookups, so the card seeker's count leaves those out.
+  return kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed
+    : kind === 'lookup' ? stats.lookupsUsed - stats.nasChecksUsed - stats.montyUsed
+    : kind === 'nas' ? stats.nasChecksUsed
+    : kind === 'monty' ? stats.montyUsed : stats.hintsUsed;
 };
 
 // The cheats this game offers this player, and whether each can be used this moment. Cheats the game has turned off are not
@@ -31,9 +37,11 @@ export function cheatStatuses(state: GameState, playerId: string | null, selecte
   const mine = !!playerId && state.players[state.currentPlayerIndex]?.id === playerId;
   const playing = state.gamePhase === 'playing';
   const out: CheatStatus[] = [];
-  for (const kind of ['lookup', 'hint', 'skip', 'trade'] as const) {
+  // The Nas check is for a player named Nas only, so nobody else is offered it.
+  const namedNas = isNasName(state.players.find((player) => player.id === playerId)?.name ?? '');
+  for (const kind of ['lookup', 'nas', 'monty', 'hint', 'skip', 'trade'] as const) {
     const limit = cheatLimitOf(state.settings, kind);
-    if (limit === 'off' || (kind === 'skip' && state.isSolitaire)) continue;
+    if (limit === 'off' || (kind === 'skip' && state.isSolitaire) || (kind === 'nas' && !namedNas)) continue;
     const used = usedOf(state, playerId, kind);
     let reason: string | undefined;
     if (!playing) reason = 'The game is not being played';
@@ -53,11 +61,13 @@ export function cheatNoticeText(event: Pick<CheatUsedEvent, 'playerName' | 'kind
   if (event.kind === 'skip') return `${who} skipped a turn`;
   if (event.kind === 'trade') return `${who} traded a card`;
   if (event.kind === 'lookup') return `${who} used the card seeker`;
+  if (event.kind === 'monty') return `${who} used The full Monty`;
   return `${who} used a hint`;
 }
 
 interface HotkeyArgs {
   active: boolean;
+  onNas?: () => void;
   onLookup?: () => void;
   onSkip?: () => void;
   onTrade?: () => void;
@@ -70,8 +80,8 @@ const typingIn = (target: EventTarget | null): boolean => {
 
 // Accelerators only: the panel is the dependable way in (and the only one on a phone). A key is taken from the browser only
 // when it does something here, so printing and saving still work whenever the cheat is not available.
-// Card seeker: Ctrl/Cmd-P. Skip: Ctrl/Cmd-S. Trade: Ctrl/Cmd-Shift-X. Ctrl/Cmd-T opens a browser tab and cannot be used.
-export function useCheatHotkeys({ active, onLookup, onSkip, onTrade }: HotkeyArgs): void {
+// Card seeker: Ctrl/Cmd-P. Nas check: Ctrl/Cmd-Shift-K. Skip: Ctrl/Cmd-S. Trade: Ctrl/Cmd-Shift-X. Ctrl/Cmd-T opens a browser tab and cannot be used.
+export function useCheatHotkeys({ active, onNas, onLookup, onSkip, onTrade }: HotkeyArgs): void {
   useEffect(() => {
     if (!active) return undefined;
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -84,10 +94,11 @@ export function useCheatHotkeys({ active, onLookup, onSkip, onTrade }: HotkeyArg
       if (!e.shiftKey && e.code === 'KeyP') run(onLookup);
       else if (!e.shiftKey && e.code === 'KeyS') run(onSkip);
       else if (e.shiftKey && e.code === 'KeyX') run(onTrade);
+      else if (e.shiftKey && e.code === 'KeyK') run(onNas);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [active, onLookup, onSkip, onTrade]);
+  }, [active, onNas, onLookup, onSkip, onTrade]);
 }
 
 // After an undo, cheats and marks counted since the snapshot stay counted, and the undo itself is counted. The rule is the

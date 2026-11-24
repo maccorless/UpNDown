@@ -1,4 +1,4 @@
-import { defaultMultiplayerSettings, defaultSolitaireSettings, deckFitMessage, gameSettingsSchema, deckSizeOf } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, normalSolitaireSettings, deckFitMessage, gameSettingsSchema, deckSizeOf } from '@upndown/shared-types';
 import { describe, expect, it } from 'vitest';
 import { buildDeck } from '../src/init.js';
 import { compare, playSet, SCORINGS, seedsFor, summarize } from '../src/evaluation.js';
@@ -32,9 +32,9 @@ describe('the stage tables', () => {
     }
   });
 
-  it('make stage 3 exactly the shipped defaults, with solitaire refilling and tables not', () => {
+  it('make stage 3 the Normal solitaire preset and the shipped multiplayer defaults, with solitaire refilling and tables not', () => {
     for (const t of REAL_TABLES) {
-      const shipped = t.players === 1 ? defaultSolitaireSettings : defaultMultiplayerSettings;
+      const shipped = t.players === 1 ? normalSolitaireSettings : defaultMultiplayerSettings;
       expect(t.settings.maxCardValue, t.id).toBe(shipped.maxCardValue);
       expect(t.settings.minCardValue, t.id).toBe(shipped.minCardValue);
       expect(t.settings.handSize, t.id).toBe(shipped.handSize);

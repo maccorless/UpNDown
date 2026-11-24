@@ -14,7 +14,7 @@ const offers = (): SeatOffer[] => listSavedSeats().map((seat) => ({ seatKey: sea
 
 // Keeps this tab's multiplayer seat saved while a game is being played (and claimed, so other tabs are not offered it),
 // forgets it when the game ends or the seat is lost, and lists the seats saved here that no other tab has open.
-export function useSavedSeat(state: GameState | null, playerId: string | null, tokenRef: MutableRefObject<string | null>, landing: boolean): {
+export function useSavedSeat(state: GameState | null, playerId: string | null, tokenRef: MutableRefObject<string | null>, landing: boolean, signedIn = false): {
   seatKey: string | null;
   adopt: (seatKey: string) => void;
   forget: () => void;
@@ -34,9 +34,9 @@ export function useSavedSeat(state: GameState | null, playerId: string | null, t
     if (playerId && tokenRef.current && state.players.some((p) => p.id === playerId)) {
       const key = seatKey ?? newRunId();
       if (!seatKey) setSeatKey(key);
-      writeSavedSeat({ seatKey: key, gameId: state.gameId, playerId, rejoinToken: tokenRef.current });
+      writeSavedSeat({ seatKey: key, gameId: state.gameId, playerId, rejoinToken: tokenRef.current, signedIn });
     }
-  }, [state, playerId, seatKey, tokenRef]);
+  }, [state, playerId, seatKey, tokenRef, signedIn]);
 
   useEffect(() => (seatKey ? holdClaim(`seat:${seatKey}`) : undefined), [seatKey]);
 

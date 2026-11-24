@@ -150,6 +150,16 @@ export function EndGameStatisticsModal({
           {top.names.join(' and ')} made the most backward 10s ({top.count}).
         </p>
       ) : null}
+      {highlights.topLifelines ? (
+        <p className="stats-callout">
+          {highlights.topLifelines.names.join(' and ')} found the most lifelines ({highlights.topLifelines.count}): backward 10s that were the only way forward.
+        </p>
+      ) : null}
+      {highlights.topFollows ? (
+        <p className="stats-callout">
+          {highlights.topFollows.names.join(' and ')} had the most marks followed ({highlights.topFollows.count}): teammates played on piles they marked.
+        </p>
+      ) : null}
 
       <div className="stats-table-wrap">
         <table className="stats-table">

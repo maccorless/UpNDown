@@ -27,7 +27,11 @@ export const gameSettingsSchema = z
       lookup: z.enum(['off', 'once', 'unlimited']),
       skip: z.enum(['off', 'once', 'unlimited']),
       trade: z.enum(['off', 'once', 'unlimited']),
-      hint: z.enum(['off', 'once', 'unlimited'])
+      hint: z.enum(['off', 'once', 'unlimited']),
+      // Optional: settings saved before the Nas check existed still parse, and read as off.
+      nas: z.enum(['off', 'once', 'unlimited']).optional(),
+      // Optional for the same reason: settings saved before the full Monty read as off.
+      monty: z.enum(['off', 'once', 'unlimited']).optional()
     }).optional(),
     robotPauseMs: z.number().int().min(0).max(5000).optional()
   })
@@ -156,8 +160,14 @@ export const setReactionPayloadSchema = z.object({
 
 export const cardLookupPayloadSchema = z.object({
   gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/),
-  cardValue: z.number().int().min(CARD_MIN).max(CARD_MAX),
+  // Any number the card box takes: a card outside the game's range is answered as such, not refused.
+  cardValue: z.number().int().min(1).max(999),
+  kind: z.enum(['lookup', 'nas']).optional(),
   secret: z.boolean().optional()
+});
+
+export const fullMontyPayloadSchema = z.object({
+  gameId: z.string().length(6).regex(/^[A-Z0-9]{6}$/)
 });
 
 export const rejoinGamePayloadSchema = z.object({
@@ -219,9 +229,14 @@ export const gameStateSchema = z.object({
       skipsUsed: z.number().int().min(0).default(0),
       tradesUsed: z.number().int().min(0).optional(),
       lookupsUsed: z.number().int().min(0).default(0),
+      nasChecksUsed: z.number().int().min(0).default(0),
+      montyUsed: z.number().int().min(0).default(0),
       hintsUsed: z.number().int().min(0).default(0),
       undosUsed: z.number().int().min(0).default(0),
-      marksPlaced: z.number().int().min(0).default(0)
+      marksPlaced: z.number().int().min(0).default(0),
+      // Defaulted to zero so a game saved before these counters existed still loads.
+      lifelines: z.number().int().min(0).default(0),
+      markFollows: z.number().int().min(0).default(0)
     }).transform((stats) => ({ ...stats, tradesUsed: stats.tradesUsed ?? stats.nasCheatsUsed })))
   }),
   nasCheat: z.object({
@@ -256,6 +271,8 @@ export const solitaireResultPayloadSchema = z.object({
   // Not defaulted: an older client that does not say stays unknown (null), which is not the same as none.
   undos: z.number().int().min(0).max(2000).optional(),
   playedLastCard: z.boolean().optional(),
+  // Old clients do not send it; the row then stays unknown (null), as with undos.
+  lifelines: z.number().int().min(0).max(2000).optional(),
   settings: gameSettingsSchema
 }).superRefine((r, ctx) => {
   const fail = (message: string): void => { ctx.addIssue({ code: z.ZodIssueCode.custom, message }); };

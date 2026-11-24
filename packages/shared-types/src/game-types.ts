@@ -49,11 +49,22 @@ export interface GameSettings {
 export const ROBOT_PAUSE_DEFAULT_MS = 800;
 export const ROBOT_PAUSE_CHOICES_MS: readonly number[] = [100, 400, 800, 1500, 3000];
 
-export type CheatKind = 'lookup' | 'skip' | 'trade' | 'hint';
+export type CheatKind = 'lookup' | 'nas' | 'monty' | 'skip' | 'trade' | 'hint';
 // off: not available. once: one use per player per game. unlimited: no limit.
 export type CheatLimit = 'off' | 'once' | 'unlimited';
-export type CheatLimits = Record<CheatKind, CheatLimit>;
-export const CHEAT_KINDS: readonly CheatKind[] = ['lookup', 'skip', 'trade', 'hint'];
+// The Nas check and the full Monty are optional here: settings saved before them have no entry, and that reads as off (see cheatLimitOf).
+export type CheatLimits = Record<Exclude<CheatKind, 'nas' | 'monty'>, CheatLimit> & { nas?: CheatLimit | undefined; monty?: CheatLimit | undefined };
+export const CHEAT_KINDS: readonly CheatKind[] = ['lookup', 'nas', 'monty', 'skip', 'trade', 'hint'];
+// The Nas check is for a player named Nas, in any capitals, with spaces at the ends ignored. The server gives a second player
+// with the same name a suffix (Nas-1, Nas-2), and those players have the check too.
+export const isNasName = (name: string): boolean => /^nas(-\d+)?$/.test(name.trim().toLowerCase());
+
+// The full Monty shows every card from 1 to 100. Cards outside the game's range are grayed out.
+export const MONTY_GRID_MIN = 1;
+export const MONTY_GRID_MAX = 100;
+export type MontyCell = 'draw' | 'hand' | 'played' | 'out';
+export const inCardRange = (settings: Pick<GameSettings, 'minCardValue' | 'maxCardValue'>, value: number): boolean =>
+  value >= settings.minCardValue && value <= settings.maxCardValue;
 
 export interface PlayerStatistics {
   cardsPlayed: number;
@@ -63,11 +74,20 @@ export interface PlayerStatistics {
   nasCheatsUsed: number;
   skipsUsed: number;
   tradesUsed: number;
+  // Card checks, the card seeker's and the Nas check's together. Like the other cheat counts, an undo does not take them back.
   lookupsUsed: number;
+  // How many of those lookups were made under the Nas check (so the card seeker's "once" is not spent by them).
+  nasChecksUsed: number;
+  // Uses of the full Monty. It is also a lookup, so it is in lookupsUsed as well.
+  montyUsed: number;
   hintsUsed: number;
   // Undos this player took, and pile marks they placed. Neither is refunded by an undo (see carryAfterUndo).
   undosUsed: number;
   marksPlaced: number;
+  // Backward 10s this player played when no card in their hand had a normal play (the only way forward). Rolled back by an undo.
+  lifelines: number;
+  // Plays by a teammate on a pile this player had marked by hand, one for each such play. Rolled back by an undo.
+  markFollows: number;
 }
 
 export interface GameStatistics {
@@ -186,11 +206,19 @@ export interface KickPlayerPayload {
   targetPlayerId: string;
 }
 
-export type CardLookupStatus = 'in-draw' | 'in-hand' | 'played';
+// out-of-range: the card is not one of this game's cards at all, so it is not where anyone can hold it. Not counted as a use.
+export type CardLookupStatus = 'in-draw' | 'in-hand' | 'played' | 'out-of-range';
+
+export interface FullMontyResult {
+  // Cell i is card value MONTY_GRID_MIN + i.
+  cells: MontyCell[];
+}
 
 export interface CardLookupPayload {
   gameId: string;
   cardValue: number;
+  // Which cheat the check is made under. Absent means the card seeker.
+  kind?: 'lookup' | 'nas';
 }
 
 export interface CardLookupResult {
@@ -238,18 +266,24 @@ export const defaultMultiplayerSettings: GameSettings = {
   allowCardLookup: false
 };
 
+// The Easy preset. Measured with the strategy (packages/engine/tools/sim.ts): Easy won 100% of solitaire games, Normal 5.0%,
+// so a first game at Normal was almost always lost. Normal and Hard stay one tap away in Settings.
 export const defaultSolitaireSettings: GameSettings = {
   minCardValue: 2,
-  maxCardValue: 99,
-  handSize: 7,
+  maxCardValue: 59,
+  handSize: 8,
   minPlayers: 1,
   maxPlayers: 1,
-  minCardsPerTurn: 2,
+  minCardsPerTurn: 1,
   autoRefillHand: true,
   allowUndo: false,
   privateGame: false,
   allowCardLookup: false
 };
+
+// The Normal preset for solitaire. The training benchmark, the tuning report and the "standard settings" in the badges all mean
+// this, so it stays put when the default moves.
+export const normalSolitaireSettings: GameSettings = { ...defaultSolitaireSettings, maxCardValue: 99, handSize: 7, minCardsPerTurn: 2 };
 
 // Cards in the deck for these settings (every value from the lowest to the highest). The four foundation piles are
 // created separately and do not come out of it.

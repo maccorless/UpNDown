@@ -10,7 +10,17 @@ describe('saved seat', () => {
 
   it('returns what was saved', () => {
     writeSavedSeat(seat, NOW);
-    expect(readSavedSeat('key-1', NOW + 1000)).toEqual({ ...seat, savedAtMs: NOW });
+    expect(readSavedSeat('key-1', NOW + 1000)).toEqual({ ...seat, savedAtMs: NOW, signedIn: false });
+  });
+
+  // A signed-in table is kept for a week of inactivity on the server, so a signed-in player's seat must still be offered on day three.
+  it('keeps a signed-in seat for a week, and a guest seat only two hours', () => {
+    const day = 24 * 60 * 60 * 1000;
+    writeSavedSeat({ ...seat, signedIn: true }, 0);
+    expect(readSavedSeat('key-1', 3 * day)).toMatchObject({ signedIn: true });
+    expect(readSavedSeat('key-1', 7 * day + 1)).toBeNull();
+    writeSavedSeat(seat, 0);
+    expect(readSavedSeat('key-1', 3 * day)).toBeNull();
   });
 
   it('forgets a seat older than two hours, since the server drops an empty game long before that', () => {

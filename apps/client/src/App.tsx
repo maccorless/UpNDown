@@ -7,17 +7,18 @@ import { isClaimed } from './claims.js';
 import { readSavedSeat } from './saved-seat.js';
 import { useSavedSeat } from './useSavedSeat.js';
 import type { Action } from '@upndown/engine';
-import { buildDeck, createStartedGameState, playCard as playCardEngine, recordCheatUse, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
+import { assertCheatAvailable, buildDeck, createStartedGameState, fullMontyCells, playCard as playCardEngine, recordCheatUse, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
 import { playCardSound, playCheerSound, playGolfClapSound, playGroanSound, playLoseSound, playTurnStartSound, playWinSound } from './sounds.js';
 import { classifyPlay } from './board-helpers.js';
 import { EndGameStatisticsModal } from './EndGame.js';
 import { SettingsDialog } from './SettingsDialog.js';
 import { useAutoMarkSync, usePlayerPrefs } from './playerPrefs.js';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, randomPresidentName, type CardLookupResult, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, inCardRange, randomPresidentName, type CardLookupResult, type GameSettings, type MontyCell, type GameState, type JoinableGameSummary, type JoinLookupSummary, type ReactionState, type ReactionType } from '@upndown/shared-types';
 import { useEffect, useRef, useState } from 'react';
 import { GameBoard } from './GameBoard.js';
 import { useGameSocket } from './useGameSocket.js';
 import { BackToLobbyModal, CardLookupModal, EndGameConfirmModal, HostEndedModal, KickedModal } from './GameModals.js';
+import { FullMontyModal } from './FullMonty.js';
 import { JoinPanel, WaitingRoom } from './MultiplayerLobby.js';
 import { useJoinablePoller, usePageVisible, useViewportHeight } from './app-hooks.js';
 import { buildInviteLink, normalizeGameId, readGameIdFromLocation, readInviteFromLocation, syncGameIdInUrl } from './game-url.js';
@@ -94,6 +95,7 @@ export function App(): JSX.Element {
   const [solitaireState, setSolitaireState] = useState<GameState>(() => newSolitaireGame(solitaireSettings));
   const [solitaireSelectedCardId, setSolitaireSelectedCardId] = useState<string | null>(null);
   const [solitaireSpecialPlayPileId, setSolitaireSpecialPlayPileId] = useState<number | null>(null);
+  const [solitaireSpecialPlayLifeline, setSolitaireSpecialPlayLifeline] = useState(false);
   const solitaireSpecialPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [solitaireUndoStack, setSolitaireUndoStack] = useState<GameState[]>([]);
   const [solitaireRunId, setSolitaireRunId] = useState(newRunId);
@@ -109,6 +111,7 @@ export function App(): JSX.Element {
   const [multiplayerSelectedCardId, setMultiplayerSelectedCardId] = useState<string | null>(null);
   const [gameReactions, setGameReactions] = useState<ReactionState>({});
   const [specialPlayPileId, setSpecialPlayPileId] = useState<number | null>(null);
+  const [specialPlayLifeline, setSpecialPlayLifeline] = useState(false);
   const specialPlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [multiplayerCreateSettings, setMultiplayerCreateSettings] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
   const [settingsDraft, setSettingsDraft] = useState<GameSettings>(() => persisted?.multiplayer ?? multiplayerSettings);
@@ -154,6 +157,10 @@ export function App(): JSX.Element {
   useAccountSync(auth, { playerName, setPlayerName, solitaire: solitaireConfig, setSolitaire: setSolitaireConfig, multiplayer: multiplayerCreateSettings, setMultiplayer: setMultiplayerCreateSettings, enableSounds, setEnableSounds: changeSounds, seenBadges: seenBadges.seen });
   const [cardLookupOpen, setCardLookupOpen] = useState(false);
   const [cardLookupValue, setCardLookupValue] = useState('');
+  // Which cheat the open check is made under: the card seeker, or the Nas check.
+  const [cardLookupKind, setCardLookupKind] = useState<'lookup' | 'nas'>('lookup');
+  // The full Monty's grid while it is open: one cell per card from 1 to 100, or null when it is shut.
+  const [montyCells, setMontyCells] = useState<MontyCell[] | null>(null);
   const [cardLookupToast, setCardLookupToast] = useState<CardLookupResult | null>(null);
   const cardLookupToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -271,7 +278,7 @@ export function App(): JSX.Element {
   }, [mode, multiplayerState, connectionState, joinGameId, playerName]);
 
   // A game being played survives a closed tab: the seat is kept in this browser, and the landing offers to take it back.
-  const savedSeat = useSavedSeat(multiplayerState, playerId, rejoinTokenRef, mode === null);
+  const savedSeat = useSavedSeat(multiplayerState, playerId, rejoinTokenRef, mode === null, auth.status === 'signedIn');
   const forgetSeatRef = useRef(savedSeat.forget);
   forgetSeatRef.current = savedSeat.forget;
   const adoptSeat = (data: { gameState: GameState; playerId: string; rejoinToken: string }): void => {
@@ -300,12 +307,15 @@ export function App(): JSX.Element {
     setMultiplayerFlow('choose');
     setShowJoinById(false);
     setError(null);
+    // The seat is taken back when a connection opens. The Multiplayer screen has one open already, so it is reopened.
+    const socket = getSocket();
+    if (socket.connected) { socket.disconnect(); socket.connect(); }
   };
 
   useGameSocket({
     mode, getSocket, setConnectionState, previousPlayerIdRef, activeGameIdRef, rejoinTokenRef, playerIdRef, adoptSeat,
     resetToLanding: () => resetToLanding(), setKickedWhileAway, setKickedFromGameId, setError, rejoinMine, setSeatChoices,
-    setPlayerId, setPendingLobbyState, setMultiplayerState, setGameReactions, setSpecialPlayPileId, specialPlayTimerRef,
+    setPlayerId, setPendingLobbyState, setMultiplayerState, setGameReactions, setSpecialPlayPileId, setSpecialPlayLifeline, specialPlayTimerRef,
     forgetSeatRef, setMultiplayerSelectedCardId, setCheatNotice, cheatNoticeTimerRef, setJoinRequests, setJoinWaiting,
     inviteTokenRef
   });
@@ -541,8 +551,10 @@ export function App(): JSX.Element {
 
     try {
       const oldSpecialPlays = solitaireState.statistics.players[SOLO_PLAYER_ID]?.specialPlays ?? 0;
+      const oldLifelines = solitaireState.statistics.players[SOLO_PLAYER_ID]?.lifelines ?? 0;
       const next = playCardEngine(solitaireState, SOLO_PLAYER_ID, solitaireSelectedCardId, pileId);
       const newSpecialPlays = next.statistics.players[SOLO_PLAYER_ID]?.specialPlays ?? 0;
+      const newLifelines = next.statistics.players[SOLO_PLAYER_ID]?.lifelines ?? 0;
 
       setSolitaireUndoStack((stack) => [...stack, solitaireState]);
       setSolitaireState(next);
@@ -551,6 +563,7 @@ export function App(): JSX.Element {
 
       if (newSpecialPlays > oldSpecialPlays) {
         setSolitaireSpecialPlayPileId(pileId);
+        setSolitaireSpecialPlayLifeline(newLifelines > oldLifelines);
         if (solitaireSpecialPlayTimerRef.current) clearTimeout(solitaireSpecialPlayTimerRef.current);
         solitaireSpecialPlayTimerRef.current = setTimeout(() => setSolitaireSpecialPlayPileId(null), 1500);
       }
@@ -727,9 +740,36 @@ export function App(): JSX.Element {
   };
 
   // Cheats. In multiplayer the server decides; in solitaire the whole game is local, so the engine is used directly.
-  const openLookup = (): void => {
+  const openCheck = (kind: 'lookup' | 'nas'): void => {
     setCardLookupValue('');
+    setCardLookupKind(kind);
     setCardLookupOpen(true);
+  };
+  const openLookup = (): void => openCheck('lookup');
+  const openNasCheck = (): void => openCheck('nas');
+
+  // The full Monty. Solitaire is local, so the grid is worked out here. At a table the server answers only the one asking, and
+  // the others are told a cheat was used, as for the card seeker.
+  const handleCheatMonty = async (): Promise<void> => {
+    if (mode === 'solitaire') {
+      try {
+        const counted = recordCheatUse(solitaireState, SOLO_PLAYER_ID, 'monty');
+        setSolitaireState(counted);
+        setMontyCells(fullMontyCells(counted));
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unable to use the full Monty');
+      }
+      return;
+    }
+    if (!multiplayerState) return;
+    const ack = await emitWithAck<{ cells: MontyCell[] }>('game:fullMonty', { gameId: multiplayerState.gameId }, 'cheat');
+    if (!ack.ok) {
+      setError(ack.error);
+      return;
+    }
+    setError(null);
+    setMontyCells(ack.data.cells);
   };
 
   // Robots: the host fills seats in the lobby. They count toward the player limits like anyone.
@@ -914,7 +954,13 @@ export function App(): JSX.Element {
     // Solitaire: the full state is local, so look up here (and count the use, which the cheat limit may refuse).
     if (mode === 'solitaire') {
       try {
-        setSolitaireState(recordCheatUse(solitaireState, SOLO_PLAYER_ID, 'lookup'));
+        // A card outside this game's range is answered as such and is not counted as a use. A cheat that is off is still refused.
+        if (!inCardRange(activeState.settings, cardValue)) {
+          assertCheatAvailable(activeState, SOLO_PLAYER_ID, cardLookupKind);
+          showToast({ cardValue, status: 'out-of-range', playerName: '' });
+          return;
+        }
+        setSolitaireState(recordCheatUse(solitaireState, SOLO_PLAYER_ID, cardLookupKind));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to use the card seeker');
         return;
@@ -937,7 +983,7 @@ export function App(): JSX.Element {
     }
 
     // Multiplayer: the server holds the hidden cards and answers only this player; the others are told a lookup happened.
-    void requestSocketAck<{ result: CardLookupResult }>('game:cardLookup', { gameId: activeState.gameId, cardValue })
+    void requestSocketAck<{ result: CardLookupResult }>('game:cardLookup', { gameId: activeState.gameId, cardValue, kind: cardLookupKind })
       .then((ack) => {
         if (ack.ok) showToast(ack.data.result);
         else setError(ack.error);
@@ -1183,10 +1229,11 @@ export function App(): JSX.Element {
   // The hint goes when the game moves on: any change to either game, or leaving it.
   const hintBoardKey = moveKey(mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null), mode === 'multiplayer' ? playerId : SOLO_PLAYER_ID);
   useEffect(() => { setHint(null); }, [hintBoardKey]);
-  const cheatCan = (kind: 'lookup' | 'hint' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
+  const cheatCan = (kind: 'lookup' | 'nas' | 'hint' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
   useCheatHotkeys({
     active: cheatStatusList.length > 0,
     ...(cheatCan('lookup') ? { onLookup: openLookup } : {}),
+    ...(cheatCan('nas') ? { onNas: openNasCheck } : {}),
     ...(cheatCan('skip') ? { onSkip: () => setCheatsOpen('skip') } : {}),
     // Trade needs a selected card; without one the panel opens and says so.
     ...(cheatStatusList.some((status) => status.kind === 'trade') ? { onTrade: () => { if (cheatCan('trade')) void handleCheatTrade(); else setCheatsOpen('panel'); } } : {})
@@ -1396,6 +1443,7 @@ export function App(): JSX.Element {
           setSelectedCardId={setSolitaireSelectedCardId}
           onPlayPile={handleSolitairePlayCard}
           specialPlayPileId={solitaireSpecialPlayPileId}
+          specialPlayLifeline={solitaireSpecialPlayLifeline}
           onUndo={solitaireUndoStack.length > 0 ? handleSolitaireUndo : undefined}
           canUndo={solitaireUndoStack.length > 0}
           {...(cheatStatusList.length > 0 ? { onOpenCheats: () => setCheatsOpen('panel') } : {})}
@@ -1409,6 +1457,8 @@ export function App(): JSX.Element {
         <>
           {!multiplayerState ? (
             <JoinPanel
+              rejoinSeats={savedSeat.offers}
+              onRejoin={(seatKey) => { void handleRejoinSavedSeat(seatKey); }}
               playerName={playerName}
               setPlayerName={setPlayerName}
               confirmName={confirmName}
@@ -1465,6 +1515,7 @@ export function App(): JSX.Element {
                 onSetReaction={sendSetReaction}
                 gameReactions={gameReactions}
                 specialPlayPileId={specialPlayPileId}
+                specialPlayLifeline={specialPlayLifeline}
                 onUndo={multiplayerState?.cardsPlayedThisTurn && multiplayerState.cardsPlayedThisTurn > 0
                   ? () => { void handleMultiplayerUndo(); }
                   : undefined}
@@ -1552,6 +1603,7 @@ export function App(): JSX.Element {
         <BackToLobbyModal pending={pendingAction === 'leave'} onBack={() => { setMultiplayerState(pendingLobbyState); setPendingLobbyState(null); setMultiplayerSelectedCardId(null); }} onLeave={() => { setPendingLobbyState(null); void handleLeaveMultiplayer(); }} />
       ) : null}
 
+      {montyCells ? <FullMontyModal cells={montyCells} onClose={() => setMontyCells(null)} /> : null}
       {cardLookupOpen ? (
         <CardLookupModal value={cardLookupValue} onChange={setCardLookupValue} onSubmit={handleCardLookupSubmit} onClose={() => setCardLookupOpen(false)} />
       ) : null}
@@ -1579,6 +1631,8 @@ export function App(): JSX.Element {
           busy={pendingAction !== null}
           onClose={() => setCheatsOpen(false)}
           onLookup={openLookup}
+          onNas={openNasCheck}
+          onMonty={() => { void handleCheatMonty(); }}
           onHint={() => { void handleCheatHint(); }}
           onSkip={() => { void handleCheatSkip(); }}
           onTrade={() => { void handleCheatTrade(); }}
@@ -1596,6 +1650,7 @@ export function App(): JSX.Element {
           {cardLookupToast.status === 'in-draw' && '📦 In Draw Pile'}
           {cardLookupToast.status === 'in-hand' && `🤚 In Hand (${cardLookupToast.holderName ?? '?'})`}
           {cardLookupToast.status === 'played' && '✓ Played'}
+          {cardLookupToast.status === 'out-of-range' && `Not one of this game's cards (${(mode === 'multiplayer' ? multiplayerState?.settings : solitaireState.settings)?.minCardValue ?? '?'} to ${(mode === 'multiplayer' ? multiplayerState?.settings : solitaireState.settings)?.maxCardValue ?? '?'})`}
         </div>
       ) : null}
 

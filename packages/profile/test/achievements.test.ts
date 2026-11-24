@@ -26,6 +26,7 @@ describe('every badge, at its first tier and one step short of it', () => {
     ['closer', [row({ playedLastCard: true })], [row({ playedLastCard: null })]],
     ['rewind', many(10, { specialPlays: 1 }), many(9, { specialPlays: 1 })],
     ['time-machine', [row({ specialPlays: 3 })], many(2, { specialPlays: 2 })],
+    ['lifeline', [row({ lifelines: 1 })], [row({ lifelines: 0, specialPlays: 4 })]],
     ['solo-act', [row({ mode: 'solitaire', playerCount: 1 })], [row()]],
     ['duet', [row({ playerCount: 2 })], [row({ playerCount: 3 })]],
     ['full-table', [row({ playerCount: 6, robotCount: 2 })], [row({ playerCount: 5 })]],
@@ -35,6 +36,7 @@ describe('every badge, at its first tier and one step short of it', () => {
     ['over-my-shoulder', [row({ hints: 10 })], [row({ hints: 9 })]],
     ['swiss-army-knife', [row({ skips: 1, trades: 1, lookups: 1, hints: 1 })], [row({ skips: 1, trades: 1, lookups: 1 })]],
     ['backseat-driver', [row({ marks: 50 })], [row({ marks: 49 }), row({ marks: null })]],
+    ['called-it', [row({ markFollows: 1 })], [row({ markFollows: 0 }), row({ markFollows: null })]],
     ['oops', [row({ undos: 10 })], [row({ undos: 9 }), row({ undos: null })]],
     ['no-take-backs', [row({ undoAllowed: true, undos: 0 })], [row({ undoAllowed: true, undos: null }), row({ undoAllowed: false, undos: 0 })]],
     ['marathon', [row({ durationMs: 3_600_001 })], [row({ durationMs: 3_600_000 })]],
@@ -151,9 +153,9 @@ describe('the evaluator as a whole', () => {
 });
 
 describe('the catalog', () => {
-  it('has 34 badges with unique ids', () => {
-    expect(CATALOG).toHaveLength(34);
-    expect(new Set(CATALOG.map((b) => b.id)).size).toBe(34);
+  it('has 36 badges with unique ids', () => {
+    expect(CATALOG).toHaveLength(36);
+    expect(new Set(CATALOG.map((b) => b.id)).size).toBe(36);
   });
 
   it('has targets that climb for most badges and fall for the one where smaller is better', () => {

@@ -64,7 +64,7 @@ describe.skipIf(!url)('migrations against Postgres', () => {
     try {
       await migrate(p, [MIGRATIONS[0]!]);
       const { rows } = await p.query<{ id: string }>('insert into users default values returning id');
-      expect(await migrate(p)).toEqual(['002_name_confirmed', '003_cheats_in_results', '004_live_games', '005_profile_facts']);
+      expect(await migrate(p)).toEqual(['002_name_confirmed', '003_cheats_in_results', '004_live_games', '005_profile_facts', '006_lifelines_and_follows']);
       const after = await p.query('select name_confirmed from users where id = $1', [rows[0]!.id]);
       expect(after.rows[0].name_confirmed).toBe(false);
     } finally {

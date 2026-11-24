@@ -15,12 +15,15 @@ Robots also **show reactions**: after every play, each robot that is not on turn
 Each cheat is off, once (one use per player per game) or unlimited, set per game (`cheatLimits`). Cheats are used before the game ends, never to rescue a lost game, and none can be undone.
 
 - **Card seeker (`lookup`)**: ask where a card is. Only the asker is told; everyone else is sent `game:cheatUsed` (who and which cheat, nothing about the card). Hotkey Ctrl/Cmd-P.
+- **Card seeker, outside the game**: a card that is not one of the game's cards (for example 65 in a game of 2 to 59) is answered as outside the game. It is not counted as a use.
+- **Nas check (`nas`)**: the card seeker's check, for a player whose name is Nas (any capitals, spaces at the ends ignored). A second player with the same name is renamed Nas-1 and keeps the check. Its limit is set in Settings like the others (off, once, unlimited). Its "once" is separate from the card seeker's, and each check also counts as a lookup. Nobody else is told it was used. Hotkey Ctrl/Cmd-Shift-K. Solitaire has no player name, so there is no Nas check in solitaire.
+- **The full Monty (`monty`)**: a grid of every card from 1 to 100, colored by where each card is: in the draw pile, in a hand, or played to a pile (a pile keeps only its top card, so played cards are the ones in neither the draw pile nor a hand). Cards outside the game's range are gray. Only the one asking sees the grid; the others are told one was used. Its limit is set in Settings like the others, and it works in solitaire too. Each use also counts as a lookup.
 - **Skip (`skip`)**: on your turn, before playing a card, pass without the minimum. Not offered in solitaire. No refill. A full round of skips with no card played by anyone ends the game as a loss. Ctrl/Cmd-S, with a confirmation.
 - **Trade (`trade`)**: swap a hand card for the next draw card; the card you give goes back into the draw pile at a random position. Active player only. Ctrl/Cmd-Shift-X.
 - **Hint (`hint`)**: suggests the best play (or to end the turn, skip or trade) from what the asker can see: their own hand, the pile tops, the size of the draw pile and of the other hands, never the cards in the draw pile or other hands. Only the asker sees it, nobody is notified, it is counted in the statistics. Worked out by the server in multiplayer (`game:hint`) and in the browser in solitaire. With the screen-only network (`packages/engine/models/hint.json`, which has no access to the played-card record) the answer comes with a headline and one to three reasons a player can check: the size of the move, a backward 10, which of your cards it leaves able to follow, cards it would strand, what a teammate has marked, or, when none of those explains the move, a plain statement that the trained model weighs the whole hand. In solitaire the network file is fetched once, the first time a hint is asked for (it carries no data); with no connection, or on any error, the written strategy gives the hint without reasons, as before. Skip and trade suggestions always come from the written strategy. `HINT_BRAIN=heuristic` switches the network off.
 - **Auto-mark piles** is a player setting, not a cheat: it has no limit and nothing is counted. Tables only (never in solitaire, where nobody can react to the player). While it is on for a person, the server marks every pile for them, like, love or really love, by the same rule the robots use (`senderLevel`), after every play; a person on turn shows no marks, and switching it off takes their marks down. The client keeps the choice on the device (`upndown.autoMark.v1`) and tells the server through `game:setAutoMark` (payload `{ gameId, enabled }`, only while a game is being played; nobody else is told); the switch is stored on the player as `autoMark` and survives a rejoin.
 - Skip and trade clear the undo history. A lookup or hint is not refunded by undo, and an undo does not change the auto-mark switch.
-- The panel opens by double tapping the logo or from the Cheats button; the keys are accelerators only.
+- The panel opens by double tapping the logo or from the Cheats button; the keys are accelerators only. On a phone there are no keys: the Cheats button shows on the board while the game has a cheat that can still be used, and Settings says so under Cheats.
 
 ## Game Overview
 Up-N-Down is a cooperative card game where players work together to play all cards from their hands onto four foundation piles. The game features unique ascending and descending rules with a special "backward-10" move that adds strategic depth.
@@ -67,7 +70,7 @@ This special move is crucial for strategic play and recovery from difficult situ
 - To create opportunities for other players
 - As a last resort to avoid game loss
 
-**Statistics tracking**: Backward-10 moves are counted as "special plays" in game statistics.
+**Statistics tracking**: Backward-10 moves are counted as "special plays" in game statistics. A backward 10 played when no card in the hand, the card played included, had a normal play on either pile is also a **lifeline** (the Lifeline badge, and "Lifeline!" on the flash).
 
 ### Card Distribution
 
@@ -79,7 +82,7 @@ This special move is crucial for strategic play and recovery from difficult situ
 
 **Default configurations**:
 - Multiplayer (2–6 players): 7 cards per player, no auto-refill
-- Solitaire: 7 cards in hand, auto-refill always on
+- Solitaire: 8 cards in hand, one card a turn at least, cards 2 to 59, auto-refill always on (the Easy preset). Normal (7 cards, two a turn, 2 to 99) and Hard (6 cards, three a turn, 2 to 99) are one choice away in Settings
 
 ---
 
@@ -131,6 +134,8 @@ This special move is crucial for strategic play and recovery from difficult situ
 
 Game automatically checks for valid moves and declares win/loss after every card play and turn transition.
 
+**Closing the browser mid-game.** This browser keeps the player's seat for up to two hours. A player with a seat in a game still being played sees **Rejoin game CODE** on the front page and at the top of the Multiplayer screen. Clicking it takes the seat back if the server still holds the game. The server holds a game for 30 minutes after its last move when nobody is connected. If every person at the table is signed in, it holds the game for a week instead, so a group can play across several days, and robots do not end such a table. A table with a guest in it keeps the 30 minutes, and a guest table with robots ends 90 seconds after its last person goes. A seat is kept only in the browser that held it, for two hours (a week when signed in). Another browser or device needs a signed-in account to take the seat back.
+
 ---
 
 ### Solitaire Mode
@@ -158,6 +163,7 @@ During other players' turns, non-active players can mark their preferences for e
 3. Your reactions clear automatically when YOUR turn starts
 4. All players see everyone's reactions in real time
 5. Robots mark piles themselves after every play (see Robots); a mark means "I hold a great card for this pile", and a mark is only worth acting on while it is current
+6. A mark placed by hand is credited (the Called It badge) for each play a teammate makes on that pile while the mark is up. Auto-mark and robot marks earn no credit, and an undo takes the credit back. A robot counts as a teammate, so a robot that plays on a pile a person marked by hand gives that person the credit, because the robots read the marks
 
 **Player slot positions**:
 - Top row, above each card: Players 1–3 (by join order)
@@ -323,6 +329,8 @@ Limits are per socket. `game:lookup` and `game:join` are also limited per client
 - **Total Movement**: Net progress of the piles: each play adds how far it moved the pile in its own direction, so a backward 10 subtracts 10. The team total equals the sum of how far each pile ended from its start.
 - **Special Plays**: Count of backward-10 moves
 - **Cheats Used**: skips, trades, card lookups and hints, counted per player and shown on the end screen (the old Nas swap count is read as trades)
+- **Lifelines** (`lifelines`): backward 10s played when no card in the hand had a normal play. An undo takes one back, like the other per-play counts. The end screen names who had the most.
+- **Marks followed** (`markFollows`): one for each play by a teammate on a pile this player had marked by hand while the mark was up. An undo takes it back. The end screen names who had the most.
 - **Undos** (`undosUsed`) and **pile marks placed** (`marksPlaced`): counted per player and not refunded by an undo. They feed the profile badges, not the end screen. A mark is counted when it is placed or changed to a reaction, not when it is cleared.
 
 **Aggregate** (in `GameStatistics`):
@@ -366,7 +374,7 @@ Limits are per socket. `game:lookup` and `game:join` are also limited per client
 ### Interactive Elements
 - **Card selection**: Click to select; highlights valid piles in real time
 - **Valid piles**: Highlighted when a card is selected and a legal play exists
-- **Backward-10 flash**: Golden flash animation + floating "🔥 ±10! 🔥" label
+- **Backward-10 flash**: Golden flash animation + floating "🔥 ±10! 🔥" label, or "🔥 Lifeline! 🔥" for a lifeline. Robots' backward 10s flash for everyone too
 - **Turn indicator**: Dot strip showing turn order and distance ("Your turn in 2")
 - **Draw pile counter**: Live remaining-card count
 
@@ -404,6 +412,6 @@ See also:
 
 ---
 
-**Last Updated**: 2026-03-18
+**Last Updated**: 2026-11-23
 **Version**: Current implementation (post-v1 refactor)
 **Status**: Accurate — update whenever interfaces or defaults change

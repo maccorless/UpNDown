@@ -34,6 +34,8 @@ export interface GameRecord {
   cardsTotal: number;
   turns: number;
   steps: number;
+  // Lifelines played by every seat together (see playCard). Only playGameWith counts them; records built just to score a game leave it out.
+  lifelines?: number;
 }
 
 // Anything that chooses what to do from what a player can see. The weighted strategy is one; a search teacher, a network and
@@ -60,7 +62,7 @@ export function playGameWith(settings: GameSettings, players: number, seed: numb
   let steps = 0;
   const limit = 5000;
   const finish = (outcome: GameRecord['outcome']): GameRecord => ({
-    outcome, cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps
+    outcome, cardsLeft: cardsLeft(state), drawLeft: state.drawPile.length, cardsTotal: cardsTotal(settings), turns: state.statistics.turns, steps, lifelines: Object.values(state.statistics.players).reduce((sum, p) => sum + p.lifelines, 0)
   });
   while (state.gamePhase === 'playing' && steps < limit) {
     steps += 1;

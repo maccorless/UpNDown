@@ -27,6 +27,9 @@ export const resultRowSchema = z.object({
   undos: z.number().int().min(0).max(10_000).nullable().default(null),
   marks: z.number().int().min(0).max(100_000).nullable().default(null),
   playedLastCard: z.boolean().nullable().default(null),
+  // Null for a stored row written before these counters existed: unknown, not zero.
+  lifelines: z.number().int().min(0).max(100_000).nullable().default(null),
+  markFollows: z.number().int().min(0).max(100_000).nullable().default(null),
   handSize: z.number().int().min(1).max(30),
   minCardsPerTurn: z.number().int().min(1).max(30),
   maxCard: z.number().int().min(1).max(1000),

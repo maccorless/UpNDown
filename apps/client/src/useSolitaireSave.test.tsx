@@ -1,5 +1,5 @@
 import { buildDeck, createStartedGameState, shuffle } from '@upndown/engine';
-import { defaultSolitaireSettings, type GameState } from '@upndown/shared-types';
+import { normalSolitaireSettings, type GameState } from '@upndown/shared-types';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { SOLITAIRE_SAVE_PREFIX, readSolitaireSave, writeSolitaireSave } from './solitaire-save.js';
@@ -8,13 +8,13 @@ import { useSolitaireSave } from './useSolitaireSave.js';
 
 const fresh = (): GameState => createStartedGameState({
   gameId: 'SOLITAIRE', hostId: 'solo-player', players: [{ id: 'solo-player', name: 'You', color: 'cyan' }],
-  settings: defaultSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(defaultSolitaireSettings))
+  settings: normalSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(normalSolitaireSettings))
 });
 const finished = (phase: 'won' | 'lost'): GameState => ({ ...fresh(), gamePhase: phase });
 // A game with one card played, which is the least that is worth saving.
 const played = (): GameState => {
   const state = fresh();
-  return { ...state, statistics: { ...state.statistics, players: { 'solo-player': { cardsPlayed: 1, totalMovement: 5, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 } } } };
+  return { ...state, statistics: { ...state.statistics, players: { 'solo-player': { cardsPlayed: 1, totalMovement: 5, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 } } } };
 };
 const RUN = 'run-test';
 // Saves are dated near now, because a game left for over a month is forgotten.

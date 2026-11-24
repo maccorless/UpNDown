@@ -1,5 +1,5 @@
 import { buildDeck, createStartedGameState, shuffle } from '@upndown/engine';
-import { defaultSolitaireSettings, type GameState } from '@upndown/shared-types';
+import { normalSolitaireSettings, type GameState } from '@upndown/shared-types';
 import { render, screen, waitFor } from '@testing-library/react';
 import { userEvent } from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,12 +17,12 @@ const json = (body: unknown, status = 200): Response => new Response(JSON.string
 function oneCardFromWinning(): GameState {
   const state = structuredClone(createStartedGameState({
     gameId: 'SOLITAIRE', hostId: 'solo-player', players: [{ id: 'solo-player', name: 'You', color: 'cyan' }],
-    settings: defaultSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(defaultSolitaireSettings))
+    settings: normalSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(normalSolitaireSettings))
   }));
   state.drawPile = [];
   state.players[0]!.hand = [{ id: 'c-2', value: 2 }];
   state.statistics.startedAtMs = Date.now() - 600_000;
-  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0 };
+  state.statistics.players['solo-player'] = { cardsPlayed: 97, totalMovement: 400, specialPlays: 3, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 };
   return state;
 }
 

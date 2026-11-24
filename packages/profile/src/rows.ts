@@ -7,7 +7,8 @@ const MAX_PLAY_MS = 24 * 24 * 3_600_000;
 // and the server's row for the same game agree.
 export function resultRowFromState(a: { state: GameState; runId: string; outcome: ResultRow['outcome']; playerId: string; nowMs: number }): ResultRow {
   const { state, runId, outcome, playerId, nowMs } = a;
-  const mine = state.statistics.players[playerId] ?? emptyPlayerStats();
+  // Merged with the defaults: a game that was running when a counter was added reads that counter as zero, not undefined.
+  const mine = { ...emptyPlayerStats(), ...state.statistics.players[playerId] };
   const mode = state.isSolitaire ? 'solitaire' : 'multiplayer';
   const endedAtMs = Math.max(state.statistics.startedAtMs ?? nowMs, outcome === 'abandoned' ? nowMs : state.statistics.endedAtMs ?? nowMs);
   // A tab left open for weeks reports the most the store accepts, not nothing.
@@ -36,6 +37,8 @@ export function resultRowFromState(a: { state: GameState; runId: string; outcome
     hints: mine.hintsUsed,
     undos: mine.undosUsed,
     marks: mine.marksPlaced,
+    lifelines: mine.lifelines,
+    markFollows: mine.markFollows,
     // A game won before winners were recorded has no winner to name: unknown, not "no".
     playedLastCard: won ? (finishedById === undefined ? null : finishedById === playerId) : false,
     handSize: state.settings.handSize,

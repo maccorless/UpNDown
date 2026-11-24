@@ -47,19 +47,7 @@ After a game ends (win or loss), the host sees a **Replay** button. Other player
 
 ---
 
-### 2 — Peek at Hand (Cheat)
-
-A new cheat setting: **"Peek at Hand"**.
-
-- During a game, clicking a player's name shows their hand cards locally (your screen only)
-- No server event; client reads the hand from the already-received game state
-- Setting name: `allowPeekAtHand`; disabled by default; documented in how-to-play
-
-**Effort**: Small
-
----
-
-### 3 — Personal Best Tracking
+### 2 — Personal Best Tracking
 
 Track individual solitaire and multiplayer stats in `localStorage`.
 
@@ -71,7 +59,7 @@ Track individual solitaire and multiplayer stats in `localStorage`.
 
 ---
 
-### 4 — Progressive Web App (PWA)
+### 3 — Progressive Web App (PWA)
 
 Make the game installable on desktop and mobile.
 
@@ -94,6 +82,7 @@ Make the game installable on desktop and mobile.
 | Firebase / database | Fully removed; all state is in-memory |
 | Firebase authentication | Removed with Firebase |
 | Game history (server-side) | Not planned |
+| Peek at Hand (cheat) | Dropped, 23-Nov-2026. Hidden hands are the cooperative game's core tension, and a peek removes the problem the table is solving |
 
 ---
 

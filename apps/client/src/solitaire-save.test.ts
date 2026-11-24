@@ -1,5 +1,5 @@
 import { buildDeck, createStartedGameState, playCard, shuffle } from '@upndown/engine';
-import { defaultSolitaireSettings, gameStateSchema, type GameState } from '@upndown/shared-types';
+import { normalSolitaireSettings, gameStateSchema, type GameState } from '@upndown/shared-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   MAX_SAVED_UNDO, MAX_SAVES, clearSolitaireSave, listSolitaireSaves, describeAge, readSolitaireSave, resumeClock, summarizeSave, writeSolitaireSave
@@ -9,7 +9,7 @@ const RUN = 'run-1';
 const SAVE_KEY = `upndown.solitaire.save.v1.${RUN}`;
 const fresh = (): GameState => createStartedGameState({
   gameId: 'SOLITAIRE', hostId: 'solo-player', players: [{ id: 'solo-player', name: 'You', color: 'cyan' }],
-  settings: defaultSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(defaultSolitaireSettings))
+  settings: normalSolitaireSettings, isSolitaire: true, deck: shuffle(buildDeck(normalSolitaireSettings))
 });
 
 // Plays real moves with the real engine, so the saved states are the shapes the game actually produces.

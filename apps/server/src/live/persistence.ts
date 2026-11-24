@@ -1,12 +1,13 @@
 import { gameStateSchema } from '@upndown/shared-types';
-import type { GameManager } from '../game-manager.js';
+import { SIGNED_IN_ACTIVE_TTL_MS, type GameManager } from '../game-manager.js';
 import type { GameStore } from './game-store.js';
 import type { WriterLock } from './advisory-lock.js';
 
 type Log = (level: 'info' | 'warn' | 'error', event: string, fields?: Record<string, unknown>) => void;
 
-// A game nobody has touched for this long is not worth keeping, in memory or in the database.
-export const LIVE_RETENTION_MS = 24 * 60 * 60 * 1000;
+// A game nobody has touched for this long is not worth keeping, in memory or in the database. Set to the longest a game is
+// kept (a week, for signed-in tables): a guest's game is removed from memory after 30 minutes, and its saved copy goes with it.
+export const LIVE_RETENTION_MS = SIGNED_IN_ACTIVE_TTL_MS;
 
 // Everything that is saved except the clock.
 const fingerprint = (room: ReturnType<GameManager['exportRoom']>): string =>

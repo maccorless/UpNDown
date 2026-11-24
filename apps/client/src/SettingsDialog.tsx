@@ -7,12 +7,14 @@ const LIMIT_LABELS: Record<CheatLimit, string> = { off: 'Off', once: 'Once per g
 const LIMIT_OPTIONS = (['off', 'once', 'unlimited'] as const).map((value) => ({ value, label: value === 'once' ? 'Once' : LIMIT_LABELS[value] }));
 const CHEAT_ROWS: Array<{ kind: CheatKind; label: string; hint: string }> = [
   { kind: 'lookup', label: 'Card seeker', hint: 'Find where a card is (Ctrl/Cmd-P). Only the asker sees the answer; the others are told one was used.' },
+  { kind: 'nas', label: 'Nas check', hint: 'The card seeker for a player named Nas (Ctrl/Cmd-Shift-K). Only a player named Nas can use it, and nobody else is told it was used. In solitaire there is no name, so it is not offered there.' },
+  { kind: 'monty', label: 'The full Monty', hint: 'Shows every card from 1 to 100 in one grid: in the draw pile, in a hand, or played, with cards outside this game grayed out. Only you see it; the others are told one was used.' },
   { kind: 'hint', label: 'Hint', hint: 'Suggests the best play from what you can see. Only you see it; it is counted in the statistics.' },
   { kind: 'skip', label: 'Skip turn', hint: 'Pass your turn without the minimum (Ctrl/Cmd-S, after a confirmation). Before you are stuck, not after.' },
   { kind: 'trade', label: 'Trade a card', hint: 'Swap a hand card for the next draw card (Ctrl/Cmd-Shift-X). The card you give goes back in at random.' }
 ];
 const pauseLabel = (ms: number): string => `${ms / 1000} s`;
-const cheatRowsFor = (isSolitaire: boolean) => CHEAT_ROWS.filter((row) => !(isSolitaire && row.kind === 'skip'));
+const cheatRowsFor = (isSolitaire: boolean) => CHEAT_ROWS.filter((row) => !(isSolitaire && (row.kind === 'skip' || row.kind === 'nas')));
 
 type PresetName = 'trivial' | 'easy' | 'normal' | 'hard';
 
@@ -400,6 +402,7 @@ function OpenSettingsDialog({
                   <section className="settings-section" aria-labelledby="settings-cheats-title">
                     <h3 id="settings-cheats-title">Cheats</h3>
                     <p className="settings-why">Help for anyone who wants it. Each use is counted and shown on the end screen. Once means one use per player per game.</p>
+                    <p className="settings-why" data-testid="settings-cheats-phone">No keyboard on a phone? While a game has a cheat on, a Cheats button appears on the game board. Tap it to open the panel, or double tap the logo.</p>
                     {cheatRowsFor(isSolitaire).map((row) => (
                       <div className="settings-row" key={row.kind}>
                         <span className="settings-row-label" id={`settings-cheat-${row.kind}-label`}>{row.label}</span>

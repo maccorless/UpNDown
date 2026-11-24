@@ -28,6 +28,7 @@ export interface GameSocketOptions {
   setMultiplayerState: Set<GameState | null>;
   setGameReactions: Set<ReactionState>;
   setSpecialPlayPileId: Set<number | null>;
+  setSpecialPlayLifeline: Set<boolean>;
   specialPlayTimerRef: Timer;
   forgetSeatRef: MutableRefObject<() => void>;
   setMultiplayerSelectedCardId: Set<string | null>;
@@ -43,7 +44,7 @@ export interface GameSocketOptions {
 export function useGameSocket(options: GameSocketOptions): void {
   const { mode } = options;
   useEffect(() => {
-    const { getSocket, setConnectionState, previousPlayerIdRef, activeGameIdRef, rejoinTokenRef, playerIdRef, adoptSeat, resetToLanding, setKickedWhileAway, setKickedFromGameId, setError, rejoinMine, setSeatChoices, setPlayerId, setPendingLobbyState, setMultiplayerState, setGameReactions, setSpecialPlayPileId, specialPlayTimerRef, forgetSeatRef, setMultiplayerSelectedCardId, setCheatNotice, cheatNoticeTimerRef, setJoinRequests, setJoinWaiting, inviteTokenRef } = options;
+    const { getSocket, setConnectionState, previousPlayerIdRef, activeGameIdRef, rejoinTokenRef, playerIdRef, adoptSeat, resetToLanding, setKickedWhileAway, setKickedFromGameId, setError, rejoinMine, setSeatChoices, setPlayerId, setPendingLobbyState, setMultiplayerState, setGameReactions, setSpecialPlayPileId, setSpecialPlayLifeline, specialPlayTimerRef, forgetSeatRef, setMultiplayerSelectedCardId, setCheatNotice, cheatNoticeTimerRef, setJoinRequests, setJoinWaiting, inviteTokenRef } = options;
     if (mode !== 'multiplayer') {
       return;
     }
@@ -114,8 +115,9 @@ export function useGameSocket(options: GameSocketOptions): void {
       setGameReactions(reactions);
     };
 
-    const onSpecialPlay = (data: { pileId: number }): void => {
+    const onSpecialPlay = (data: { pileId: number; lifeline?: boolean }): void => {
       setSpecialPlayPileId(data.pileId);
+      setSpecialPlayLifeline(data.lifeline === true);
       if (specialPlayTimerRef.current) clearTimeout(specialPlayTimerRef.current);
       specialPlayTimerRef.current = setTimeout(() => setSpecialPlayPileId(null), 1500);
     };
@@ -182,6 +184,7 @@ export function useGameSocket(options: GameSocketOptions): void {
       setConnectionState('disconnected');
       setGameReactions({});
       setSpecialPlayPileId(null);
+      setSpecialPlayLifeline(false);
     };
   }, [mode]);
 }

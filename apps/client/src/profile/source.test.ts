@@ -7,7 +7,7 @@ import { accountSource, localSource } from './source.js';
 
 const row = (gameId: string, endedAtMs: number, over: Partial<ResultRow> = {}): ResultRow => ({
   gameId, mode: 'multiplayer', outcome: 'won', startedAtMs: endedAtMs - 600_000, endedAtMs, durationMs: 600_000, turns: 9, playerCount: 2, robotCount: 0, cardsTotal: 98,
-  cardsLeft: 0, cardsPlayed: 40, totalMovement: 50, specialPlays: 1, skips: 0, trades: 0, lookups: 0, hints: 0, undos: 0, marks: 0, playedLastCard: false,
+  cardsLeft: 0, cardsPlayed: 40, totalMovement: 50, specialPlays: 1, skips: 0, trades: 0, lookups: 0, hints: 0, undos: 0, marks: 0, playedLastCard: false, lifelines: null, markFollows: null,
   handSize: 7, minCardsPerTurn: 2, maxCard: 99, cheatsAllowed: false, undoAllowed: false, ...over
 });
 const NOW = Date.parse('2026-11-20T12:00:00Z');

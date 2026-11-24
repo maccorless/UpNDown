@@ -22,7 +22,7 @@ describe('solitaire App', () => {
     expect(screen.getByRole('heading', { name: 'Your Hand' })).toBeTruthy();
 
     const cards = screen.getAllByTestId(/hand-card-/);
-    expect(cards.length).toBe(7);
+    expect(cards.length).toBe(8);
   });
 
   it('plays a selected card to a valid pile and updates top value', async () => {

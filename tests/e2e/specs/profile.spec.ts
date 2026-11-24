@@ -44,7 +44,7 @@ test('@smoke a guest\'s games stay after a reload, and the badges they earned ar
   await expect(page.getByRole('list', { name: 'Results, oldest first' }).getByRole('listitem')).toHaveCount(2);
   await page.getByRole('tab', { name: /^Achievements/ }).click();
   await expect(page.getByText('First Steps')).toBeVisible();
-  await expect(page.getByRole('status').filter({ hasText: /\d+ of 34 earned/ })).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: /\d+ of 36 earned/ })).toBeVisible();
 });
 
 for (const scheme of ['light', 'dark'] as const) {

@@ -3310,3 +3310,31 @@ dialog.modal-dialog.confirm-dialog { padding: 16px; background: var(--surface); 
 @media (prefers-reduced-motion: no-preference) {
   .badge-toast { animation: modal-in 0.25s ease-out; }
 }
+
+/* A game in progress that this browser can go back to: on the front page and at the top of the Multiplayer screen. */
+.rejoin-notice {
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  max-width: 34rem;
+  margin: 0 auto 1.25rem;
+  padding: 0.9rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1a1a2e;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.14);
+  text-align: center;
+}
+.rejoin-notice-title { margin: 0; font-weight: 700; }
+.rejoin-notice .rejoin-button { font-size: 1.05rem; }
+
+/* The full Monty: every card from 1 to 100, colored by where it is. Gray is a card that is not in this game. */
+.full-monty-summary { margin: 0.25rem 0 0.5rem; }
+.full-monty-legend { list-style: none; padding: 0; margin: 0 0 0.75rem; display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
+.full-monty-swatch { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: middle; }
+.full-monty-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.25rem, 1fr)); gap: 0.25rem; max-height: 55vh; overflow-y: auto; }
+.full-monty-cell { display: grid; place-items: center; min-height: 2.1rem; border-radius: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.monty-draw { background: #1d4ed8; color: #ffffff; }
+.monty-hand { background: #f59e0b; color: #1a1a2e; }
+.monty-played { background: #047857; color: #ffffff; }
+.monty-out { background: #9ca3af; color: #111827; }

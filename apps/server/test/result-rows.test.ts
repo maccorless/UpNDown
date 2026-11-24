@@ -21,8 +21,8 @@ const state = (over: Partial<GameState> = {}): GameState => ({
     startedAtMs: 1_000_000,
     endedAtMs: 1_090_000,
     players: {
-      p1: { cardsPlayed: 30, totalMovement: 150, specialPlays: 2, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 },
-      p2: { cardsPlayed: 20, totalMovement: -8, specialPlays: 5, nasCheatsUsed: 1, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, hintsUsed: 0 }
+      p1: { cardsPlayed: 30, totalMovement: 150, specialPlays: 2, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0 },
+      p2: { cardsPlayed: 20, totalMovement: -8, specialPlays: 5, nasCheatsUsed: 1, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0 }
     }
   },
   nasCheat: { enabledPlayerIds: [], usedThisTurnByPlayerId: {} },
@@ -104,7 +104,7 @@ describe('cheats in a result row', () => {
       statistics: {
         ...base.statistics,
         players: {
-          p1: { ...base.statistics.players.p1!, skipsUsed: 1, lookupsUsed: 4 },
+          p1: { ...base.statistics.players.p1!, skipsUsed: 1, lookupsUsed: 4, nasChecksUsed: 0, montyUsed: 0 },
           p2: { ...base.statistics.players.p2!, tradesUsed: 2, hintsUsed: 3 }
         }
       }

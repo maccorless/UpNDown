@@ -29,6 +29,9 @@ export interface GameResultRow {
   myUndos: number | null;
   myReactions: number | null;
   playedLastCard: boolean | null;
+  // Null for a row from before migration 006.
+  myLifelines: number | null;
+  myMarkFollows: number | null;
   handSize: number;
   minCardsPerTurn: number;
   maxCard: number;
@@ -86,23 +89,25 @@ const FOREIGN_KEY_VIOLATION = '23503';
 const INSERT_RESULT = `insert into game_results (user_id, game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count,
              cards_total, cards_left, my_cards_played, my_total_movement, my_special_plays, my_nas_cheats, hand_size,
              min_cards_per_turn, max_card, settings, my_skips, my_trades, my_lookups, my_hints, robot_count, my_undos, my_reactions,
-             played_last_card)
-           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, $22, $23, $24, $25, $26, $27)
+             played_last_card, my_lifelines, my_mark_follows)
+           values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19::jsonb, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29)
            on conflict (user_id, game_id) do nothing`;
 
 const insertValues = (row: GameResultRow): unknown[] => [row.userId, row.gameId, row.mode, row.outcome, row.startedAt, row.endedAt, row.durationMs, row.turns, row.playerCount,
   row.cardsTotal, row.cardsLeft, row.myCardsPlayed, row.myTotalMovement, row.mySpecialPlays, row.myNasCheats, row.handSize,
-  row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings), row.mySkips, row.myTrades, row.myLookups, row.myHints, row.robotCount, row.myUndos, row.myReactions, row.playedLastCard];
+  row.minCardsPerTurn, row.maxCard, JSON.stringify(row.settings), row.mySkips, row.myTrades, row.myLookups, row.myHints, row.robotCount, row.myUndos, row.myReactions, row.playedLastCard,
+  row.myLifelines, row.myMarkFollows];
 
 const RESULT_COLUMNS = `game_id, mode, outcome, started_at, ended_at, duration_ms, turns, player_count, cards_total, cards_left, my_cards_played,
   my_total_movement, my_special_plays, my_nas_cheats, my_skips, my_trades, my_lookups, my_hints, robot_count, my_undos, my_reactions,
-  played_last_card, hand_size, min_cards_per_turn, max_card, settings`;
+  played_last_card, my_lifelines, my_mark_follows, hand_size, min_cards_per_turn, max_card, settings`;
 
 interface ResultRecord {
   game_id: string; mode: 'solitaire' | 'multiplayer'; outcome: 'won' | 'lost' | 'abandoned'; started_at: Date; ended_at: Date; duration_ms: number;
   turns: number; player_count: number; cards_total: number; cards_left: number; my_cards_played: number; my_total_movement: number;
   my_special_plays: number; my_nas_cheats: number; my_skips: number; my_trades: number; my_lookups: number; my_hints: number;
   robot_count: number | null; my_undos: number | null; my_reactions: number | null; played_last_card: boolean | null;
+  my_lifelines: number | null; my_mark_follows: number | null;
   hand_size: number; min_cards_per_turn: number; max_card: number; settings: Record<string, unknown>;
 }
 
@@ -112,7 +117,8 @@ const storedRowFrom = (r: ResultRecord): GameResultRow => ({
   turns: r.turns, playerCount: r.player_count, cardsTotal: r.cards_total, cardsLeft: r.cards_left, myCardsPlayed: r.my_cards_played,
   myTotalMovement: r.my_total_movement, mySpecialPlays: r.my_special_plays, myNasCheats: r.my_nas_cheats, mySkips: r.my_skips,
   myTrades: r.my_trades, myLookups: r.my_lookups, myHints: r.my_hints, robotCount: r.robot_count, myUndos: r.my_undos,
-  myReactions: r.my_reactions, playedLastCard: r.played_last_card, handSize: r.hand_size, minCardsPerTurn: r.min_cards_per_turn,
+  myReactions: r.my_reactions, playedLastCard: r.played_last_card, myLifelines: r.my_lifelines, myMarkFollows: r.my_mark_follows,
+  handSize: r.hand_size, minCardsPerTurn: r.min_cards_per_turn,
   maxCard: r.max_card, settings: r.settings
 });
 

@@ -1,5 +1,5 @@
 import type { AddressInfo } from 'node:net';
-import { defaultSolitaireSettings } from '@upndown/shared-types';
+import { normalSolitaireSettings } from '@upndown/shared-types';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { AuthSettings } from '../src/auth/config.js';
 import { hashToken } from '../src/auth/sessions.js';
@@ -42,7 +42,7 @@ describe('POST /api/me/solitaire-results', () => {
     const ended = Date.now() - 2 * MIN;
     return {
       gameId: 'a3f1c9d2-5b7e-4c1a-9f20-1d2e3f4a5b6c', outcome: 'won', startedAtMs: ended - 20 * MIN, endedAtMs: ended, turns: 0,
-      cardsTotal: 98, cardsLeft: 0, cardsPlayed: 98, totalMovement: 411, specialPlays: 4, nasCheats: 0, settings: defaultSolitaireSettings, ...over
+      cardsTotal: 98, cardsLeft: 0, cardsPlayed: 98, totalMovement: 411, specialPlays: 4, nasCheats: 0, settings: normalSolitaireSettings, ...over
     };
   };
   const post = (cookie: string | undefined, body: unknown, headers: Record<string, string> = { 'content-type': 'application/json', origin: BASE }) =>
@@ -58,8 +58,8 @@ describe('POST /api/me/solitaire-results', () => {
       expect(store.results).toHaveLength(1);
       expect(store.results[0]).toMatchObject({
         userId, gameId: body.gameId, mode: 'solitaire', outcome: 'won', playerCount: 1, cardsTotal: 98, cardsLeft: 0,
-        myCardsPlayed: 98, myTotalMovement: 411, mySpecialPlays: 4, myNasCheats: 0, mySkips: 0, myTrades: 0, myLookups: 0, myHints: 0, handSize: defaultSolitaireSettings.handSize,
-        maxCard: defaultSolitaireSettings.maxCardValue, durationMs: 20 * MIN
+        myCardsPlayed: 98, myTotalMovement: 411, mySpecialPlays: 4, myNasCheats: 0, mySkips: 0, myTrades: 0, myLookups: 0, myHints: 0, handSize: normalSolitaireSettings.handSize,
+        maxCard: normalSolitaireSettings.maxCardValue, durationMs: 20 * MIN
       });
       expect(store.results[0]!.endedAt.getTime()).toBe(body.endedAtMs);
       expect(store.results[0]!.startedAt.getTime()).toBe(body.startedAtMs);
@@ -113,7 +113,7 @@ describe('POST /api/me/solitaire-results', () => {
       ['a negative number of cards', { cardsPlayed: -1 }],
       ['a fractional number', { turns: 1.5 }],
       ['text where a number belongs', { totalMovement: 'lots' }],
-      ['settings that are not valid', { settings: { ...defaultSolitaireSettings, handSize: 99 } }],
+      ['settings that are not valid', { settings: { ...normalSolitaireSettings, handSize: 99 } }],
       ['settings missing', { settings: undefined }]
     ])('%s', async (_why, over) => {
       const { cookie } = await account('g-ann');

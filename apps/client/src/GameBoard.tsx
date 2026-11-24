@@ -1,6 +1,6 @@
 import { isValidPlay, requiredCardsForTurn } from '@upndown/engine';
 import type { Card, GameState, ReactionState, ReactionType } from '@upndown/shared-types';
-import { deckProgress, isBackwardTen, PLAYER_COLOR_HEX, turnProgress } from './board-helpers.js';
+import { deckProgress, isBackwardTen, PLAYER_COLOR_HEX, specialFlashLabel, turnProgress } from './board-helpers.js';
 import { Modal } from './Modal.js';
 import { useEffect, useState } from 'react';
 import { ConnectionNotices, hasConnectionNotices } from './ConnectionNotices.js';
@@ -43,6 +43,8 @@ interface GameBoardProps {
   onSetReaction?: (pileId: number, reactionType: ReactionType | null) => void;
   gameReactions?: ReactionState;
   specialPlayPileId?: number | null | undefined;
+  // The flash says Lifeline instead of the usual 10 when the play was the only way forward.
+  specialPlayLifeline?: boolean | undefined;
   onUndo?: (() => void) | undefined;
   canUndo?: boolean | undefined;
   onKickPlayer?: ((targetPlayerId: string) => void) | undefined;
@@ -81,6 +83,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
     onSetReaction,
     gameReactions = {},
     specialPlayPileId: specialPlayPileIdProp = null,
+    specialPlayLifeline = false,
     onUndo,
     canUndo,
     onKickPlayer,
@@ -202,7 +205,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
             const pileTypeClass = pile.type === 'ascending' ? 'asc' : 'desc';
             const hasReactionRows = leftPlayers.length > 0 || rightPlayers.length > 0;
             const isSpecialFlash = specialPlayPileIdProp === pile.id;
-            const specialLabel = pile.type === 'ascending' ? '🔥 -10! 🔥' : '🔥 +10! 🔥';
+            const specialLabel = specialFlashLabel(pile.type, specialPlayLifeline);
             const pileArrow = (
               <svg className={`pile-arrow ${pile.type === 'ascending' ? 'up' : 'down'}`} viewBox="0 0 14 22" aria-hidden="true" focusable="false">
                 <path d="M7 0 L14 9 L9.5 9 L9.5 22 L4.5 22 L4.5 9 L0 9 Z" />

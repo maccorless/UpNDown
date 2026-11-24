@@ -5,9 +5,10 @@ const MIN = 60_000;
 
 // A room with nobody connected is not necessarily dead: everyone's phone can drop at once and come back. Deleting a
 // started game is destructive and silent (no result is written), so what removes rooms, and when, has to be pinned.
+// These are guest tables. A table where everyone is signed in is kept for a week (signed-in-games.test.ts).
 describe('what removes rooms with nobody connected', () => {
   const startedRoom = () => {
-    const l = lobbyWithUsers([{ id: 'p1', userId: 'u1' }, { id: 'p2', userId: 'u2' }]);
+    const l = lobbyWithUsers([{ id: 'p1' }, { id: 'p2' }]);
     l.manager.startGame('p1', l.gameId);
     return l;
   };

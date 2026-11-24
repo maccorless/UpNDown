@@ -9,7 +9,7 @@ import { spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { defaultMultiplayerSettings, defaultSolitaireSettings, type GameSettings } from '@upndown/shared-types';
+import { defaultMultiplayerSettings, defaultSolitaireSettings, normalSolitaireSettings, type GameSettings } from '@upndown/shared-types';
 import { compare, DEFAULT_SENDER, DEFAULT_WEIGHTS, playGame, playSet, receiverPolicy, searchPolicy, scoreGame, seededRandom, seedsFor, STAGE_TABLES, summarize, tableById, weightedPolicy, type GameRecord, type SeedSet, type StrategyWeights } from '../src/index.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -19,8 +19,11 @@ interface Setting { label: string; settings: GameSettings; players: number }
 
 // The tables a strategy is judged on.
 const SETTINGS: Record<string, Setting> = {
-  solo: { label: 'solitaire, the default deck', settings: { ...defaultSolitaireSettings }, players: 1 },
+  // The normal preset, which the earlier tuning used. The player default is Easy now; see normalSolitaireSettings.
+  solo: { label: 'solitaire, normal (99 cards, hand of 7, two cards a turn)', settings: { ...normalSolitaireSettings }, players: 1 },
+  'solo-trivial': { label: 'solitaire, trivial preset (29 cards, hand of 9, one card a turn)', settings: { ...defaultSolitaireSettings, maxCardValue: 29, handSize: 9, minCardsPerTurn: 1 }, players: 1 },
   'solo-easy': { label: 'solitaire, easy (59 cards, hand of 8, one card a turn)', settings: { ...defaultSolitaireSettings, maxCardValue: 59, handSize: 8, minCardsPerTurn: 1 }, players: 1 },
+  'solo-hard': { label: 'solitaire, hard preset (99 cards, hand of 6, three cards a turn)', settings: { ...normalSolitaireSettings, handSize: 6, minCardsPerTurn: 3 }, players: 1 },
   table2: { label: 'two players, the default deck', settings: { ...defaultMultiplayerSettings, autoRefillHand: false, handSize: 7, minCardsPerTurn: 2 }, players: 2 },
   table4: { label: 'four players, the default deck', settings: { ...defaultMultiplayerSettings, autoRefillHand: false, handSize: 7, minCardsPerTurn: 2 }, players: 4 }
 };
@@ -34,19 +37,21 @@ const BOUNDS: Record<Tunable, [number, number]> = {
 };
 const KEYS = Object.keys(BOUNDS) as Tunable[];
 
-interface Score { reward: number; winRate: number; cardsLeft: number }
+interface Score { reward: number; winRate: number; cardsLeft: number; lifelines: number }
 
 function evaluate(setting: Setting, weights: StrategyWeights, games: number, firstSeed: number): Score {
   let total = 0;
   let wins = 0;
   let left = 0;
+  let lifelines = 0;
   for (let i = 0; i < games; i += 1) {
     const record = playGame(setting.settings, setting.players, firstSeed + i, weights);
     total += reward(record);
     if (record.outcome === 'won') wins += 1;
     left += record.cardsLeft;
+    lifelines += record.lifelines ?? 0;
   }
-  return { reward: total / games, winRate: wins / games, cardsLeft: left / games };
+  return { reward: total / games, winRate: wins / games, cardsLeft: left / games, lifelines: lifelines / games };
 }
 
 // Nudges some of the weights, within their bounds.
@@ -82,7 +87,9 @@ function play(): void {
   const games = Number(arg('games', '500'));
   const seed = Number(arg('seed', '1'));
   console.log(`${setting.label}: ${games} games from seed ${seed}`);
-  console.log(show('weights', evaluate(setting, DEFAULT_WEIGHTS, games, seed)));
+  const score = evaluate(setting, DEFAULT_WEIGHTS, games, seed);
+  console.log(show('weights', score));
+  console.log(`lifelines per player per game: ${(score.lifelines / setting.players).toFixed(3)}`);
   void name;
 }
 
@@ -148,7 +155,7 @@ function calibrate(): void {
   for (const players of [1, 2, 4]) {
     for (const top of [29, 39, 49, 59, 79, 99]) {
       for (const hand of [7, 9, 11]) {
-        const base = players === 1 ? defaultSolitaireSettings : defaultMultiplayerSettings;
+        const base = players === 1 ? normalSolitaireSettings : defaultMultiplayerSettings;
         const minCardsPerTurn = 2;
         const settings: GameSettings = { ...base, maxCardValue: top, handSize: hand, minCardsPerTurn, autoRefillHand: players === 1, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off' }, allowCardLookup: false };
         if (Math.floor((top - 1) / hand) < players) continue;

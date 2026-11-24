@@ -1,6 +1,7 @@
 import { shortPlayerName } from '@upndown/shared-types';
 import { useState } from 'react';
 import { Modal } from './Modal.js';
+import { RejoinNotice } from './RejoinNotice.js';
 import { SignInCard } from './auth/SignInCard.js';
 import { describeAge, type SaveSummary } from './solitaire-save.js';
 import type { SeatOffer } from './useSavedSeat.js';
@@ -48,6 +49,8 @@ export function Landing({ auth, firstVisit, onSolitaire, solitaireSaves, onResum
     <section className={`landing-hero${enter ? ' landing-enter' : ''}`} aria-label="Choose how to play">
       <p className="hero-tagline">A cooperative card game. Win together or lose together.</p>
 
+      <RejoinNotice seats={rejoinSeats} onRejoin={onRejoin} />
+
       <div className="mode-cards">
         <button type="button" className="mode-card" onClick={onSolitaire} data-testid="mode-solitaire">
           <Chips values={[1, 34, 67]} direction="up" />
@@ -61,12 +64,6 @@ export function Landing({ auth, firstVisit, onSolitaire, solitaireSaves, onResum
         </button>
       </div>
 
-      {rejoinSeats.map((seat) => (
-        <p className="resume-note" key={seat.seatKey}>
-          You have a game in progress.{' '}
-          <button type="button" className="link-action" onClick={() => onRejoin(seat.seatKey)} data-testid="rejoin-game">Rejoin game {seat.gameId}</button>
-        </p>
-      ))}
 
       {solitaireSaves.map((save) => (
         <p className="resume-note" key={save.runId} data-testid="solitaire-save">

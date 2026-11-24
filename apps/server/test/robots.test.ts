@@ -164,15 +164,18 @@ describe('when robots may act', () => {
     expect(l.room().gameState.statistics.players[l.room().gameState.players.find((p) => p.robot)!.id]!.cardsPlayed).toBeGreaterThan(0);
   });
 
+  // A table with a guest in it: a table where everyone is signed in keeps a week instead (signed-in-games.test.ts).
   it('ends a game with robots and nobody left after the kick time, as abandoned for each signed-in person', () => {
-    const l = playing(2);
+    const l = lobbyWithUsers([{ id: 'h1', userId: 'u1', name: 'Person 1' }, { id: 'h2', name: 'Guest' }]);
+    l.manager.addRobot('h1', l.gameId);
+    l.manager.startGame('h1', l.gameId);
     l.manager.markDisconnected('h1', 1_000);
     expect(l.manager.abandonIfOnlyRobotsRemain(l.gameId, 1_000 + 95_000)).toBe(false); // h2 is still here
     l.manager.markDisconnected('h2', 2_000);
     expect(l.manager.abandonIfOnlyRobotsRemain(l.gameId, 2_000 + 89_000)).toBe(false); // not long enough
     expect(l.manager.abandonIfOnlyRobotsRemain(l.gameId, 2_000 + 91_000)).toBe(true);
     expect(l.manager.peekState(l.gameId)).toBeUndefined();
-    expect(l.rows().map((r) => [r.userId, r.outcome]).sort()).toEqual([['u1', 'abandoned'], ['u2', 'abandoned']]);
+    expect(l.rows().map((r) => [r.userId, r.outcome])).toEqual([['u1', 'abandoned']]);
   });
 
   it('leaves a game with no robots alone, however long its people are away, so a restart can still be recovered', () => {

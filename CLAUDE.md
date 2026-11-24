@@ -185,7 +185,7 @@ Server-push events (no ack): `game:updated`, `game:kicked`.
 | Hand size | 5–11 cards (default 7) |
 | Card values | 2–99 (default range) |
 | Min cards per turn | 2 (default) |
-| State persistence | In memory; games being played are also saved to Postgres where a database is connected (24 hour limit) |
+| State persistence | In memory; games being played are also saved to Postgres where a database is connected (kept 7 days after the last move for signed-in tables, 30 minutes for tables with a guest) |
 
 ---
 

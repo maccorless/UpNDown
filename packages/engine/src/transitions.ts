@@ -8,10 +8,10 @@ import type {
   PlayerColor,
   PlayerStatistics
 } from '@upndown/shared-types';
-import { cheatLimitOf, PLAYER_COLORS } from '@upndown/shared-types';
+import { cheatLimitOf, isNasName, PLAYER_COLORS } from '@upndown/shared-types';
 import { createFoundationPiles } from './init.js';
 import { EngineError } from './errors.js';
-import { isValidPlay, requiredCardsForTurn } from './rules.js';
+import { hasNormalPlay, isValidPlay, requiredCardsForTurn } from './rules.js';
 
 interface EnginePlayerInput {
   id: string;
@@ -42,9 +42,13 @@ export function emptyPlayerStats(): PlayerStatistics {
     skipsUsed: 0,
     tradesUsed: 0,
     lookupsUsed: 0,
+    nasChecksUsed: 0,
+    montyUsed: 0,
     hintsUsed: 0,
     undosUsed: 0,
-    marksPlaced: 0
+    marksPlaced: 0,
+    lifelines: 0,
+    markFollows: 0
   };
 }
 
@@ -294,7 +298,9 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
   return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(state)));
 }
 
-export function playCard(state: GameState, playerId: string, cardId: string, pileId: number): GameState {
+// `markedBy` are the seated people whose hand-placed mark was up on this pile when the card went down. The server knows the
+// marks; the engine only counts them, and each one earns a follow. A player is never credited for their own play.
+export function playCard(state: GameState, playerId: string, cardId: string, pileId: number, markedBy: readonly string[] = []): GameState {
   if (state.gamePhase !== 'playing') {
     throw new EngineError('GAME_NOT_PLAYING', 'Cannot play a card when game is not in playing phase');
   }
@@ -348,12 +354,22 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     throw new EngineError('INVALID_PLAY', 'Card cannot be played on selected foundation pile');
   }
 
+  // Checked before the pile moves. The card is out of the hand by now, so it is put back: a lifeline is a backward 10 where
+  // no card the player had, this one included, had a normal play on either pile.
+  const lifeline = !hasNormalPlay([...player.hand, card], nextState.foundationPiles);
+  for (const markerId of new Set(markedBy)) {
+    if (markerId === playerId) continue;
+    const marker = { ...emptyPlayerStats(), ...nextState.statistics.players[markerId] };
+    nextState.statistics.players[markerId] = { ...marker, markFollows: marker.markFollows + 1 };
+  }
+
   const previousTopValue = pile.topCard.value;
   pile.topCard = card;
   nextState.cardsPlayedThisTurn += 1;
   nextState.consecutiveSkips = 0;
 
-  const activeStats = nextState.statistics.players[player.id] ?? emptyPlayerStats();
+  // Merged with the defaults so a game saved before a counter existed reads it as zero, not as undefined.
+  const activeStats = { ...emptyPlayerStats(), ...nextState.statistics.players[player.id] };
   const movementDelta = card.value - previousTopValue;
   // Net progress along the pile's direction: a backward 10 takes ten away, so the total matches where the piles ended.
   const movement = pile.type === 'ascending' ? movementDelta : -movementDelta;
@@ -365,7 +381,8 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     ...activeStats,
     cardsPlayed: activeStats.cardsPlayed + 1,
     totalMovement: activeStats.totalMovement + movement,
-    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0)
+    specialPlays: activeStats.specialPlays + (isBackwardTen ? 1 : 0),
+    lifelines: activeStats.lifelines + (lifeline ? 1 : 0)
   };
 
   if (nextState.isSolitaire || nextState.settings.autoRefillHand) {
@@ -392,7 +409,7 @@ export function carryAfterUndo(restored: GameState, current: GameState, undoingP
       players: Object.fromEntries(Object.entries(restored.statistics.players).map(([id, stats]) => {
         const now = current.statistics.players[id];
         const kept = now
-          ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, hintsUsed: now.hintsUsed, marksPlaced: now.marksPlaced, undosUsed: now.undosUsed }
+          ? { ...stats, skipsUsed: now.skipsUsed, tradesUsed: now.tradesUsed, lookupsUsed: now.lookupsUsed, nasChecksUsed: now.nasChecksUsed, montyUsed: now.montyUsed, hintsUsed: now.hintsUsed, marksPlaced: now.marksPlaced, undosUsed: now.undosUsed }
           : stats;
         return [id, id === undoingPlayerId ? { ...kept, undosUsed: kept.undosUsed + 1 } : kept];
       }))
@@ -473,13 +490,28 @@ export function settleAfterRemoval(state: GameState): GameState {
 
 // A cheat is allowed when its setting is not off and, under "once", this player has not used it yet. Counts are the
 // player's own, so a rejoin (which moves the seat's statistics) keeps them.
+// The Nas check and the full Monty are lookups too, so each counts in lookupsUsed as well as its own counter. The card seeker's
+// own count is the lookups that were neither, so each of the three cheats has its own "once".
+type CheatCounter = 'skipsUsed' | 'tradesUsed' | 'lookupsUsed' | 'nasChecksUsed' | 'montyUsed' | 'hintsUsed';
+const countersOf = (kind: CheatKind): CheatCounter[] =>
+  kind === 'skip' ? ['skipsUsed'] : kind === 'trade' ? ['tradesUsed'] : kind === 'lookup' ? ['lookupsUsed']
+    : kind === 'nas' ? ['lookupsUsed', 'nasChecksUsed'] : kind === 'monty' ? ['lookupsUsed', 'montyUsed'] : ['hintsUsed'];
+
 const usedCount = (stats: PlayerStatistics, kind: CheatKind): number =>
-  kind === 'skip' ? stats.skipsUsed : kind === 'trade' ? stats.tradesUsed : kind === 'lookup' ? stats.lookupsUsed : stats.hintsUsed;
+  kind === 'nas' ? stats.nasChecksUsed
+    : kind === 'monty' ? stats.montyUsed
+    : kind === 'lookup' ? stats.lookupsUsed - stats.nasChecksUsed - stats.montyUsed
+    : kind === 'skip' ? stats.skipsUsed
+    : kind === 'trade' ? stats.tradesUsed
+    : stats.hintsUsed;
 
 export function assertCheatAvailable(state: GameState, playerId: string, kind: CheatKind): void {
   const limit = cheatLimitOf(state.settings, kind);
   if (limit === 'off') {
     throw new EngineError('INVALID_PLAY', 'This cheat is not enabled for this game');
+  }
+  if (kind === 'nas' && !isNasName(state.players.find((player) => player.id === playerId)?.name ?? '')) {
+    throw new EngineError('INVALID_PLAY', 'Only a player named Nas can use the Nas check');
   }
   const stats = state.statistics.players[playerId] ?? emptyPlayerStats();
   if (limit === 'once' && usedCount(stats, kind) >= 1) {
@@ -489,12 +521,13 @@ export function assertCheatAvailable(state: GameState, playerId: string, kind: C
 
 function withCheatCounted(state: GameState, playerId: string, kind: CheatKind): GameState {
   const stats = state.statistics.players[playerId] ?? emptyPlayerStats();
-  const field = kind === 'skip' ? 'skipsUsed' : kind === 'trade' ? 'tradesUsed' : kind === 'lookup' ? 'lookupsUsed' : 'hintsUsed';
+  const next: PlayerStatistics = { ...stats };
+  for (const counter of countersOf(kind)) next[counter] = stats[counter] + 1;
   return {
     ...state,
     statistics: {
       ...state.statistics,
-      players: { ...state.statistics.players, [playerId]: { ...stats, [field]: stats[field] + 1 } }
+      players: { ...state.statistics.players, [playerId]: next }
     }
   };
 }

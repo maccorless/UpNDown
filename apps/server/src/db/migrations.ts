@@ -105,5 +105,14 @@ alter table game_results
   add column my_reactions int,
   add column played_last_card boolean;
 `
+  },
+  {
+    // Lifelines and mark follows, counted from this release on. Nullable: a row from before has no count, which is unknown, not zero.
+    id: '006_lifelines_and_follows',
+    sql: `
+alter table game_results
+  add column my_lifelines int,
+  add column my_mark_follows int;
+`
   }
 ];

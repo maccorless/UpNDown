@@ -6,6 +6,8 @@ interface CheatsPanelProps {
   statuses: CheatStatus[];
   onClose: () => void;
   onLookup: () => void;
+  onNas: () => void;
+  onMonty: () => void;
   onHint: () => void;
   onSkip: () => void;
   onTrade: () => void;
@@ -15,21 +17,25 @@ interface CheatsPanelProps {
   busy: boolean;
 }
 
-const HELP: Record<'lookup' | 'hint' | 'skip' | 'trade', string> = {
+const HELP: Record<'lookup' | 'nas' | 'monty' | 'hint' | 'skip' | 'trade', string> = {
   hint: 'Suggests a play. Only you see it.',
   lookup: 'Find out where a card is. Only you see the answer.',
+  nas: 'Find out where a card is, as a player named Nas. Only you see the answer, and nobody is told you used it.',
+  monty: 'See every card from 1 to 100 at once: in the draw pile, in a hand, or played. Only you see it.',
   skip: 'Pass your turn without playing the minimum. Use it before you are stuck.',
   trade: 'Swap the selected card for the next card from the draw pile.'
 };
 
 // The cheats a game allows, each a button. One already used up under a "once" limit is grayed out and says so in words, not
 // only in color. Opened by double tapping the logo, the Cheats menu entry, or the keyboard.
-export function CheatsPanel({ statuses, onClose, onLookup, onHint, onSkip, onTrade, busy, startWithSkipConfirm = false }: CheatsPanelProps): JSX.Element {
+export function CheatsPanel({ statuses, onClose, onLookup, onNas, onMonty, onHint, onSkip, onTrade, busy, startWithSkipConfirm = false }: CheatsPanelProps): JSX.Element {
   const [confirmingSkip, setConfirmingSkip] = useState(startWithSkipConfirm);
   const act = (kind: CheatStatus['kind']): void => {
     if (kind === 'skip') setConfirmingSkip(true);
     else if (kind === 'trade') { onTrade(); onClose(); }
     else if (kind === 'lookup') { onLookup(); onClose(); }
+    else if (kind === 'nas') { onNas(); onClose(); }
+    else if (kind === 'monty') { onMonty(); onClose(); }
     else if (kind === 'hint') { onHint(); onClose(); }
   };
 
@@ -52,7 +58,7 @@ export function CheatsPanel({ statuses, onClose, onLookup, onHint, onSkip, onTra
       {statuses.length === 0 ? <p>This game has no cheats turned on.</p> : (
         <ul className="cheats-list">
           {statuses.map((status) => {
-            const kind = status.kind as 'lookup' | 'hint' | 'skip' | 'trade';
+            const kind = status.kind as 'lookup' | 'nas' | 'monty' | 'hint' | 'skip' | 'trade';
             return (
               <li key={status.kind} className="cheats-item">
                 <button

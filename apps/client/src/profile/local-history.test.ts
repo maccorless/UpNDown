@@ -27,7 +27,7 @@ class FakeStorage implements Storage {
 
 const row = (gameId: string, over: Partial<ResultRow> = {}): ResultRow => ({
   gameId, mode: 'solitaire', outcome: 'won', startedAtMs: 1, endedAtMs: 61, durationMs: 60, turns: 5, playerCount: 1, robotCount: 0, cardsTotal: 98, cardsLeft: 0,
-  cardsPlayed: 98, totalMovement: 100, specialPlays: 0, skips: 0, trades: 0, lookups: 0, hints: 0, undos: 0, marks: 0, playedLastCard: true,
+  cardsPlayed: 98, totalMovement: 100, specialPlays: 0, skips: 0, trades: 0, lookups: 0, hints: 0, undos: 0, marks: 0, playedLastCard: true, lifelines: null, markFollows: null,
   handSize: 7, minCardsPerTurn: 2, maxCard: 99, cheatsAllowed: false, undoAllowed: false, ...over
 });
 
