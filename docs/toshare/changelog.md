@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-24 | — | Feat: The Full Monty is a ten by ten grid, so a card and the one ten above or below it share a column; your own hand is violet, other players' hands amber, and the cards on top of the piles are hatched
 | 2026-11-24 | — | Feat: next to each robot, the cards it played on its last turn (or "skipped"), so the quick robot plays can be followed. Public state, kept until its next turn
 | 2026-11-24 | — | Fix: the Change to Multiplayer and Change to Solitaire buttons switch the mode; they used to go back to the choice of mode |
 | 2026-11-24 | — | Feat: the solitaire setup screen lists your own settings (sound effects, pile arrows), and the multiplayer start screen lists the table settings and yours |

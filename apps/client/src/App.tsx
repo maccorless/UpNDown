@@ -770,7 +770,7 @@ export function App(): JSX.Element {
       try {
         const counted = recordCheatUse(solitaireState, SOLO_PLAYER_ID, 'monty');
         setSolitaireState(counted);
-        setMontyCells(fullMontyCells(counted));
+        setMontyCells(fullMontyCells(counted, SOLO_PLAYER_ID));
         setError(null);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to use the full Monty');

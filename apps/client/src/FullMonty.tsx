@@ -5,20 +5,23 @@ import { Modal } from './Modal.js';
 // What each color means, in words too, so nobody has to tell the colors apart to read the grid.
 const STATUS_LABEL: Record<MontyCell, string> = {
   draw: 'In the draw pile',
-  hand: 'In a hand',
+  mine: 'In your hand',
+  hand: 'In another player’s hand',
+  top: 'On top of a pile',
   played: 'Played to a pile',
   out: 'Not one of this game’s cards'
 };
-const STATUSES: MontyCell[] = ['draw', 'hand', 'played', 'out'];
+const STATUSES: MontyCell[] = ['draw', 'mine', 'hand', 'top', 'played', 'out'];
 
-// The full Monty: every card from 1 to 100, colored by where it is. A gray card is not one of this game's cards at all.
+// The full Monty: every card from 1 to 100 in ten rows of ten, so a card and the one ten above or below it share a column. Colored
+// by where each card is. A gray card is not one of this game's cards at all.
 export function FullMontyModal({ cells, onClose }: { cells: MontyCell[]; onClose: () => void }): JSX.Element {
   const count = (status: MontyCell): number => cells.filter((cell) => cell === status).length;
   return (
     <Modal className="panel full-monty-modal" dismiss="any" label="The Full Monty" onClose={onClose}>
       <h2>The Full Monty</h2>
       <p className="full-monty-summary">
-        {count('draw')} in the draw pile, {count('hand')} in hands, {count('played')} played. {count('out')} are not cards in this game.
+        {count('draw')} in the draw pile, {count('mine')} in your hand, {count('hand')} in other hands, {count('top')} on top of the piles, {count('played')} played and no longer on top. {count('out')} are not cards in this game.
       </p>
       <ul className="full-monty-legend">
         {STATUSES.map((status) => (

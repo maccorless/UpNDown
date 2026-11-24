@@ -27,13 +27,13 @@ describe('the full Monty', () => {
   it('has one cell for every card from 1 to 100, in order', () => {
     expect(MONTY_GRID_MIN).toBe(1);
     expect(MONTY_GRID_MAX).toBe(100);
-    expect(fullMontyCells(table(settingsWith({}))).length).toBe(100);
+    expect(fullMontyCells(table(settingsWith({})), 'p1').length).toBe(100);
   });
 
   it('shows the draw pile, the hands and the played cards of a game, and grays every card outside its range', () => {
-    const cells = fullMontyCells(table(settingsWith({}, [2, 59])));
+    const cells = fullMontyCells(table(settingsWith({}, [2, 59])), 'p1');
     expect(cells[9]).toBe('draw'); // 10
-    expect(cells[19]).toBe('hand'); // 20
+    expect(cells[19]).toBe('mine'); // 20, in Ken's hand (p1)
     expect(cells[29]).toBe('hand'); // 30
     expect(cells[1]).toBe('played'); // 2, in range and in neither the draw pile nor a hand
     expect(cells[0]).toBe('out'); // 1
@@ -41,14 +41,37 @@ describe('the full Monty', () => {
   });
 
   it('accounts for every card in the game exactly once, so the counts add up to the deck and the rest is gray', () => {
-    const cells = fullMontyCells(table(settingsWith({}, [2, 59])));
-    expect(count(cells, 'draw') + count(cells, 'hand') + count(cells, 'played')).toBe(58);
+    const cells = fullMontyCells(table(settingsWith({}, [2, 59])), 'p1');
+    expect(count(cells, 'draw') + count(cells, 'mine') + count(cells, 'hand') + count(cells, 'played')).toBe(58);
     expect(count(cells, 'out')).toBe(42);
   });
 
-  it('does not depend on who asks: the grid is the same for every player at the table', () => {
+  it("marks the viewer own hand apart from the other players hands, and changes nothing else with who asks", () => {
     const state = table(settingsWith({}));
-    expect(fullMontyCells(state)).toEqual(fullMontyCells({ ...state, players: [...state.players].reverse() }));
+    const asKen = fullMontyCells(state, 'p1');
+    const asAnn = fullMontyCells(state, 'p2');
+    expect(asKen[19]).toBe('mine'); // 20 is Ken's
+    expect(asKen[29]).toBe('hand'); // 30 is Ann's
+    expect(asAnn[29]).toBe('mine');
+    expect(asAnn[19]).toBe('hand');
+    const others = (cells: MontyCell[]) => cells.filter((_, i) => i !== 19 && i !== 29);
+    expect(others(asKen)).toEqual(others(asAnn));
+  });
+
+  it('marks a played card that is still on top of a pile, and leaves the ones underneath as played', () => {
+    const state = table(settingsWith({}, [2, 59]));
+    state.foundationPiles = [
+      { id: 0, type: 'ascending', topCard: card(4) },
+      { id: 1, type: 'ascending', topCard: card(6) },
+      { id: 2, type: 'descending', topCard: card(40) },
+      { id: 3, type: 'descending', topCard: card(35) }
+    ];
+    const cells = fullMontyCells(state, 'p1');
+    expect(cells[3]).toBe('top'); // 4
+    expect(cells[5]).toBe('top'); // 6
+    expect(cells[39]).toBe('top'); // 40
+    expect(cells[34]).toBe('top'); // 35
+    expect(cells[4]).toBe('played'); // 5
   });
 
   it('is a use of its own cheat under its own once, and also counts as a lookup, but does not spend the card seeker\'s once', () => {

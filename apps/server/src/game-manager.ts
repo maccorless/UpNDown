@@ -1413,7 +1413,7 @@ export class GameManager {
     const room = this.requireRoom(gameId);
     room.gameState = recordCheatUse(room.gameState, playerId, 'monty');
     room.updatedAtMs = Date.now();
-    return fullMontyCells(room.gameState);
+    return fullMontyCells(room.gameState, playerId);
   }
 
   private requireRoom(gameId: string): GameRoom {

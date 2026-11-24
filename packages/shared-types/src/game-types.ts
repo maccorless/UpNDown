@@ -62,7 +62,8 @@ export const isNasName = (name: string): boolean => /^nas(-\d+)?$/.test(name.tri
 // The full Monty shows every card from 1 to 100. Cards outside the game's range are grayed out.
 export const MONTY_GRID_MIN = 1;
 export const MONTY_GRID_MAX = 100;
-export type MontyCell = 'draw' | 'hand' | 'played' | 'out';
+// 'mine': in your hand. 'hand': in another player's hand. 'top': a played card that is on top of a foundation pile.
+export type MontyCell = 'draw' | 'mine' | 'hand' | 'top' | 'played' | 'out';
 export const inCardRange = (settings: Pick<GameSettings, 'minCardValue' | 'maxCardValue'>, value: number): boolean =>
   value >= settings.minCardValue && value <= settings.maxCardValue;
 

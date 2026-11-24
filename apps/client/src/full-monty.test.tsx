@@ -33,7 +33,18 @@ describe('the full Monty grid', () => {
     render(<FullMontyModal cells={cells()} onClose={vi.fn()} />);
     expect(screen.getByRole('listitem', { name: '10, In the draw pile' })).toBeTruthy();
     expect(screen.getByRole('listitem', { name: '60, Not one of this game’s cards' })).toBeTruthy();
-    expect(screen.getByText(/1 in the draw pile, 1 in hands, 56 played\. 42 are not cards in this game\./)).toBeTruthy();
+    expect(screen.getByText(/1 in the draw pile, 0 in your hand, 1 in other hands, 0 on top of the piles, 56 played and no longer on top\. 42 are not cards in this game\./)).toBeTruthy();
+  });
+});
+
+describe('the full Monty grid, by whose hand and what is on top', () => {
+  it('marks your own hand in its own color, and the cards on top of the piles with a hatch', () => {
+    const grid: MontyCell[] = cells().map((status, i) => (i === 19 ? 'mine' : i === 4 ? 'top' : status));
+    render(<FullMontyModal cells={grid} onClose={vi.fn()} />);
+    const items = within(screen.getByRole('list', { name: 'Every card from 1 to 100' })).getAllByRole('listitem');
+    expect(items[19]!.className).toContain('monty-mine');
+    expect(items[4]!.className).toContain('monty-top');
+    expect(screen.getByRole('listitem', { name: '5, On top of a pile' })).toBeTruthy();
   });
 });
 

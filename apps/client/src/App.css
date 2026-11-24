@@ -3332,11 +3332,13 @@ dialog.modal-dialog.confirm-dialog { padding: 16px; background: var(--surface); 
 .full-monty-summary { margin: 0.25rem 0 0.5rem; }
 .full-monty-legend { list-style: none; padding: 0; margin: 0 0 0.75rem; display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; }
 .full-monty-swatch { display: inline-block; width: 0.9rem; height: 0.9rem; border-radius: 3px; margin-right: 0.4rem; vertical-align: middle; }
-.full-monty-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(2.25rem, 1fr)); gap: 0.25rem; max-height: 55vh; overflow-y: auto; }
-.full-monty-cell { display: grid; place-items: center; min-height: 2.1rem; border-radius: 6px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.full-monty-grid { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 0.25rem; max-height: 60vh; overflow-y: auto; }
+.full-monty-cell { display: grid; place-items: center; min-height: 2rem; border-radius: 6px; font-size: 0.8rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .monty-draw { background: #1d4ed8; color: #ffffff; }
 .monty-hand { background: #f59e0b; color: #1a1a2e; }
 .monty-played { background: #047857; color: #ffffff; }
+.monty-mine { background: #7c3aed; color: #ffffff; }
+.monty-top { background: repeating-linear-gradient(-45deg, rgba(255, 255, 255, 0.45) 0 2px, transparent 2px 6px), #047857; color: #ffffff; }
 .monty-out { background: #9ca3af; color: #111827; }
 
 /* What a robot played on its last turn, beside its name. Robots play too fast to follow, so this stays up until the next turn. */
