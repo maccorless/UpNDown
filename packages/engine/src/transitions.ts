@@ -352,6 +352,7 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
   const previousTopValue = pile.topCard.value;
   pile.topCard = card;
   nextState.cardsPlayedThisTurn += 1;
+  nextState.turnPlays = [...(state.turnPlays ?? []), card];
   nextState.consecutiveSkips = 0;
 
   // Merged with the defaults so a game saved before a counter existed reads it as zero, not as undefined.
@@ -431,6 +432,8 @@ export function endTurn(state: GameState, playerId: string): GameState {
     foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
     drawPile: [...state.drawPile],
     cardsPlayedThisTurn: 0,
+    lastTurnPlays: { ...state.lastTurnPlays, [playerId]: state.turnPlays ?? [] },
+    turnPlays: [],
     statistics: {
       ...state.statistics,
       turns: state.statistics.turns + 1,
@@ -594,6 +597,7 @@ export function skipTurn(state: GameState, playerId: string): GameState {
     foundationPiles: counted.foundationPiles.map((pile) => ({ ...pile })),
     drawPile: [...counted.drawPile],
     cardsPlayedThisTurn: 0,
+    lastTurnPlays: { ...counted.lastTurnPlays, [playerId]: [] },
     consecutiveSkips: streak,
     statistics: { ...counted.statistics, turns: counted.statistics.turns + 1 }
   };

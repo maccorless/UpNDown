@@ -127,6 +127,10 @@ export interface GameState {
   isSolitaire: boolean;
   // Skips in a row with no card played in between; a full round of them ends the game as a loss.
   consecutiveSkips?: number | undefined;
+  // The cards each player played on their most recent turn, in the order played (an empty list after a skip), and the cards
+  // played so far on the turn in progress. Public, so every player sees them. Absent in games saved before this existed.
+  lastTurnPlays?: Record<string, Card[]> | undefined;
+  turnPlays?: Card[] | undefined;
   reconnection?: ReconnectionView;
 }
 

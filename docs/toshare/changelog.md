@@ -6,6 +6,7 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-24 | — | Feat: next to each robot, the cards it played on its last turn (or "skipped"), so the quick robot plays can be followed. Public state, kept until its next turn
 | 2026-11-24 | — | Fix: the Change to Multiplayer and Change to Solitaire buttons switch the mode; they used to go back to the choice of mode |
 | 2026-11-24 | — | Feat: the solitaire setup screen lists your own settings (sound effects, pile arrows), and the multiplayer start screen lists the table settings and yours |
 | 2026-11-24 | — | Feat: after a game ends, any player still at the table can press Play Again (it was host only); the lobby's Start stays the host's |

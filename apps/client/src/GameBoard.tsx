@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { ConnectionNotices, hasConnectionNotices } from './ConnectionNotices.js';
 import { EndGameSplash } from './EndGame.js';
 import { buildInviteLink } from './game-url.js';
+import { RobotLastTurn } from './RobotLastTurn.js';
 
 function sortByValue(cards: Card[]): Card[] {
   return [...cards].sort((a, b) => a.value - b.value);
@@ -317,6 +318,7 @@ export function GameBoard(props: GameBoardProps): JSX.Element {
                   <span>
                     {player.color && <span className="player-color-pip" style={{ background: PLAYER_COLOR_HEX[player.color] }} aria-hidden="true" />}
                     {index + 1}. {player.name}{player.id === playerId ? ' (You)' : ''}{player.isHost ? ' [Host]' : ''}{player.robot ? ' [Robot]' : ''}
+                    {player.robot ? <RobotLastTurn cards={gameState.lastTurnPlays?.[player.id]} /> : null}
                   </span>
                   <span className="player-line-right">
                     <span>{player.hand.length} cards</span>

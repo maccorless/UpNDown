@@ -153,6 +153,23 @@ describe('when robots may act', () => {
     expect(l.manager.robotStep(l.gameId, due.turnKey)).toBeNull();
   });
 
+  it('keeps the cards a robot played on its turn, so the table can show them after it has moved on', () => {
+    const l = playing(1);
+    robotsTurn(l);
+    let checked = false;
+    for (let i = 0; i < 12 && !checked; i += 1) {
+      const due = l.manager.robotToAct(l.gameId);
+      if (!due) break;
+      const playedBefore = l.room().gameState.cardsPlayedThisTurn;
+      const step = l.manager.robotStep(l.gameId, due.turnKey);
+      if (step?.step === 'endTurn' && playedBefore > 0) {
+        expect(l.room().gameState.lastTurnPlays?.[due.robotId]).toHaveLength(playedBefore);
+        checked = true;
+      }
+    }
+    expect(checked).toBe(true);
+  });
+
   it('plays only moves the rules allow, through the same checks as a person', () => {
     const l = playing(1);
     robotsTurn(l);

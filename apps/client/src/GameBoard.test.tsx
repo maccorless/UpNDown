@@ -124,6 +124,20 @@ describe('GameBoard', () => {
     expect(screen.queryByTestId('turn-progress')).toBeNull();
   });
 
+  it('shows a robot\'s last turn beside its name, and nothing beside a person', () => {
+    const robotId = PLAYING_STATE.players[1]!.id;
+    const state: GameState = {
+      ...PLAYING_STATE,
+      players: PLAYING_STATE.players.map((p) => (p.id === robotId ? { ...p, robot: true } : p)),
+      lastTurnPlays: { [robotId]: [{ id: 'c-12', value: 12 }, { id: 'c-9', value: 9 }] }
+    };
+    render(
+      <GameBoard mode="multiplayer" showArrows gameState={state} playerId={PLAYING_STATE.players[0]!.id} selectedCardId={null} setSelectedCardId={() => {}} onPlayPile={() => {}} onEndTurn={() => {}} />
+    );
+    expect(screen.getByRole('img', { name: 'Last turn: 12, 9' })).toBeTruthy();
+    expect(screen.getAllByRole('img', { name: /Last turn/ })).toHaveLength(1);
+  });
+
   it('badges a pile only when the selected card would be a backward 10 there', () => {
     const { unmount } = renderPlaying('p1', 'c1'); // 33 is exactly 10 below the ascending 43
     expect(screen.getByTestId('pile-0').textContent).toContain('\u221210');

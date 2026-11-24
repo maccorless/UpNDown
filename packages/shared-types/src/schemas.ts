@@ -241,7 +241,9 @@ export const gameStateSchema = z.object({
   }),
   settings: gameSettingsSchema,
   isSolitaire: z.boolean(),
-  consecutiveSkips: z.number().int().min(0).max(100).optional()
+  consecutiveSkips: z.number().int().min(0).max(100).optional(),
+  lastTurnPlays: z.record(z.string().max(100), z.array(cardSchema).max(100)).optional(),
+  turnPlays: z.array(cardSchema).max(100).optional()
 });
 
 // What a browser reports when a signed-in player finishes a solitaire game. The server cannot watch a solitaire game,
