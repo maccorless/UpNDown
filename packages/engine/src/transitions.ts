@@ -64,10 +64,6 @@ function ensureStatsForPlayers(state: GameState): GameState {
     statistics: {
       ...state.statistics,
       players: playersStats
-    },
-    nasCheat: {
-      ...state.nasCheat,
-      usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
     }
   };
 }
@@ -285,12 +281,6 @@ export function createStartedGameState(params: CreateStartedGameParams): GameSta
       endedAtMs: null,
       players: Object.fromEntries(initializedPlayers.map((player) => [player.id, emptyPlayerStats()]))
     },
-    nasCheat: {
-      enabledPlayerIds: initializedPlayers
-        .filter((player) => player.name.trim().toLowerCase() === 'nas')
-        .map((player) => player.id),
-      usedThisTurnByPlayerId: Object.fromEntries(initializedPlayers.map((player) => [player.id, false]))
-    },
     settings,
     isSolitaire
   };
@@ -313,10 +303,6 @@ export function playCard(state: GameState, playerId: string, cardId: string, pil
     statistics: {
       ...state.statistics,
       players: { ...state.statistics.players }
-    },
-    nasCheat: {
-      ...state.nasCheat,
-      usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId }
     }
   };
 
@@ -449,10 +435,6 @@ export function endTurn(state: GameState, playerId: string): GameState {
       ...state.statistics,
       turns: state.statistics.turns + 1,
       players: { ...state.statistics.players }
-    },
-    nasCheat: {
-      ...state.nasCheat,
-      usedThisTurnByPlayerId: Object.fromEntries(state.players.map((player) => [player.id, false]))
     }
   };
 
@@ -580,8 +562,7 @@ export function admitPlayer(state: GameState, input: { id: string; name: string;
     ],
     foundationPiles: state.foundationPiles.map((pile) => ({ ...pile })),
     drawPile,
-    statistics: { ...state.statistics, players: { ...state.statistics.players } },
-    nasCheat: { ...state.nasCheat, usedThisTurnByPlayerId: { ...state.nasCheat.usedThisTurnByPlayerId, [input.id]: false } }
+    statistics: { ...state.statistics, players: { ...state.statistics.players } }
   };
   return ensureStatsForPlayers(evaluateLossForCurrentPlayer(evaluateWin(next)));
 }
@@ -614,8 +595,7 @@ export function skipTurn(state: GameState, playerId: string): GameState {
     drawPile: [...counted.drawPile],
     cardsPlayedThisTurn: 0,
     consecutiveSkips: streak,
-    statistics: { ...counted.statistics, turns: counted.statistics.turns + 1 },
-    nasCheat: { ...counted.nasCheat, usedThisTurnByPlayerId: Object.fromEntries(counted.players.map((player) => [player.id, false])) }
+    statistics: { ...counted.statistics, turns: counted.statistics.turns + 1 }
   };
 
   if (streak >= nextState.players.length) {

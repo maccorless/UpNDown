@@ -23,8 +23,9 @@ import {
 } from '@upndown/shared-types';
 import type { CheatUsedEvent, JoinRequestEvent, JoinResolvedEvent, MontyCell } from '@upndown/shared-types';
 import { createAuthRuntime, type AuthTestOverrides } from './auth/runtime.js';
+import { createIpRateLimiter } from './auth/http-rate-limit.js';
 import { resolveClientIp } from './client-ip.js';
-import { GameManager, specialOf } from './game-manager.js';
+import { GameManager, RejoinRefused, specialOf } from './game-manager.js';
 import { loadHintAdvisor, loadRobotBrain } from './robot-brain.js';
 import { pickRobotPause, robotPauseFromEnv } from './robot-pause.js';
 import { toPlayerView } from './player-view.js';
@@ -45,11 +46,11 @@ const runtimeEnvSchema = z.object({
 // Reverse proxies in front of the server per platform (Skiff: ALB + APISIX). Explicit TRUSTED_PROXY_HOPS wins.
 const proxyHopsByTarget = { skiff: 2, railway: 1 } as const;
 
-// `gone` on a refused rejoin means the seat no longer exists (or the token is wrong): do not try again. Without it the
-// refusal may be temporary (a rate limit), so the client may.
+// A refused rejoin says why in `reason`: 'gone' (the seat cannot be taken back) and 'kicked' (the host removed it) are final, so the
+// client stops trying. A failure with no reason, such as a rate limit, may be retried.
 const JOIN_REQUEST_TTL_MS = 2 * 60 * 1000;
 
-type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string; gone?: true }) => void;
+type Ack<T> = (response: { ok: true; data: T } | { ok: false; error: string; reason?: 'gone' | 'kicked' }) => void;
 type LogLevel = 'info' | 'warn' | 'error';
 
 // Socket.IO passes a non-function last client argument through as `ack`, so check the type at runtime.
@@ -99,7 +100,8 @@ const eventRateLimits: Record<
   | 'game:kickPlayer'
   | 'game:setReaction'
   | 'game:cardLookup'
-  | 'game:fullMonty',
+  | 'game:fullMonty'
+  | 'game:playAgain',
   RateLimitRule
 > = {
   'game:create':         { limit: 5,  windowMs: 60_000 },
@@ -128,7 +130,8 @@ const eventRateLimits: Record<
   'game:kickPlayer':     { limit: 10, windowMs: 10_000 },
   'game:setReaction':    { limit: 20, windowMs: 10_000 },
   'game:cardLookup':     { limit: 10, windowMs: 10_000 },
-  'game:fullMonty':      { limit: 10, windowMs: 10_000 }
+  'game:fullMonty':      { limit: 10, windowMs: 10_000 },
+  'game:playAgain':      { limit: 10, windowMs: 30_000 }
 };
 
 // Per client IP, on top of the per-socket limits: reconnecting resets a socket's bucket, so these stop id guessing.
@@ -240,6 +243,17 @@ export function createRealtimeServer(
   app.use(auth.legacyRedirect);
   app.use(auth.router);
   // An unknown API or auth path is an error, not the client page the catch-all below would hand back with a 200.
+  // Whether a seat saved on this device can still be taken back, so the front page offers only live games. Plain HTTP and read
+  // only: the front page has no socket open, and this does not take the seat.
+  const seatCheckLimiter = createIpRateLimiter(config.trustedProxyHops);
+  app.post('/api/seat-check', (req, res) => {
+    if (!seatCheckLimiter.allow(req, 'seat-check', 60, 60_000)) {
+      res.status(429).json({ live: false });
+      return;
+    }
+    const parsed = rejoinGamePayloadSchema.safeParse(req.body);
+    res.json({ live: parsed.success && manager.seatIsLive(parsed.data.gameId, parsed.data.previousPlayerId, parsed.data.rejoinToken) });
+  });
   app.use(['/api', '/auth'], (_req, res) => { res.status(404).json({}); });
 
   // Single-container deploys (Skiff) serve the built client from the socket server's origin.
@@ -490,8 +504,9 @@ export function createRealtimeServer(
         const gameState = manager.rejoinPlayer(gameId, previousPlayerId, socket.id, rejoinToken, userIdOf(socket));
         await finishRejoin(socket, gameId, previousPlayerId, gameState, ack);
       } catch (err) {
-        log('warn', 'game.rejoin_failed', { socketId: socket.id, error: normalizeError(err, 'Unable to rejoin game') });
-        reply(ack, { ok: false, error: 'Unable to rejoin game', gone: true });
+        const reason = err instanceof RejoinRefused ? err.reason : undefined;
+        log('warn', 'game.rejoin_failed', { socketId: socket.id, reason, error: normalizeError(err, 'Unable to rejoin game') });
+        reply(ack, { ok: false, error: 'Unable to rejoin game', ...(reason ? { reason } : {}) });
       }
     });
 
@@ -518,7 +533,7 @@ export function createRealtimeServer(
         await finishRejoin(socket, found.gameId, found.previousPlayerId, found.state, ack);
       } catch {
         // Not signed in, or no held seat: nothing to log, this is asked on every multiplayer visit.
-        reply(ack, { ok: false, error: 'Unable to rejoin game', gone: true });
+        reply(ack, { ok: false, error: 'Unable to rejoin game', reason: 'gone' });
       }
     });
 
@@ -626,6 +641,28 @@ export function createRealtimeServer(
       } catch (err) {
         const message = normalizeError(err, 'Unable to start game');
         log('warn', 'game.start_failed', { socketId: socket.id, error: message });
+        reply(ack, { ok: false, error: message });
+      }
+    });
+
+    // Play Again after a game has ended: any player still at the table deals the next round at once. Starting a fresh table
+    // from the lobby is still the host's.
+    socket.on('game:playAgain', (payload, ack?: Ack<{ gameState: unknown }>) => {
+      if (!passesRateLimit(socket.id, 'game:playAgain')) {
+        reply(ack, { ok: false, error: 'Too many start attempts. Please wait a moment and try again.' });
+        return;
+      }
+      try {
+        const parsed = gameIdSchema.parse(payload);
+        const gameState = manager.playAgain(socket.id, parsed.gameId);
+        manager.clearAllReactions(gameState.gameId);
+        broadcastState(gameState.gameId, gameState);
+        io.to(gameState.gameId).emit('game:reactionsUpdated', manager.getReactions(gameState.gameId));
+        log('info', 'game.started', { socketId: socket.id, gameId: gameState.gameId, again: true });
+        reply(ack, { ok: true, data: { gameState: viewOf(gameState, socket.id) } });
+      } catch (err) {
+        const message = normalizeError(err, 'Unable to play again');
+        log('warn', 'game.play_again_failed', { socketId: socket.id, error: message });
         reply(ack, { ok: false, error: message });
       }
     });

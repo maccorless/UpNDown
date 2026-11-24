@@ -55,7 +55,6 @@ function playing(limits: CheatLimits = { lookup: 'unlimited', skip: 'once', trad
     gamePhase: 'playing',
     cardsPlayedThisTurn: 0,
     statistics: { turns: 1, startedAtMs: Date.now(), endedAtMs: null, players: { 'socket-1': { ...stat, ...used }, 'socket-2': stat } },
-    nasCheat: { enabledPlayerIds: [], usedThisTurnByPlayerId: { 'socket-1': false, 'socket-2': false } },
     settings: { ...settings, cheatLimits: limits },
     isSolitaire: false
   };
@@ -216,6 +215,34 @@ describe('App: cheats in a multiplayer game', () => {
     await waitFor(() => expect(screen.getByTestId('hint-banner').textContent).toContain('Hint: play 21'));
     act(() => mock.serverEmit('game:updated', { ...state, cardsPlayedThisTurn: 1 }));
     expect(screen.getByTestId('hint-banner').textContent).toBe('');
+  });
+
+  it('gives the hint from Ctrl-Shift-H, as the button does', async () => {
+    const state = playing({ lookup: 'off', skip: 'off', trade: 'off', hint: 'unlimited' });
+    const asked: unknown[] = [];
+    const user = await hostGame(state, (event, payload, ack) => {
+      if (event !== 'game:hint') return false;
+      asked.push(payload);
+      ack?.({ ok: true, data: { action: { type: 'play', cardId: 'c-21', pileId: 0 } } });
+      return true;
+    });
+    await user.keyboard('{Control>}{Shift>}h{/Shift}{/Control}');
+    await waitFor(() => expect(screen.getByTestId('hint-banner').textContent).toBe('Hint: play 21 on the up pile showing 1.'));
+    expect(asked).toEqual([{ gameId: 'ABC123' }]);
+  });
+
+  it('opens The full Monty from Ctrl-Shift-M, as the button does', async () => {
+    const state = playing({ lookup: 'off', skip: 'off', trade: 'off', hint: 'off', monty: 'unlimited' });
+    const asked: unknown[] = [];
+    const user = await hostGame(state, (event, payload, ack) => {
+      if (event !== 'game:fullMonty') return false;
+      asked.push(payload);
+      ack?.({ ok: true, data: { cells: Array.from({ length: 100 }, () => 'out' as const) } });
+      return true;
+    });
+    await user.keyboard('{Control>}{Shift>}m{/Shift}{/Control}');
+    await waitFor(() => expect(asked).toEqual([{ gameId: 'ABC123' }]));
+    expect(await screen.findByRole('list', { name: 'Every card from 1 to 100' })).toBeTruthy();
   });
 });
 

@@ -25,6 +25,9 @@ describe('starting solitaire', () => {
     expect(screen.getByTestId('solitaire-summary').textContent).toContain('Cards 2 to 59 (58 cards)');
     expect(screen.getByTestId('solitaire-summary').textContent).toContain('Hand of 8');
     expect(screen.getByTestId('solitaire-summary').textContent).toContain('No cheats');
+    expect(screen.getByTestId('my-settings-summary').textContent).toContain('Sound effects: On');
+    expect(screen.getByTestId('my-settings-summary').textContent).toContain('Pile arrows: On');
+    expect(screen.getByTestId('my-settings-summary').textContent).not.toContain('Auto-mark');
     expect(screen.queryAllByTestId(/hand-card-/)).toHaveLength(0);
     expect(screen.getByTestId('open-settings').classList.contains('settings-frozen')).toBe(false);
     await user.click(screen.getByTestId('start-solitaire'));
@@ -57,5 +60,18 @@ describe('starting solitaire', () => {
     const confirm = screen.queryByRole('button', { name: /^end game$/i });
     if (confirm) await user.click(confirm);
     expect(await screen.findByTestId('solitaire-setup')).toBeTruthy();
+  });
+
+  it('switches to multiplayer and back from the setup screen, rather than to the choice of mode', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await user.click(await screen.findByTestId('mode-solitaire'));
+    await user.click(screen.getByRole('button', { name: 'Change to Multiplayer' }));
+    expect(screen.queryByTestId('mode-solitaire')).toBeNull();
+    expect(screen.getByTestId('flow-choice')).toBeTruthy();
+    expect(screen.getByTestId('multiplayer-summary').textContent).toContain('Cards 2 to 99');
+    expect(screen.getByTestId('my-settings-summary').textContent).toContain('Auto-mark piles: Off');
+    await user.click(screen.getByRole('button', { name: 'Change to Solitaire' }));
+    expect(screen.getByTestId('solitaire-setup')).toBeTruthy();
   });
 });

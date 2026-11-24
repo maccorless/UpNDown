@@ -198,9 +198,7 @@ export function EndGameStatisticsModal({
       </div>
 
       <div className="button-row">
-        <button type="button" className="primary" onClick={onPlayAgain} disabled={hostOnly}>
-          {mode === 'multiplayer' ? (isHost ? 'Play Again' : 'Host Restarts') : 'Play Again'}
-        </button>
+        <button type="button" className="primary" onClick={onPlayAgain}>Play Again</button>
         {onChangeSettings ? <button type="button" className="secondary" onClick={onChangeSettings} data-testid="end-change-settings">Change settings</button> : null}
         <button type="button" className="secondary" onClick={onBackToLobby} disabled={hostOnly}>
           {mode === 'multiplayer' ? (isHost ? 'Back to Lobby' : 'Host Returns to Lobby') : 'Back to Lobby'}

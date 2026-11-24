@@ -28,7 +28,6 @@ function worldState(obs: Observation, settings: GameSettings, drawPile: ReturnTy
     foundationPiles: obs.piles.map((p) => ({ ...p, topCard: { ...p.topCard } })),
     drawPile, currentPlayerIndex: 0, gamePhase: 'playing', cardsPlayedThisTurn: 0,
     statistics: { turns: 0, startedAtMs: 0, endedAtMs: null, players: { p1: emptyPlayerStats() } },
-    nasCheat: { enabledPlayerIds: [], usedThisTurnByPlayerId: { p1: false } },
     settings, isSolitaire: true
   };
 }

@@ -99,11 +99,6 @@ export interface GameStatistics {
   finishedById?: string | null | undefined;
 }
 
-export interface NasCheatState {
-  enabledPlayerIds: string[];
-  usedThisTurnByPlayerId: Record<string, boolean>;
-}
-
 // What a player is told about connections that have dropped during a game. Only the server fills this in, per viewer, in
 // the view it sends; it is never part of the stored game. Times are the server's: a blip shorter than the notice time is
 // not reported at all.
@@ -128,7 +123,6 @@ export interface GameState {
   gamePhase: GamePhase;
   cardsPlayedThisTurn: number;
   statistics: GameStatistics;
-  nasCheat: NasCheatState;
   settings: GameSettings;
   isSolitaire: boolean;
   // Skips in a row with no card played in between; a full round of them ends the game as a loss.
@@ -308,7 +302,11 @@ export function deckFitMessage(settings: Pick<GameSettings, 'minCardValue' | 'ma
 
 // The limit for one cheat, whichever way the settings were written. When cheatLimits is present it wins; otherwise only the
 // card seeker can be on, as the old allowCardLookup said.
+// The Nas check is an easter egg with no setting of its own: it is unlimited whenever the game has any other cheat on.
 export function cheatLimitOf(settings: Pick<GameSettings, 'allowCardLookup' | 'cheatLimits'>, kind: CheatKind): CheatLimit {
+  if (kind === 'nas') {
+    return CHEAT_KINDS.some((other) => other !== 'nas' && cheatLimitOf(settings, other) !== 'off') ? 'unlimited' : 'off';
+  }
   const given = settings.cheatLimits?.[kind];
   if (given) return given;
   return kind === 'lookup' && settings.allowCardLookup ? 'unlimited' : 'off';

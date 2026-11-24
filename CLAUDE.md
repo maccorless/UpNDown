@@ -171,7 +171,7 @@ ack({ ok: false, error: 'Human-readable message' })
 if (!response.ok) { /* handle error */ }
 ```
 
-Key events: `game:create`, `game:join`, `game:rejoin`, `game:listJoinable`, `game:start`, `game:playCard`, `game:endTurn`, `game:undoPlay`, `game:endGame`, `game:updateSettings`, `game:leave`, `game:kick`, `game:setReaction`, `game:cardLookup`, `game:skip`, `game:trade`.
+Key events: `game:create`, `game:join`, `game:rejoin`, `game:listJoinable`, `game:start`, `game:playCard`, `game:endTurn`, `game:undoPlay`, `game:endGame`, `game:playAgain`, `game:updateSettings`, `game:leave`, `game:kick`, `game:setReaction`, `game:cardLookup`, `game:skip`, `game:trade`.
 
 Server-push events (no ack): `game:updated`, `game:kicked`.
 

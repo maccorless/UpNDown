@@ -4,7 +4,7 @@ import { InviteModal, JoinRequestModal } from './LateJoin.js';
 import { SeatChoice } from './SeatChoice.js';
 import { StorageNotice } from './StorageNotice.js';
 import { isClaimed } from './claims.js';
-import { readSavedSeat } from './saved-seat.js';
+import { readSavedSeat, type SavedSeat } from './saved-seat.js';
 import { useSavedSeat } from './useSavedSeat.js';
 import type { Action } from '@upndown/engine';
 import { assertCheatAvailable, buildDeck, createStartedGameState, fullMontyCells, playCard as playCardEngine, recordCheatUse, shuffle, tradeCard as tradeCardEngine } from '@upndown/engine';
@@ -278,7 +278,22 @@ export function App(): JSX.Element {
   }, [mode, multiplayerState, connectionState, joinGameId, playerName]);
 
   // A game being played survives a closed tab: the seat is kept in this browser, and the landing offers to take it back.
-  const savedSeat = useSavedSeat(multiplayerState, playerId, rejoinTokenRef, mode === null, auth.status === 'signedIn');
+  // Asks the server whether a seat saved on this device can still be taken back, so the front page offers only live games. Plain
+  // HTTP: the front page has no socket open. Any failure counts as not live.
+  const checkSeatLive = async (seat: SavedSeat): Promise<boolean> => {
+    try {
+      const response = await fetch('/api/seat-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameId: seat.gameId, previousPlayerId: seat.playerId, rejoinToken: seat.rejoinToken })
+      });
+      if (!response.ok) return false;
+      return ((await response.json()) as { live?: boolean }).live === true;
+    } catch {
+      return false;
+    }
+  };
+  const savedSeat = useSavedSeat(multiplayerState, playerId, rejoinTokenRef, mode === null, auth.status === 'signedIn', checkSeatLive);
   const forgetSeatRef = useRef(savedSeat.forget);
   forgetSeatRef.current = savedSeat.forget;
   const adoptSeat = (data: { gameState: GameState; playerId: string; rejoinToken: string }): void => {
@@ -1033,32 +1048,21 @@ export function App(): JSX.Element {
   };
 
   const handleMultiplayerPlayAgain = async (): Promise<void> => {
-    if (!multiplayerState || multiplayerState.hostId !== playerId) {
+    if (!multiplayerState || !multiplayerState.players.some((p) => p.id === playerId)) {
       return;
     }
 
     suppressHostEndedNoticeRef.current = true;
     try {
-      const resetAck = await emitWithAck<{ gameState: GameState }>(
-        'game:endGame',
-        { gameId: multiplayerState.gameId },
-        'endgame'
-      );
-
-      if (!resetAck.ok) {
-        setError(resetAck.error);
-        return;
-      }
-
+      // Any player still at the table may start the next round; the server resets and deals it in one step.
       const startAck = await emitWithAck<{ gameState: GameState }>(
-        'game:start',
+        'game:playAgain',
         { gameId: multiplayerState.gameId },
         'start'
       );
 
       if (!startAck.ok) {
         setError(startAck.error);
-        setMultiplayerState(resetAck.data.gameState);
         return;
       }
 
@@ -1093,6 +1097,15 @@ export function App(): JSX.Element {
     setJoinGameId('');
     setInviteCopied(false);
     setHostEndedModalGameId(null);
+    setError(null);
+  };
+
+  // Moves between solitaire and multiplayer without leaving the mode screen. Only used when no game is in progress.
+  const switchMode = (next: Mode): void => {
+    setMode(next);
+    setMultiplayerFlow('choose');
+    setShowJoinById(false);
+    setJoinLookup(null);
     setError(null);
   };
 
@@ -1229,11 +1242,13 @@ export function App(): JSX.Element {
   // The hint goes when the game moves on: any change to either game, or leaving it.
   const hintBoardKey = moveKey(mode === 'multiplayer' ? multiplayerState : (mode === 'solitaire' ? solitaireState : null), mode === 'multiplayer' ? playerId : SOLO_PLAYER_ID);
   useEffect(() => { setHint(null); }, [hintBoardKey]);
-  const cheatCan = (kind: 'lookup' | 'nas' | 'hint' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
+  const cheatCan = (kind: 'lookup' | 'nas' | 'monty' | 'hint' | 'skip' | 'trade'): boolean => cheatStatusList.some((status) => status.kind === kind && status.available);
   useCheatHotkeys({
     active: cheatStatusList.length > 0,
     ...(cheatCan('lookup') ? { onLookup: openLookup } : {}),
     ...(cheatCan('nas') ? { onNas: openNasCheck } : {}),
+    ...(cheatCan('hint') ? { onHint: () => { void handleCheatHint(); } } : {}),
+    ...(cheatCan('monty') ? { onMonty: () => { void handleCheatMonty(); } } : {}),
     ...(cheatCan('skip') ? { onSkip: () => setCheatsOpen('skip') } : {}),
     // Trade needs a selected card; without one the panel opens and says so.
     ...(cheatStatusList.some((status) => status.kind === 'trade') ? { onTrade: () => { if (cheatCan('trade')) void handleCheatTrade(); else setCheatsOpen('panel'); } } : {})
@@ -1342,7 +1357,7 @@ export function App(): JSX.Element {
                 type="button"
                 className="secondary"
                 onClick={() => {
-                  resetToLanding();
+                  switchMode(mode === 'solitaire' ? 'multiplayer' : 'solitaire');
                 }}
               >
                 {mode === 'solitaire' ? 'Change to Multiplayer' : 'Change to Solitaire'}
@@ -1451,7 +1466,7 @@ export function App(): JSX.Element {
           hintPileId={hint?.pileId}
         />
         ) : (
-          <SolitaireSetup settings={solitaireConfig} onStart={handleSolitaireNewGame} onChangeSettings={handleOpenSettings} />
+          <SolitaireSetup settings={solitaireConfig} enableSounds={enableSounds} showArrows={prefs.showArrows} onStart={handleSolitaireNewGame} onChangeSettings={handleOpenSettings} />
         )
       ) : mode === 'multiplayer' ? (
         <>
@@ -1480,6 +1495,10 @@ export function App(): JSX.Element {
               setJoinGameId={setJoinGameId}
               handleLookupGame={handleLookupGame}
               joinLookup={joinLookup}
+              settings={multiplayerCreateSettings}
+              enableSounds={enableSounds}
+              showArrows={prefs.showArrows}
+              autoMark={prefs.autoMark}
             />
           ) : multiplayerState.gamePhase === 'lobby' ? (
             <WaitingRoom

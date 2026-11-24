@@ -102,6 +102,14 @@ describe('game rules, learned in order', () => {
     expect(screen.getByRole('radiogroup', { name: 'Hint' })).toBeTruthy();
   });
 
+  it('shows the key for every cheat at a table, so the shortcut can be found from Settings', () => {
+    open(defaultMultiplayerSettings);
+    const keys = { lookup: 'Ctrl/Cmd-P', monty: 'Ctrl/Cmd-Shift-M', hint: 'Ctrl/Cmd-Shift-H', skip: 'Ctrl/Cmd-S', trade: 'Ctrl/Cmd-Shift-X' };
+    for (const [kind, key] of Object.entries(keys)) {
+      expect(document.getElementById(`settings-cheat-${kind}-hint`)?.textContent, kind).toContain(key);
+    }
+  });
+
   it('asks who can play only at a table', () => {
     open(defaultMultiplayerSettings);
     expect(screen.getByRole('heading', { name: 'Who can play?' })).toBeTruthy();

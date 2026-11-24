@@ -17,7 +17,7 @@ export const config = {
   timeMachine: [3, 6, 10],
   // Measured with the strategy: 0.04 lifelines a player a game at four players, 0.2 at normal solitaire, none at Easy.
   // Silver and Gold are a long chase on purpose.
-  lifeline: [1, 5, 20],
+  lifeline: [1, 3, 10],
   // Not measured: the simulator places no human marks. A judgment call, to be checked against real games.
   calledIt: [1, 10, 50],
   solo: [1, 10, 50],

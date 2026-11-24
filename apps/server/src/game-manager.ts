@@ -36,6 +36,8 @@ interface GameRoom {
   // The token handed to a seat is kept as a hash. The plain text is only held in memory, long enough to give it to the client;
   // after a restart only the hash exists, and the client's saved token is checked against it.
   rejoinTokens: Map<string, { plain?: string; hash: string }>;
+  // Seats the host removed. A rejoin on one of them is told it was a kick. In memory only: after a restart it reads as gone.
+  kickedPlayerIds?: Set<string>;
   // Which signed-in account holds each seat, recorded when the player sits down. Guests have no entry.
   userIdByPlayerId: Map<string, string>;
   // A room code is not a game: a finished room goes back to the lobby and starts again under the same code. Each start
@@ -109,15 +111,6 @@ function swapPlayerId(state: GameState, oldPlayerId: string, newPlayerId: string
     state.statistics.players[newPlayerId] = state.statistics.players[oldPlayerId];
     delete state.statistics.players[oldPlayerId];
   }
-
-  if (oldPlayerId in state.nasCheat.usedThisTurnByPlayerId) {
-    state.nasCheat.usedThisTurnByPlayerId[newPlayerId] = state.nasCheat.usedThisTurnByPlayerId[oldPlayerId] ?? false;
-    delete state.nasCheat.usedThisTurnByPlayerId[oldPlayerId];
-  }
-  const nasIdx = state.nasCheat.enabledPlayerIds.indexOf(oldPlayerId);
-  if (nasIdx >= 0) {
-    state.nasCheat.enabledPlayerIds[nasIdx] = newPlayerId;
-  }
 }
 
 const MAX_UNDO_SNAPSHOTS = 100;
@@ -172,6 +165,19 @@ export const SIGNED_IN_ACTIVE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 export function everyPersonSignedIn(room: { gameState: GameState; userIdByPlayerId: ReadonlyMap<string, string> }): boolean {
   const people = room.gameState.players.filter((player) => !player.robot);
   return people.length > 0 && people.every((player) => room.userIdByPlayerId.has(player.id));
+}
+
+// Why a seat could not be taken back. "kicked": the host removed the seat. "gone": anything else (no game kept, a wrong token,
+// the new seat taken), so the caller stops trying.
+export type RejoinRefusal = 'gone' | 'kicked';
+
+export class RejoinRefused extends Error {
+  readonly reason: RejoinRefusal;
+  constructor(reason: RejoinRefusal) {
+    super('Unable to rejoin game');
+    this.name = 'RejoinRefused';
+    this.reason = reason;
+  }
 }
 
 export class GameManager {
@@ -254,17 +260,17 @@ export class GameManager {
   }
 
   rejoinPlayer(gameId: string, oldPlayerId: string, newPlayerId: string, rejoinToken: string, userId?: string): GameState {
-    const room = this.requireRoom(gameId);
+    const room = this.rooms.get(gameId);
+    if (!room) throw new RejoinRefused('gone');
     const { gameState } = room;
+    // A seat the host removed reads as a kick. A seat no longer in the game for any other reason (taken back by another device)
+    // reads as gone, so nobody is told the host removed them when they were not.
+    if (!gameState.players.some((p) => p.id === oldPlayerId)) {
+      throw new RejoinRefused(room.kickedPlayerIds?.has(oldPlayerId) ? 'kicked' : 'gone');
+    }
     const expectedToken = room.rejoinTokens.get(oldPlayerId);
-    const seatExists = gameState.players.some((p) => p.id === oldPlayerId);
-    // Same message for a missing seat and a wrong token so callers cannot probe which seats exist.
-    if (!seatExists || !expectedToken || !tokensMatch(expectedToken.hash, rejoinToken)) {
-      throw new Error('Unable to rejoin game');
-    }
-    if (gameState.players.some((p) => p.id === newPlayerId)) {
-      throw new Error('Unable to rejoin game');
-    }
+    if (!expectedToken || !tokensMatch(expectedToken.hash, rejoinToken)) throw new RejoinRefused('gone');
+    if (gameState.players.some((p) => p.id === newPlayerId)) throw new RejoinRefused('gone');
 
     return this.reseat(room, gameId, oldPlayerId, newPlayerId, userId);
   }
@@ -294,6 +300,15 @@ export class GameManager {
       }
     }
     throw new Error('Unable to rejoin game');
+  }
+
+  // Whether a seat saved on a device can still be taken back: its game is kept, the seat is in it, and the token matches.
+  // Read only, and a game that has ended is not live.
+  seatIsLive(gameId: string, playerId: string, rejoinToken: string): boolean {
+    const room = this.rooms.get(gameId);
+    if (!room || room.gameState.gamePhase === 'won' || room.gameState.gamePhase === 'lost') return false;
+    const expectedToken = room.rejoinTokens.get(playerId);
+    return !!expectedToken && room.gameState.players.some((p) => p.id === playerId) && tokensMatch(expectedToken.hash, rejoinToken);
   }
 
   private reseat(room: GameRoom, gameId: string, oldPlayerId: string, newPlayerId: string, userId?: string): GameState {
@@ -429,12 +444,6 @@ export class GameManager {
           [ownerPlayerId]: emptyPlayerStats()
         }
       },
-      nasCheat: {
-        enabledPlayerIds: [],
-        usedThisTurnByPlayerId: {
-          [ownerPlayerId]: false
-        }
-      },
       settings,
       isSolitaire: false
     };
@@ -519,13 +528,6 @@ export class GameManager {
         players: {
           ...gameState.statistics.players,
           [playerId]: gameState.statistics.players[playerId] ?? emptyPlayerStats()
-        }
-      },
-      nasCheat: {
-        ...gameState.nasCheat,
-        usedThisTurnByPlayerId: {
-          ...gameState.nasCheat.usedThisTurnByPlayerId,
-          [playerId]: false
         }
       }
     };
@@ -744,16 +746,26 @@ export class GameManager {
         startedAtMs: null,
         endedAtMs: null,
         players: Object.fromEntries(gameState.players.map((player) => [player.id, emptyPlayerStats()]))
-      },
-      nasCheat: {
-        enabledPlayerIds: [],
-        usedThisTurnByPlayerId: Object.fromEntries(gameState.players.map((player) => [player.id, false]))
       }
     };
 
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
     return nextState;
+  }
+
+  // Play Again after a game has ended: any player still at the table resets the table and deals the next round at once.
+  playAgain(playerId: string, gameId: string): GameState {
+    const room = this.requireRoom(gameId);
+    const { gameState } = room;
+    if (!gameState.players.some((p) => p.id === playerId)) {
+      throw new Error('Only a player at this table can play again');
+    }
+    if (gameState.gamePhase !== 'won' && gameState.gamePhase !== 'lost') {
+      throw new Error('Play Again is only after a game has ended');
+    }
+    this.endGame(gameState.hostId, gameId);
+    return this.startGame(gameState.hostId, gameId);
   }
 
   updateSettings(playerId: string, payload: UpdateSettingsPayload): GameState {
@@ -827,14 +839,6 @@ export class GameManager {
           player.id,
           gameState.statistics.players[player.id] ?? emptyPlayerStats()
         ]))
-      },
-      nasCheat: {
-        ...gameState.nasCheat,
-        enabledPlayerIds: gameState.nasCheat.enabledPlayerIds.filter((id) => players.some((player) => player.id === id)),
-        usedThisTurnByPlayerId: Object.fromEntries(players.map((player) => [
-          player.id,
-          gameState.nasCheat.usedThisTurnByPlayerId[player.id] ?? false
-        ]))
       }
     };
 
@@ -905,6 +909,7 @@ export class GameManager {
     room.userIdByPlayerId.delete(payload.targetPlayerId);
     room.disconnectedAtMs.delete(payload.targetPlayerId);
     room.rejoinTokens.delete(payload.targetPlayerId);
+    (room.kickedPlayerIds ??= new Set()).add(payload.targetPlayerId);
 
     // Return kicked player's cards to draw pile in random order
     let drawPile = [...gameState.drawPile];
@@ -947,14 +952,6 @@ export class GameManager {
         players: Object.fromEntries(players.map((player) => [
           player.id,
           gameState.statistics.players[player.id] ?? emptyPlayerStats()
-        ]))
-      },
-      nasCheat: {
-        ...gameState.nasCheat,
-        enabledPlayerIds: gameState.nasCheat.enabledPlayerIds.filter((id) => id !== payload.targetPlayerId),
-        usedThisTurnByPlayerId: Object.fromEntries(players.map((player) => [
-          player.id,
-          gameState.nasCheat.usedThisTurnByPlayerId[player.id] ?? false
         ]))
       }
     };
@@ -1137,8 +1134,7 @@ export class GameManager {
         robot: true,
         color: PLAYER_COLORS[gameState.players.length % PLAYER_COLORS.length] as PlayerColor
       }],
-      statistics: { ...gameState.statistics, players: { ...gameState.statistics.players, [id]: emptyPlayerStats() } },
-      nasCheat: { ...gameState.nasCheat, usedThisTurnByPlayerId: { ...gameState.nasCheat.usedThisTurnByPlayerId, [id]: false } }
+      statistics: { ...gameState.statistics, players: { ...gameState.statistics.players, [id]: emptyPlayerStats() } }
     };
     room.gameState = nextState;
     room.updatedAtMs = Date.now();
@@ -1161,8 +1157,7 @@ export class GameManager {
     const nextState: GameState = {
       ...gameState,
       players,
-      statistics: { ...gameState.statistics, players: Object.fromEntries(players.map((player) => [player.id, gameState.statistics.players[player.id] ?? emptyPlayerStats()])) },
-      nasCheat: { ...gameState.nasCheat, usedThisTurnByPlayerId: Object.fromEntries(players.map((player) => [player.id, gameState.nasCheat.usedThisTurnByPlayerId[player.id] ?? false])) }
+      statistics: { ...gameState.statistics, players: Object.fromEntries(players.map((player) => [player.id, gameState.statistics.players[player.id] ?? emptyPlayerStats()])) }
     };
     room.gameState = nextState;
     room.updatedAtMs = Date.now();

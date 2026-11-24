@@ -1,15 +1,16 @@
 import { buildDeck, createStartedGameState } from '@upndown/engine';
-import { render, renderHook, screen, within } from '@testing-library/react';
+import { render, renderHook, screen } from '@testing-library/react';
 import { defaultMultiplayerSettings, defaultSolitaireSettings, type GameSettings } from '@upndown/shared-types';
 import { describe, expect, it, vi } from 'vitest';
 import { cheatNoticeText, cheatStatuses, useCheatHotkeys } from './cheats.js';
 import { SettingsDialog } from './SettingsDialog.js';
 
-const settings = (nas: 'off' | 'once' | 'unlimited'): GameSettings => ({
-  ...defaultMultiplayerSettings, cheatLimits: { lookup: 'off', skip: 'off', trade: 'off', hint: 'off', nas }
+// The Nas check has no setting of its own: it is on whenever the game has another cheat on, so the card seeker's limit stands in.
+const settings = (lookup: 'off' | 'once' | 'unlimited'): GameSettings => ({
+  ...defaultMultiplayerSettings, cheatLimits: { lookup, skip: 'off', trade: 'off', hint: 'off' }
 });
-const table = (nas: 'off' | 'once' | 'unlimited', names: [string, string]) => createStartedGameState({
-  gameId: 'G', hostId: 'a', players: [{ id: 'a', name: names[0] }, { id: 'b', name: names[1] }], settings: settings(nas), isSolitaire: false, deck: buildDeck(settings(nas))
+const table = (lookup: 'off' | 'once' | 'unlimited', names: [string, string]) => createStartedGameState({
+  gameId: 'G', hostId: 'a', players: [{ id: 'a', name: names[0] }, { id: 'b', name: names[1] }], settings: settings(lookup), isSolitaire: false, deck: buildDeck(settings(lookup))
 });
 
 describe('the Nas check in the cheats a game offers', () => {
@@ -17,7 +18,7 @@ describe('the Nas check in the cheats a game offers', () => {
   it('is offered to a player named Nas, with the game\'s own limit', () => {
     const state = table('once', ['Nas', 'Ken']);
     const forNas = cheatStatuses(state, 'a', null).find((status) => status.kind === 'nas');
-    expect(forNas).toMatchObject({ kind: 'nas', limit: 'once', available: true });
+    expect(forNas).toMatchObject({ kind: 'nas', limit: 'unlimited', available: true });
     expect(cheatStatuses(state, 'b', null).some((status) => status.kind === 'nas')).toBe(false);
   });
 
@@ -26,7 +27,7 @@ describe('the Nas check in the cheats a game offers', () => {
   });
 
   it('tells the other players when a full Monty is used, by name, and never says what it showed', () => {
-    expect(cheatNoticeText({ kind: 'monty', playerName: 'Ken' })).toBe('Ken used The full Monty');
+    expect(cheatNoticeText({ kind: 'monty', playerName: 'Ken' })).toBe('Ken used The Full Monty');
   });
 });
 
@@ -48,12 +49,11 @@ describe('the Nas check in Settings', () => {
     <SettingsDialog mode={mode} open settings={settingsForGame} editable validationError={null} saveError={null} onClose={vi.fn()} onSave={vi.fn()} onChange={vi.fn()} enableSounds onToggleSounds={vi.fn()} showArrows onToggleArrows={vi.fn()} autoMark={false} onToggleAutoMark={vi.fn()} />
   );
 
-  // It sits with the other cheats and uses the same off, once, unlimited choice. Solitaire has no name to match, so it is not there.
-  it('is one of the cheats in a game, with off, once and unlimited', () => {
-    render(dialog(settings('once'), 'multiplayer'));
-    const group = within(screen.getByRole('radiogroup', { name: 'Nas check' }));
-    expect(group.getByLabelText('Once')).toBeTruthy();
-    expect(group.getByLabelText('Unlimited')).toBeTruthy();
+  // The Nas check is an easter egg: it has no row, no hint and no name in Settings, whatever the game's cheats are.
+  it('is not in Settings at all, so nobody is told it exists', () => {
+    render(dialog(settings('unlimited'), 'multiplayer'));
+    expect(screen.queryByRole('radiogroup', { name: 'Nas check' })).toBeNull();
+    expect(screen.queryByText(/Ctrl\/Cmd-Shift-K/)).toBeNull();
   });
 
   it('is not offered in solitaire', () => {

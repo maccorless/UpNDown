@@ -51,3 +51,15 @@ What this changed:
 - **Strategy guide** (`docs/strategy/strategy-guide.md`) still calls the default settings Normal. It was not changed here.
 
 Thresholds still only go down after release.
+
+## Addendum, 24-Nov-2026: Lifeline thresholds
+
+Ken chose Lifeline thresholds of 1, 3 and 10 for Bronze, Silver and Gold (were 1, 5 and 20). The rate is the same as measured above: about 0.04 lifelines a player a game at four players, 0.11 at two, and 0.2 at normal solitaire. What changes is how long each tier takes:
+
+- Four players: Silver in about 70 table games, Gold in about 230 (was about 450).
+- Two players: Gold in about 90 table games.
+- Normal solitaire: Gold in about 50 games.
+
+The Easy default still cannot earn a lifeline, as the note above says.
+
+The strategy guide (`docs/strategy/strategy-guide.md`) was also updated on this day. It now calls Easy the solitaire default, which the 23-Nov note left open.

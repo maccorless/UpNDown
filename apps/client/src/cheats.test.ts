@@ -73,7 +73,7 @@ describe('undo and cheats', () => {
 });
 
 describe('cheat hotkeys', () => {
-  function Harness(props: { active: boolean; onLookup?: () => void; onSkip?: () => void; onTrade?: () => void }): null {
+  function Harness(props: { active: boolean; onLookup?: () => void; onSkip?: () => void; onTrade?: () => void; onHint?: () => void; onMonty?: () => void }): null {
     useCheatHotkeys(props);
     return null;
   }
@@ -95,6 +95,19 @@ describe('cheat hotkeys', () => {
     expect(onLookup).toHaveBeenCalledTimes(1);
     expect(await press('{Control>}s{/Control}')).toBe(false); // skip not available here: the browser keeps it
     expect(onSkip).not.toHaveBeenCalled();
+  });
+
+  it('gives Ctrl-Shift-H to the hint and Ctrl-Shift-M to the full Monty, and leaves plain Ctrl-M to the browser', async () => {
+    const onHint = vi.fn();
+    const onMonty = vi.fn();
+    render(createElement(Harness, { active: true, onHint, onMonty }));
+    expect(await press('{Control>}{Shift>}h{/Shift}{/Control}')).toBe(true);
+    expect(onHint).toHaveBeenCalledTimes(1);
+    expect(await press('{Control>}{Shift>}m{/Shift}{/Control}')).toBe(true);
+    expect(onMonty).toHaveBeenCalledTimes(1);
+    // Cmd-M minimises the window on a Mac, so a page must not take it.
+    expect(await press('{Control>}m{/Control}')).toBe(false);
+    expect(onMonty).toHaveBeenCalledTimes(1);
   });
 
   it('works with Cmd on a Mac, and with Shift for trade', async () => {

@@ -6,14 +6,21 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
-| 2026-11-24 | — | Feat: The full Monty, a cheat that shows every card from 1 to 100 in one grid: in the draw pile, in a hand, or played, with cards outside the game grayed out. Off, once or unlimited in Settings; in solitaire too. Only the one asking sees it; the others are told one was used |
+| 2026-11-24 | — | Fix: the Change to Multiplayer and Change to Solitaire buttons switch the mode; they used to go back to the choice of mode |
+| 2026-11-24 | — | Feat: the solitaire setup screen lists your own settings (sound effects, pile arrows), and the multiplayer start screen lists the table settings and yours |
+| 2026-11-24 | — | Feat: after a game ends, any player still at the table can press Play Again (it was host only); the lobby's Start stays the host's |
+| 2026-11-24 | — | Fix: a refused rejoin says the game is gone, and only a seat the host removed reads as a kick; the front page offers a saved seat only while the server still holds it |
+| 2026-11-24 | — | Chore: The full Monty is named The Full Monty; the Lifeline thresholds are 1, 3 and 10 (were 1, 5 and 20) |
+| 2026-11-24 | — | Chore: the old per-game Nas state is removed from games; the strategy guide describes the solitaire default as Easy; .codegraph/ is ignored by git |
+| 2026-11-24 | — | Feat: every cheat with a key now has one in Settings, and Hint (Ctrl/Cmd-Shift-H) and The Full Monty (Ctrl/Cmd-Shift-M) have keys. They take Shift because Cmd-H hides and Cmd-M minimises the window on a Mac |
+| 2026-11-24 | — | Feat: The Full Monty, a cheat that shows every card from 1 to 100 in one grid: in the draw pile, in a hand, or played, with cards outside the game grayed out. Off, once or unlimited in Settings; in solitaire too. Only the one asking sees it; the others are told one was used |
 | 2026-11-24 | — | Fix: the card seeker says a card that is not one of the game's cards (for example 65 in a game of 2 to 59) is outside the game, instead of "played". It is not counted as a use |
 | 2026-11-24 | — | Fix: two players named Nas both have the Nas check (the second is renamed Nas-1 by the server, and is still recognised). The Nas check tells nobody when it is used |
-| 2026-11-24 | — | Feat: the Nas check, a card check for a player named Nas (any capitals). Off, once or unlimited in Settings like the other cheats, with its own once. Ctrl/Cmd-Shift-K opens it. Multiplayer only: solitaire has no player name |
+| 2026-11-24 | — | Feat: the Nas check, a card check for a player named Nas (any capitals). No Settings row: on, unlimited, whenever the game has another cheat on. Ctrl/Cmd-Shift-K opens it. Multiplayer only: solitaire has no player name |
 | 2026-11-23 | — | Feat: a game where every person is signed in is kept for 7 days after its last move (a guest's game still goes after 30 minutes), so a group can play across days. Robots no longer end such a game when everyone has gone. A signed-in seat is remembered in the browser for 7 days, and the saved copy of a game is kept as long as the game |
 | 2026-11-23 | — | Fix: a game in progress can be rejoined from the Multiplayer screen. The Rejoin offer was only on the front page, as a small link, and clicking it on the Multiplayer screen did nothing, since a rejoin was only sent when the connection opened. Now a prominent Rejoin button shows on both screens and clicking it takes the seat back |
 | 2026-11-23 | — | Feat: solitaire's default is now Easy (cards 2 to 59, hand of 8, one card a turn). Measured with the strategy over 2,000 games: Easy won 100%, Normal 5.0%, Hard 0.5%. Normal and Hard stay one choice away, and the training benchmark stays on Normal |
-| 2026-11-23 | — | Feat: Lifeline badge: a backward 10 played when no card in the hand had a normal play. Bronze 1, Silver 5, Gold 20 (the strategy plays about 0.04 a player a game at four players, 0.2 at normal solitaire, none at Easy) |
+| 2026-11-23 | — | Feat: Lifeline badge: a backward 10 played when no card in the hand had a normal play. Bronze 1, Silver 3, Gold 10 (the strategy plays about 0.04 a player a game at four players, 0.2 at normal solitaire, none at Easy) |
 | 2026-11-23 | — | Feat: Called It badge: a teammate plays on a pile you marked by hand. Auto-mark and robot marks earn nothing, and an undo takes the credit back. Thresholds 1, 10, 50 are a judgment, not measured |
 | 2026-11-23 | — | Feat: the flash on a lifeline says "Lifeline!", and robots' backward 10s flash for everyone (before, they did not) |
 | 2026-11-23 | — | Feat: the end screen names who found the most lifelines and who had the most marks followed |

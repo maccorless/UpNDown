@@ -14,7 +14,7 @@ const settings: AuthSettings = {
   databaseUrl: 'unused', publicBaseUrl: 'https://upndown.cloud', stateSecret: 's'.repeat(40),
   googleClientId: 'id', googleClientSecret: 'secret', legacyHost: undefined
 };
-type Ack = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; error?: string; gone?: boolean };
+type Ack = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; error?: string; reason?: 'gone' | 'kicked' };
 const wait = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 // The whole point of saving games: a server restart, as a deploy does, must not end the game in progress. Over real
@@ -93,7 +93,7 @@ describe('a game in progress across a server restart', () => {
 
     // The wrong token still opens nothing.
     const stranger = await open(second.url);
-    expect(await ask(stranger, 'game:rejoin', { gameId, previousPlayerId: guestOldId, rejoinToken: 'guess' })).toMatchObject({ ok: false, gone: true });
+    expect(await ask(stranger, 'game:rejoin', { gameId, previousPlayerId: guestOldId, rejoinToken: 'guess' })).toMatchObject({ ok: false, reason: 'gone' });
   });
 
   it('tells the table, after the usual notice time, that the players of a restored game are away', async () => {

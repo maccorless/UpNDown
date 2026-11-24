@@ -1,7 +1,7 @@
 import type { GameState } from '@upndown/shared-types';
-import { useCallback, useEffect, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
 import { holdClaim, useUnclaimed } from './claims.js';
-import { SAVED_SEAT_PREFIX, clearSavedSeat, listSavedSeats, writeSavedSeat } from './saved-seat.js';
+import { SAVED_SEAT_PREFIX, clearSavedSeat, listSavedSeats, writeSavedSeat, type SavedSeat } from './saved-seat.js';
 import { newRunId } from './solitaire-result.js';
 
 export interface SeatOffer {
@@ -14,7 +14,7 @@ const offers = (): SeatOffer[] => listSavedSeats().map((seat) => ({ seatKey: sea
 
 // Keeps this tab's multiplayer seat saved while a game is being played (and claimed, so other tabs are not offered it),
 // forgets it when the game ends or the seat is lost, and lists the seats saved here that no other tab has open.
-export function useSavedSeat(state: GameState | null, playerId: string | null, tokenRef: MutableRefObject<string | null>, landing: boolean, signedIn = false): {
+export function useSavedSeat(state: GameState | null, playerId: string | null, tokenRef: MutableRefObject<string | null>, landing: boolean, signedIn = false, checkLive: (seat: SavedSeat) => Promise<boolean> = async () => true): {
   seatKey: string | null;
   adopt: (seatKey: string) => void;
   forget: () => void;
@@ -45,5 +45,19 @@ export function useSavedSeat(state: GameState | null, playerId: string | null, t
     setSeatKey(null);
   }, [seatKey]);
 
-  return { seatKey, adopt: setSeatKey, forget, offers: available, refreshOffers };
+  // Offers only the seats the server still holds. A game that is gone or ended, or where the host removed this seat, is left out.
+  const [live, setLive] = useState<SeatOffer[]>([]);
+  const checkRef = useRef(checkLive);
+  checkRef.current = checkLive;
+  useEffect(() => {
+    let current = true;
+    const saved = listSavedSeats();
+    void Promise.all(available.map(async (offer) => {
+      const seat = saved.find((s) => s.seatKey === offer.seatKey);
+      return seat && (await checkRef.current(seat)) ? offer : null;
+    })).then((results) => { if (current) setLive(results.filter((offer): offer is SeatOffer => offer !== null)); });
+    return () => { current = false; };
+  }, [available]);
+
+  return { seatKey, adopt: setSeatKey, forget, offers: live, refreshOffers };
 }

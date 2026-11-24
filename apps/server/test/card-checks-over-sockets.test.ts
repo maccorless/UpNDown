@@ -72,7 +72,7 @@ describe('card checks and the full Monty over sockets', () => {
   });
 
   it('gives the Nas check to both players when both are named Nas, the second under a suffix', async () => {
-    const { guest, gameId } = await table('nas', 'Nas', { nas: 'unlimited' });
+    const { guest, gameId } = await table('nas', 'Nas', { nas: 'unlimited', lookup: 'unlimited' });
     const answer = await ask(guest, 'game:cardLookup', { gameId, cardValue: 20, kind: 'nas' });
     expect(answer.ok).toBe(true);
     expect(server.manager.peekState(gameId)!.players.map((player) => player.name)).toEqual(['nas', 'Nas-1']);

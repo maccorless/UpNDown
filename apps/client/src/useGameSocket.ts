@@ -58,13 +58,14 @@ export function useGameSocket(options: GameSocketOptions): void {
       const oldId = previousPlayerIdRef.current;
       const gameId = activeGameIdRef.current;
 
-      type RejoinAck = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; gone?: boolean };
+      type RejoinAck = { ok: boolean; data?: { gameState: GameState; playerId: string; rejoinToken: string }; reason?: 'gone' | 'kicked' };
       const rejoinToken = rejoinTokenRef.current;
       if (gameId && oldId && newId && rejoinToken && oldId !== newId) {
         // We had a seat and our socket ID changed (a dropped connection, or a page opened again): take the seat back.
         socket.emit('game:rejoin', { gameId, previousPlayerId: oldId, rejoinToken }, (response: RejoinAck) => {
           if (response?.ok && response.data) adoptSeat(response.data);
-          else if (response?.gone) { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); } // seat gone: no stale board
+          else if (response?.reason === 'kicked') { resetToLanding(); setKickedWhileAway(true); setKickedFromGameId(gameId); }
+          else if (response?.reason === 'gone') { resetToLanding(); setError('That game is no longer available.'); } // no stale board
           else setError('Could not rejoin your game yet. Reload the page to try again.');
         });
       } else if (!gameId && newId) {

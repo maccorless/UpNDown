@@ -25,7 +25,6 @@ const state = (over: Partial<GameState> = {}): GameState => ({
       p2: { cardsPlayed: 20, totalMovement: -8, specialPlays: 5, nasCheatsUsed: 1, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0 }
     }
   },
-  nasCheat: { enabledPlayerIds: [], usedThisTurnByPlayerId: {} },
   settings: defaultMultiplayerSettings,
   isSolitaire: false,
   ...over

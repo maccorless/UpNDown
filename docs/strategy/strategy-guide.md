@@ -2,7 +2,7 @@ Created: 17-Nov-2026 08:22 IST
 
 # How to play UpNDown well: what the measurements say
 
-Everything here was measured by playing thousands of games on a computer (validation deals, the default settings: a deck of 2 to 99, hands of 7). "Score" is 100 for a win, otherwise 91 minus cards left in hands minus twice the cards left in the draw pile. These are numbers for a program following the rules exactly; a person will do worse, and the guide says where it matters.
+Everything here was measured by playing thousands of games on a computer (validation deals, and for a table the default settings: a deck of 2 to 99, hands of 7). "Score" is 100 for a win, otherwise 91 minus cards left in hands minus twice the cards left in the draw pile. These are numbers for a program following the rules exactly; a person will do worse, and the guide says where it matters.
 
 ## The five rules the written strategy uses, ranked by what they are worth
 
@@ -63,4 +63,4 @@ How much this is worth depends entirely on how current the marks are. With exact
 
 ## What a computer found that this guide cannot give you
 
-The best computer players are well ahead of the written strategy: solitaire about 58 to 61 (written 50.9), two players 88 to 92 (written 76.0), four players 97 to 99 (written 88.6) with 85 to 90% wins, depending on how good the reactions are. We could not reduce what they do to rules a person can follow: simple rules built from move size, jumped cards and stranded cards only reach the written strategy's level, and almost all the difference is in which card a computer chooses, not in when it stops. In solitaire on the default settings a program still wins only about 2 to 6% of games; those settings are very hard, and a hand of 11 instead of 7 lifts the written strategy from 1% to 74% wins.
+The best computer players are well ahead of the written strategy: solitaire about 58 to 61 (written 50.9), two players 88 to 92 (written 76.0), four players 97 to 99 (written 88.6) with 85 to 90% wins, depending on how good the reactions are. We could not reduce what they do to rules a person can follow: simple rules built from move size, jumped cards and stranded cards only reach the written strategy's level, and almost all the difference is in which card a computer chooses, not in when it stops. In solitaire on the old default (Normal: a deck of 2 to 99, hands of 7) a program still wins only about 5% of games, and on Hard about 0.5%. The solitaire default is now Easy (a deck of 2 to 59, hands of 8, one card a turn), which a program won in all 2,000 measured games. A hand of 11 instead of 7 lifts the written strategy from 1% to 74% wins.

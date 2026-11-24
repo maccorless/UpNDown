@@ -103,12 +103,6 @@ function createLobbyState(): GameState {
         }
       }
     },
-    nasCheat: {
-      enabledPlayerIds: [],
-      usedThisTurnByPlayerId: {
-        'socket-1': false
-      }
-    },
     settings: multiplayerSettings,
     isSolitaire: false
   };
@@ -132,13 +126,6 @@ function createEndedState(): GameState {
         'socket-2': { cardsPlayed: 2, totalMovement: 18, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 }
       }
     },
-    nasCheat: {
-      enabledPlayerIds: ['socket-1'],
-      usedThisTurnByPlayerId: {
-        'socket-1': true,
-        'socket-2': false
-      }
-    }
   };
 }
 
@@ -162,13 +149,6 @@ function createPlayingState(): GameState {
         'socket-2': { cardsPlayed: 1, totalMovement: 9, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 }
       }
     },
-    nasCheat: {
-      enabledPlayerIds: [],
-      usedThisTurnByPlayerId: {
-        'socket-1': false,
-        'socket-2': false
-      }
-    }
   };
 }
 
@@ -268,13 +248,6 @@ describe('multiplayer ack handling', () => {
           'socket-2': { cardsPlayed: 0, totalMovement: 0, specialPlays: 0, nasCheatsUsed: 0, skipsUsed: 0, tradesUsed: 0, lookupsUsed: 0, nasChecksUsed: 0, montyUsed: 0, hintsUsed: 0, undosUsed: 0, marksPlaced: 0, lifelines: 0, markFollows: 0 }
         }
       },
-      nasCheat: {
-        enabledPlayerIds: [],
-        usedThisTurnByPlayerId: {
-          'socket-1': false,
-          'socket-2': false
-        }
-      }
     };
     let leaveCalls = 0;
 

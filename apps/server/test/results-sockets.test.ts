@@ -14,7 +14,7 @@ const settings: AuthSettings = {
   googleClientId: 'id', googleClientSecret: 'secret', legacyHost: undefined
 };
 
-type Ack = { ok: boolean; data?: { gameState: GameState }; error?: string; gone?: boolean };
+type Ack = { ok: boolean; data?: { gameState: GameState }; error?: string; reason?: 'gone' | 'kicked' };
 
 describe('results through real sockets', () => {
   let server: ReturnType<typeof createRealtimeServer>;
@@ -135,16 +135,16 @@ describe('results through real sockets', () => {
 
     const stranger = await open('google-dan');
     const refused = await ask(stranger.socket, 'game:rejoinMine', {});
-    expect(refused).toMatchObject({ ok: false, gone: true });
+    expect(refused).toMatchObject({ ok: false, reason: 'gone' });
     const guest = await open();
-    expect(await ask(guest.socket, 'game:rejoinMine', {})).toMatchObject({ ok: false, gone: true });
+    expect(await ask(guest.socket, 'game:rejoinMine', {})).toMatchObject({ ok: false, reason: 'gone' });
   });
 
   it('answers a refused rejoin with gone, so the client stops trying', async () => {
     const { cy, gameId } = await table();
     const fresh = await open();
     const refused = await ask(fresh.socket, 'game:rejoin', { gameId, previousPlayerId: cy.socket.id, rejoinToken: 'wrong' });
-    expect(refused).toMatchObject({ ok: false, gone: true });
+    expect(refused).toMatchObject({ ok: false, reason: 'gone' });
   });
 
   // The seat was taken signed in. Signing out later (here, the session ends) does not change whose game it was.

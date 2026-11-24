@@ -55,7 +55,6 @@ function playing(): GameState {
     gamePhase: 'playing',
     cardsPlayedThisTurn: 0,
     statistics: { turns: 1, startedAtMs: Date.now(), endedAtMs: null, players: { 'socket-1': stat, 'socket-2': stat } },
-    nasCheat: { enabledPlayerIds: [], usedThisTurnByPlayerId: { 'socket-1': false, 'socket-2': false } },
     settings,
     isSolitaire: false
   };

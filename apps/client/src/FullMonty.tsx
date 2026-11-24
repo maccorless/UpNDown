@@ -15,8 +15,8 @@ const STATUSES: MontyCell[] = ['draw', 'hand', 'played', 'out'];
 export function FullMontyModal({ cells, onClose }: { cells: MontyCell[]; onClose: () => void }): JSX.Element {
   const count = (status: MontyCell): number => cells.filter((cell) => cell === status).length;
   return (
-    <Modal className="panel full-monty-modal" dismiss="any" label="The full Monty" onClose={onClose}>
-      <h2>The full Monty</h2>
+    <Modal className="panel full-monty-modal" dismiss="any" label="The Full Monty" onClose={onClose}>
+      <h2>The Full Monty</h2>
       <p className="full-monty-summary">
         {count('draw')} in the draw pile, {count('hand')} in hands, {count('played')} played. {count('out')} are not cards in this game.
       </p>

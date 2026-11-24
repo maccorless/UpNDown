@@ -5,7 +5,7 @@ import { useEffect } from 'react';
 export const CHEAT_TITLES: Record<CheatKind, string> = {
   lookup: 'Card seeker',
   nas: 'Nas check',
-  monty: 'The full Monty',
+  monty: 'The Full Monty',
   skip: 'Skip turn',
   trade: 'Trade a card',
   hint: 'Hint'
@@ -61,7 +61,7 @@ export function cheatNoticeText(event: Pick<CheatUsedEvent, 'playerName' | 'kind
   if (event.kind === 'skip') return `${who} skipped a turn`;
   if (event.kind === 'trade') return `${who} traded a card`;
   if (event.kind === 'lookup') return `${who} used the card seeker`;
-  if (event.kind === 'monty') return `${who} used The full Monty`;
+  if (event.kind === 'monty') return `${who} used The Full Monty`;
   return `${who} used a hint`;
 }
 
@@ -71,6 +71,8 @@ interface HotkeyArgs {
   onLookup?: () => void;
   onSkip?: () => void;
   onTrade?: () => void;
+  onHint?: () => void;
+  onMonty?: () => void;
 }
 
 const typingIn = (target: EventTarget | null): boolean => {
@@ -80,8 +82,9 @@ const typingIn = (target: EventTarget | null): boolean => {
 
 // Accelerators only: the panel is the dependable way in (and the only one on a phone). A key is taken from the browser only
 // when it does something here, so printing and saving still work whenever the cheat is not available.
-// Card seeker: Ctrl/Cmd-P. Nas check: Ctrl/Cmd-Shift-K. Skip: Ctrl/Cmd-S. Trade: Ctrl/Cmd-Shift-X. Ctrl/Cmd-T opens a browser tab and cannot be used.
-export function useCheatHotkeys({ active, onNas, onLookup, onSkip, onTrade }: HotkeyArgs): void {
+// Card seeker: Ctrl/Cmd-P. Nas check: Ctrl/Cmd-Shift-K. Hint: Ctrl/Cmd-Shift-H. Full Monty: Ctrl/Cmd-Shift-M. Skip: Ctrl/Cmd-S. Trade: Ctrl/Cmd-Shift-X.
+// Ctrl/Cmd-T opens a browser tab and cannot be used. Cmd-H hides the Mac app and Cmd-M minimises it, so H and M take Shift.
+export function useCheatHotkeys({ active, onNas, onLookup, onSkip, onTrade, onHint, onMonty }: HotkeyArgs): void {
   useEffect(() => {
     if (!active) return undefined;
     const onKeyDown = (e: KeyboardEvent): void => {
@@ -95,10 +98,12 @@ export function useCheatHotkeys({ active, onNas, onLookup, onSkip, onTrade }: Ho
       else if (!e.shiftKey && e.code === 'KeyS') run(onSkip);
       else if (e.shiftKey && e.code === 'KeyX') run(onTrade);
       else if (e.shiftKey && e.code === 'KeyK') run(onNas);
+      else if (e.shiftKey && e.code === 'KeyH') run(onHint);
+      else if (e.shiftKey && e.code === 'KeyM') run(onMonty);
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [active, onNas, onLookup, onSkip, onTrade]);
+  }, [active, onNas, onLookup, onSkip, onTrade, onHint, onMonty]);
 }
 
 // After an undo, cheats and marks counted since the snapshot stay counted, and the undo itself is counted. The rule is the

@@ -239,10 +239,6 @@ export const gameStateSchema = z.object({
       markFollows: z.number().int().min(0).default(0)
     }).transform((stats) => ({ ...stats, tradesUsed: stats.tradesUsed ?? stats.nasCheatsUsed })))
   }),
-  nasCheat: z.object({
-    enabledPlayerIds: z.array(z.string().max(100)).max(6),
-    usedThisTurnByPlayerId: z.record(z.string().max(100), z.boolean())
-  }),
   settings: gameSettingsSchema,
   isSolitaire: z.boolean(),
   consecutiveSkips: z.number().int().min(0).max(100).optional()

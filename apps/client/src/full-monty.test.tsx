@@ -62,9 +62,9 @@ describe('the full Monty row in Settings', () => {
   // Unlike the Nas check, it has no name to match, so it is offered in solitaire as well.
   it('is one of the cheats in a multiplayer game and in solitaire', () => {
     const { unmount } = render(dialog({ ...defaultMultiplayerSettings }, 'multiplayer'));
-    expect(screen.getByRole('radiogroup', { name: 'The full Monty' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'The Full Monty' })).toBeTruthy();
     unmount();
     render(dialog({ ...defaultSolitaireSettings }, 'solitaire'));
-    expect(screen.getByRole('radiogroup', { name: 'The full Monty' })).toBeTruthy();
+    expect(screen.getByRole('radiogroup', { name: 'The Full Monty' })).toBeTruthy();
   });
 });

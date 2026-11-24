@@ -1,7 +1,8 @@
 import type { Dispatch, SetStateAction } from 'react';
-import { maxPlayersFor, type GameState, type JoinableGameSummary, type JoinLookupSummary } from '@upndown/shared-types';
+import { maxPlayersFor, type GameSettings, type GameState, type JoinableGameSummary, type JoinLookupSummary } from '@upndown/shared-types';
 import { PLAYER_COLOR_HEX } from './board-helpers.js';
 import { RejoinNotice } from './RejoinNotice.js';
+import { describeMultiplayerSettings, MySettingsSummary } from './setup-summary.js';
 import type { SeatOffer } from './useSavedSeat.js';
 import { buildInviteLink } from './game-url.js';
 
@@ -33,8 +34,13 @@ export function JoinPanel(props: {
   // Games in progress this browser can go back to. Offered here as well as on the front page, since this is where players go.
   rejoinSeats: SeatOffer[];
   onRejoin: (seatKey: string) => void;
+  // The table rules a host would create now, and this person's own settings.
+  settings: GameSettings;
+  enableSounds: boolean;
+  showArrows: boolean;
+  autoMark: boolean;
 }): JSX.Element {
-  const { playerName, setPlayerName, confirmName, multiplayerInteractionDisabled, multiplayerFlow, setMultiplayerFlow, pendingAction, createSettingsError, handleCreateGame, setShowJoinById, setJoinLookup, setError, refreshJoinableGames, loadingJoinableGames, joinableGames, handleJoinGame, showJoinById, joinGameId, setJoinGameId, handleLookupGame, joinLookup } = props;
+  const { playerName, setPlayerName, confirmName, multiplayerInteractionDisabled, multiplayerFlow, setMultiplayerFlow, pendingAction, createSettingsError, handleCreateGame, setShowJoinById, setJoinLookup, setError, refreshJoinableGames, loadingJoinableGames, joinableGames, handleJoinGame, showJoinById, joinGameId, setJoinGameId, handleLookupGame, joinLookup, settings, enableSounds, showArrows, autoMark } = props;
   return (
     <section className="panel lobby" aria-label="multiplayer lobby">
       <h2>Multiplayer</h2>
@@ -56,6 +62,17 @@ export function JoinPanel(props: {
           />
         </label>
       </div>
+      {multiplayerFlow === 'choose' ? (
+        <>
+          <section aria-labelledby="table-settings-title" data-testid="multiplayer-summary">
+            <h3 id="table-settings-title">Table settings</h3>
+            <ul className="setup-summary">
+              {describeMultiplayerSettings(settings).map((line) => <li key={line}>{line}</li>)}
+            </ul>
+          </section>
+          <MySettingsSummary solitaire={false} enableSounds={enableSounds} showArrows={showArrows} autoMark={autoMark} />
+        </>
+      ) : null}
       {multiplayerFlow === 'choose' ? (
         <div className="flow-choice" data-testid="flow-choice">
           <button

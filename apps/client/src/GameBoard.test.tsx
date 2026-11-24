@@ -37,12 +37,6 @@ const WON_STATE: GameState = {
       }
     }
   },
-  nasCheat: {
-    enabledPlayerIds: [],
-    usedThisTurnByPlayerId: {
-      'solo-player': false
-    }
-  },
   settings: {
     minCardValue: 1,
     maxCardValue: 100,
