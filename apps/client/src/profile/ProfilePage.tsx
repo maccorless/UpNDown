@@ -1,4 +1,4 @@
-import { CATALOG } from '@upndown/profile';
+import { CATALOG, type BadgeChange } from '@upndown/profile';
 import { useId, useRef, useState, type KeyboardEvent } from 'react';
 import type { AuthState } from '../auth/useAuth.js';
 import { Modal } from '../Modal.js';
@@ -17,6 +17,8 @@ interface Props {
   authEnabled: boolean;
   // Badge tiers the player has already been shown, by id.
   seen: Record<string, number>;
+  // What the latest finished game changed, by badge id.
+  lastGame: ReadonlyMap<string, BadgeChange>;
   tab: ProfileTab;
   onTab: (tab: ProfileTab) => void;
   onBack: () => void;
@@ -29,7 +31,7 @@ interface Props {
 const TABS: Array<{ id: ProfileTab; label: string }> = [{ id: 'stats', label: 'Statistics' }, { id: 'achievements', label: 'Achievements' }];
 
 // The player's profile as a full-screen sheet over whatever they were doing, so a game in progress keeps running underneath.
-export function ProfilePage({ auth, view, history, authEnabled, seen, tab, onTab, onBack, onSignIn, onPlay, onChangeName }: Props): JSX.Element {
+export function ProfilePage({ auth, view, history, authEnabled, seen, lastGame, tab, onTab, onBack, onSignIn, onPlay, onChangeName }: Props): JSX.Element {
   const titleId = useId();
   const tz = deviceTimeZone();
   const signedIn = auth.status === 'signedIn';
@@ -93,7 +95,7 @@ export function ProfilePage({ auth, view, history, authEnabled, seen, tab, onTab
       <div role="tabpanel" id="profile-panel-achievements" aria-labelledby="profile-tab-achievements" hidden={tab !== 'achievements'}>
         {tab === 'achievements' ? (
           view.state === 'error' ? <div className="profile-state"><p role="alert">Could not load your achievements.</p><button type="button" className="secondary" onClick={view.reload}>Retry</button></div>
-            : view.data ? <AchievementsTab badges={view.data.badges} seen={seen} tz={tz} /> : <p className="profile-state" role="status">Loading your achievements...</p>
+            : view.data ? <AchievementsTab badges={view.data.badges} seen={seen} tz={tz} lastGame={lastGame} /> : <p className="profile-state" role="status">Loading your achievements...</p>
         ) : null}
       </div>
 

@@ -6,6 +6,9 @@ Created: 09-Nov-2026 19:09 CST
 
 | Date | ID | Change |
 |------|----|--------|
+| 2026-11-25 | — | Fix: a game started and left before any card was played is not counted as abandoned, for a guest or a signed-in player
+| 2026-11-25 | — | Feat: a new badge after a game floats up the screen for eight seconds (was five); tapping it opens the Achievements tab
+| 2026-11-25 | — | Feat: the Achievements tab shows what the last finished game did: a progress value it moved is struck through beside the new one (40 then 45 of 50), and a badge it changed is marked
 | 2026-11-24 | — | Feat: The Full Monty is a ten by ten grid, so a card and the one ten above or below it share a column; your own hand is violet, other players' hands amber, and the cards on top of the piles are hatched
 | 2026-11-24 | — | Feat: next to each robot, the cards it played on its last turn (or "skipped"), so the quick robot plays can be followed. Public state, kept until its next turn
 | 2026-11-24 | — | Fix: the Change to Multiplayer and Change to Solitaire buttons switch the mode; they used to go back to the choice of mode |

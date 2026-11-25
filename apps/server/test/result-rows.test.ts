@@ -86,6 +86,15 @@ describe('buildResultRows', () => {
     expect(rows[0]!.endedAt.getTime()).toBe(1_240_000);
   });
 
+  // A game started and left before any card was played is not one anyone played, so it is not counted as abandoned.
+  it('writes no abandoned row when nobody at the table had played a card', () => {
+    const unplayed = state({
+      gamePhase: 'playing',
+      statistics: { ...state().statistics, endedAtMs: null, players: { p1: { ...state().statistics.players.p1!, cardsPlayed: 0 }, p2: { ...state().statistics.players.p2!, cardsPlayed: 0 } } }
+    });
+    expect(buildResultRows({ state: unplayed, runId: 'r', outcome: 'abandoned', userIdByPlayerId: users, nowMs: 1_240_000, onlyPlayerId: 'p1' })).toEqual([]);
+  });
+
   it('never reports an end before the start, or a negative duration', () => {
     const [row] = buildResultRows({
       state: state({ statistics: { ...state().statistics, startedAtMs: 2_000_000, endedAtMs: 1_000_000 } }),

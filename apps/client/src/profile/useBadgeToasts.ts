@@ -1,4 +1,4 @@
-import { CATALOG } from '@upndown/profile';
+import { badgeChanges, CATALOG, type BadgeChange } from '@upndown/profile';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Toast } from './BadgeToasts.js';
 import type { LocalHistory } from './local-history.js';
@@ -24,8 +24,10 @@ interface Args {
   now?: () => number;
 }
 
-export function useBadgeToasts({ source, finishedKey, delayMs = 0, seen, markSeen, nudge, history, now = Date.now }: Args): { toasts: Toast[]; dismiss: (id: string) => void } {
+export function useBadgeToasts({ source, finishedKey, delayMs = 0, seen, markSeen, nudge, history, now = Date.now }: Args): { toasts: Toast[]; dismiss: (id: string) => void; lastGame: ReadonlyMap<string, BadgeChange> } {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  // What the latest finished game changed, by badge id. Replaced by each finished game, so the Achievements tab can show it.
+  const [lastGame, setLastGame] = useState<ReadonlyMap<string, BadgeChange>>(() => new Map());
   const handled = useRef<string | null>(null);
   const latest = useRef({ seen, markSeen, nudge });
   latest.current = { seen, markSeen, nudge };
@@ -49,6 +51,7 @@ export function useBadgeToasts({ source, finishedKey, delayMs = 0, seen, markSee
             fresh.push({ id: `${b.id}:${tier}`, title: def.targets.length > 1 ? `${def.name}, ${TIER[tier]}` : def.name, body: def.blurb });
           }
         }
+        setLastGame(badgeChanges(data.badges, data.beforeLatest));
         if (fresh.length === 0) return;
         mark(reached);
         if (fresh.length > MAX_INDIVIDUAL) {
@@ -68,5 +71,5 @@ export function useBadgeToasts({ source, finishedKey, delayMs = 0, seen, markSee
   }, [source, finishedKey, delayMs, history, now]);
 
   const dismiss = useCallback((id: string) => setToasts((q) => q.filter((t) => t.id !== id)), []);
-  return { toasts, dismiss };
+  return { toasts, dismiss, lastGame };
 }

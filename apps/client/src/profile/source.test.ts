@@ -59,6 +59,17 @@ describe('the account profile source', () => {
     expect(data.waiting).toBe(1);
   });
 
+  // The page shows what the newest game changed by comparing with these, so an account must get them from the server, and an older
+  // server that does not send them must not break the page.
+  it('takes the badges as they stood before the newest game from the server, and none when an older server omits them', async () => {
+    const before = [{ id: 'regular', tier: 0, progress: { value: 9, nextTarget: 10 }, unlockedAtMs: [] }];
+    const answer = (body: unknown) => (async () => new Response(JSON.stringify(body), { status: 200 })) as unknown as typeof fetch;
+    const withBefore = await accountSource(createOutbox('u1', store()), answer({ stats: {}, badges: [], beforeLatest: before })).load('UTC');
+    expect(withBefore.beforeLatest).toEqual(before);
+    const older = await accountSource(createOutbox('u1', store()), answer({ stats: {}, badges: [] })).load('UTC');
+    expect(older.beforeLatest).toEqual([]);
+  });
+
   it('fails, so the page can offer Retry, when the server does not answer well', async () => {
     const fetchImpl = (async () => new Response('{}', { status: 500 })) as unknown as typeof fetch;
     await expect(accountSource(createOutbox('u1', store()), fetchImpl).load('UTC')).rejects.toThrow();

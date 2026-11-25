@@ -2,11 +2,12 @@ import { useEffect } from 'react';
 
 export interface Toast { id: string; title: string; body: string; extra?: string }
 
-const SHOW_MS = 5_000;
+// Matches the float in App.css. Long enough to read while it drifts up the screen.
+const SHOW_MS = 8_000;
 
-// One at a time, after the result screen, never during a game. Each stays at least four seconds and can be dismissed. Everything
-// said here is also on the Achievements tab, so a missed toast loses nothing.
-export function BadgeToasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: string) => void }): JSX.Element {
+// One at a time, after the result screen, never during a game. Each floats up the screen for eight seconds, then goes by itself.
+// A tap takes the player to the Achievements tab. Everything said here is also on that tab, so a missed toast loses nothing.
+export function BadgeToasts({ toasts, onDismiss, onOpen }: { toasts: Toast[]; onDismiss: (id: string) => void; onOpen: () => void }): JSX.Element {
   const current = toasts[0];
   useEffect(() => {
     if (!current) return undefined;
@@ -19,10 +20,11 @@ export function BadgeToasts({ toasts, onDismiss }: { toasts: Toast[]; onDismiss:
   return (
     <div className="badge-toasts" aria-live="polite" aria-atomic="true">
       {current ? (
-        <button type="button" className="badge-toast" onClick={() => onDismiss(current.id)}>
+        <button type="button" className="badge-toast" onClick={() => { onDismiss(current.id); onOpen(); }}>
           <strong>{current.title}</strong>
           <p>{current.body}</p>
           {current.extra ? <p>{current.extra}</p> : null}
+          <p className="badge-toast-hint">See your achievements</p>
         </button>
       ) : null}
     </div>

@@ -33,6 +33,13 @@ function playSome(state: GameState, moves: number): { state: GameState; history:
 }
 
 const raw = () => window.localStorage.getItem(SAVE_KEY);
+// A random deal can be lost within a few moves, and a lost game is not saved as resumable. Deal again until the game is still in play.
+function playedDeal(moves: number): { state: GameState; history: GameState[] } {
+  let dealt = playSome(fresh(), moves);
+  while (dealt.state.gamePhase !== 'playing') dealt = playSome(fresh(), moves);
+  return dealt;
+}
+
 const tamper = (edit: (save: Record<string, any>) => void): void => {
   const save = JSON.parse(raw()!);
   edit(save);
@@ -44,7 +51,7 @@ describe('the saved solitaire game', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('is exactly the game that was saved, after real moves, with its undo history', () => {
-    const { state, history } = playSome(fresh(), 6);
+    const { state, history } = playedDeal(6);
     expect(history.length).toBeGreaterThan(2);
     writeSolitaireSave(state, history, 1_000, RUN);
     const back = readSolitaireSave(RUN)!;
@@ -62,7 +69,7 @@ describe('the saved solitaire game', () => {
   });
 
   it('keeps only the most recent undo steps, because each one is a whole game', () => {
-    const { state, history: real } = playSome(fresh(), 6);
+    const { state, history: real } = playedDeal(6);
     // Forty steps, the last one distinguishable, so we can see it is the recent end that survives.
     const history = Array.from({ length: 40 }, (_, i) => (i === 39 ? real.at(-1)! : real[0]!));
     writeSolitaireSave(state, history, undefined, RUN);
@@ -91,7 +98,7 @@ describe('the saved solitaire game', () => {
 // A save comes back from storage the player, an extension or another build could have touched. Anything that is not a
 // game this build can safely resume is dropped, never loaded half-way.
 describe('a save that must not be resumed', () => {
-  beforeEach(() => { window.localStorage.clear(); writeSolitaireSave(playSome(fresh(), 3).state, [], undefined, RUN); });
+  beforeEach(() => { window.localStorage.clear(); writeSolitaireSave(playedDeal(3).state, [], undefined, RUN); });
 
   it.each([
     ['not JSON', () => window.localStorage.setItem(SAVE_KEY, '{nope')],
@@ -166,7 +173,7 @@ describe('describeAge', () => {
 // Several games can be going at once (one per tab, or left behind), and each keeps its own save.
 describe('several saved games', () => {
   beforeEach(() => { vi.restoreAllMocks(); window.localStorage.clear(); });
-  const played = () => playSome(fresh(), 3).state;
+  const played = () => playedDeal(3).state;
 
   it('keeps each game apart, so saving one never overwrites another', () => {
     writeSolitaireSave(played(), [], 1_000, 'a');

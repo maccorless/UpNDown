@@ -3,7 +3,7 @@ import { GameManager } from '../src/game-manager.js';
 import { MemoryGameStore } from '../src/live/game-store.js';
 import { LivePersistence, LIVE_RETENTION_MS } from '../src/live/persistence.js';
 import { FakeLock } from './helpers/fake-lock.js';
-import { lobbyWithUsers } from './helpers/rig.js';
+import { lobbyWithUsers, playOneCard } from './helpers/rig.js';
 
 const quiet = (): void => undefined;
 const wait = (ms: number): Promise<void> => new Promise((resolve) => { setTimeout(resolve, ms); });
@@ -110,6 +110,7 @@ describe('saving games in progress', () => {
   it('keeps who is signed in and the run id, so results are still recorded to the right accounts', async () => {
     const store = new MemoryGameStore();
     const first = playing();
+    playOneCard(first, 'p1');
     start(first.manager, store);
     await until(() => store.rows.has(first.gameId));
     const rows: string[] = [];

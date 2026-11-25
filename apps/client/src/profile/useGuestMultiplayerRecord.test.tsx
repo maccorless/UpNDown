@@ -75,7 +75,17 @@ describe('keeping a guest\'s multiplayer games on the device', () => {
     const { history, result } = setup({ state: null });
     act(() => result.current.recordAbandoned(finished('won')));
     expect(history.load().rows).toEqual([]);
-    act(() => { result.current.recordAbandoned(playing('run-2')); result.current.recordAbandoned(playing('run-2')); });
+    const started = playing('run-2');
+    started.drawPile = started.drawPile.slice(2);
+    started.statistics.players.p1 = { ...started.statistics.players.p1!, cardsPlayed: 2 };
+    act(() => { result.current.recordAbandoned(started); result.current.recordAbandoned(started); });
     expect(history.load().rows).toHaveLength(1);
+  });
+
+  // A game started and left before anyone played a card was never played, so it is not kept as abandoned.
+  it('keeps no abandoned row for a game left before any card was played', () => {
+    const { history, result } = setup({ state: null });
+    act(() => result.current.recordAbandoned(playing('run-3')));
+    expect(history.load().rows).toEqual([]);
   });
 });

@@ -2,10 +2,13 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createLocalHistory } from './local-history.js';
 import { dataFor, row } from './profile-fixtures.js';
+
+// Pinned to mid-afternoon UTC. A row's hour is what sets Early Bird, and the fixture's own counter must not decide it.
+const game = (over: Parameters<typeof row>[0] = {}) => row({ endedAtMs: Date.parse('2026-11-20T15:00:00Z'), ...over });
 import type { ProfileSource } from './source.js';
 import { useBadgeToasts } from './useBadgeToasts.js';
 
-const source = (rows = [row()]): ProfileSource => ({ kind: 'local', load: async () => dataFor(rows), history: async () => ({ rows: [], next: null }) });
+const source = (rows = [game()]): ProfileSource => ({ kind: 'local', load: async () => dataFor(rows), history: async () => ({ rows: [], next: null }) });
 
 type Props = { key: string | null; seen?: Record<string, number>; nudge?: boolean; src?: ProfileSource; now?: number };
 const setup = (initial: Props) => {
@@ -43,7 +46,7 @@ describe('badge toasts', () => {
   });
 
   it('turns a flood into one summary instead of a stack of toasts (a backfill, or the first game after an upgrade)', async () => {
-    const many = Array.from({ length: 12 }, () => row({ specialPlays: 10, handSize: 5, playedLastCard: true, playerCount: 6 }));
+    const many = Array.from({ length: 12 }, () => game({ specialPlays: 10, handSize: 5, playedLastCard: true, playerCount: 6 }));
     const { result, markSeen } = setup({ key: 'solo:2', src: source(many) });
     await waitFor(() => expect(result.current.toasts.length).toBe(1));
     expect(result.current.toasts[0]!.title).toMatch(/^\d+ new badges$/);
@@ -63,6 +66,19 @@ describe('badge toasts', () => {
     await waitFor(() => expect(result.current.toasts.length).toBe(4));
     act(() => result.current.dismiss(result.current.toasts[0]!.id));
     expect(result.current.toasts.length).toBe(3);
+  });
+
+  it('records what the latest game changed, and replaces it when a later game changes nothing', async () => {
+    const { result, rerender } = setup({ key: 'solo:9' });
+    await waitFor(() => expect(result.current.lastGame.size).toBeGreaterThan(0));
+    expect(result.current.lastGame.get('first-steps')).toEqual({ tierUp: true, from: 0, to: 1 });
+    // A game after which every badge reads just as it did before the game.
+    const unchanged = (): ProfileSource => {
+      const data = dataFor([row()]);
+      return { kind: 'local', load: async () => ({ ...data, beforeLatest: data.badges }), history: async () => ({ rows: [], next: null }) };
+    };
+    rerender({ key: 'solo:10', src: unchanged() });
+    await waitFor(() => expect(result.current.lastGame.size).toBe(0));
   });
 
   describe('asking a guest to sign in', () => {

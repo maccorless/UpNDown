@@ -1,9 +1,10 @@
-import { computeStats, evaluateAchievements, type BadgeState, type ProfileStats } from '@upndown/profile';
+import { badgesBeforeLatest, computeStats, evaluateAchievements, type BadgeState, type ProfileStats } from '@upndown/profile';
 import type { ResultRow } from '@upndown/shared-types';
 import type { LocalHistory } from './local-history.js';
 import type { Outbox } from './outbox.js';
 
-export interface ProfileData { stats: ProfileStats; badges: BadgeState[]; waiting: number }
+// beforeLatest is the same badges computed without the newest game: what that game changed is the difference.
+export interface ProfileData { stats: ProfileStats; badges: BadgeState[]; beforeLatest: BadgeState[]; waiting: number }
 export interface HistoryPage { rows: ResultRow[]; next: string | null }
 
 // Where a profile page gets its numbers: this device for a guest, the server for an account. The page does not know which.
@@ -20,7 +21,8 @@ export function localSource(history: LocalHistory, now: () => number = Date.now)
     kind: 'local',
     async load(tz) {
       const rows = history.load().rows;
-      return { stats: computeStats(rows, { tz, now: now() }), badges: evaluateAchievements(rows, { tz, now: now(), signedIn: false }), waiting: 0 };
+      const ctx = { tz, now: now(), signedIn: false };
+      return { stats: computeStats(rows, { tz, now: now() }), badges: evaluateAchievements(rows, ctx), beforeLatest: badgesBeforeLatest(rows, ctx), waiting: 0 };
     },
     async history(cursor) {
       const newestFirst = [...history.load().rows].sort((a, b) => b.endedAtMs - a.endedAtMs || (a.gameId < b.gameId ? 1 : a.gameId > b.gameId ? -1 : 0));
@@ -43,8 +45,9 @@ export function accountSource(outbox: Outbox, fetchImpl: typeof fetch = (...args
     kind: 'account',
     async load(tz) {
       const zone = encodeURIComponent(tz);
-      const [stats, badges] = await Promise.all([get<{ stats: ProfileStats }>(`/api/me/stats?tz=${zone}`), get<{ badges: BadgeState[] }>(`/api/me/achievements?tz=${zone}`)]);
-      return { stats: stats.stats, badges: badges.badges, waiting: outbox.pending().length };
+      const [stats, badges] = await Promise.all([get<{ stats: ProfileStats }>(`/api/me/stats?tz=${zone}`), get<{ badges: BadgeState[]; beforeLatest?: BadgeState[] }>(`/api/me/achievements?tz=${zone}`)]);
+      // An older server does not send beforeLatest; without it no change is shown, rather than a failed page.
+      return { stats: stats.stats, badges: badges.badges, beforeLatest: badges.beforeLatest ?? [], waiting: outbox.pending().length };
     },
     history: (cursor) => get<HistoryPage>(`/api/me/games${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`)
   };

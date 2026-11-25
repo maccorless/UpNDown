@@ -3,7 +3,7 @@ import { defaultMultiplayerSettings, type GameState } from '@upndown/shared-type
 import { io as connect, type Socket } from 'socket.io-client';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createRealtimeServer } from '../src/index.js';
-import { lobbyWithUsers, rig } from './helpers/rig.js';
+import { lobbyWithUsers, playOneCard, rig } from './helpers/rig.js';
 
 // Rules from the owner (14-Nov-2026): a dropped player is shown to the others after 10 seconds; after 90 seconds the host
 // may kick them (or wait); if the host dropped, the next available player may kick the host and takes over as host; a kick
@@ -128,6 +128,7 @@ describe('who may kick whom', () => {
 describe('a kick in a live game is a quit for the one kicked', () => {
   it('records an abandoned game for the kicked player\'s account only', () => {
     const l = started();
+    playOneCard(l, 'p1');
     l.manager.markDisconnected('p3', T0);
     kick(l, 'p1', 'p3', 90);
     expect(l.rows().map((r) => [r.userId, r.outcome])).toEqual([['u3', 'abandoned']]);
@@ -135,6 +136,7 @@ describe('a kick in a live game is a quit for the one kicked', () => {
 
   it('records the same when the next player takes over from a lost host', () => {
     const l = started();
+    playOneCard(l, 'p1');
     l.manager.markDisconnected('p1', T0);
     kick(l, 'p2', 'p1', 90);
     expect(l.rows().map((r) => [r.userId, r.outcome])).toEqual([['u1', 'abandoned']]);

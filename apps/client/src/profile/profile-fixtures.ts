@@ -1,4 +1,4 @@
-import { computeStats, evaluateAchievements } from '@upndown/profile';
+import { badgesBeforeLatest, computeStats, evaluateAchievements } from '@upndown/profile';
 import type { ResultRow } from '@upndown/shared-types';
 import type { AuthState } from '../auth/useAuth.js';
 import type { ProfileData, ProfileSource } from './source.js';
@@ -20,6 +20,7 @@ export const row = (over: Partial<ResultRow> = {}): ResultRow => {
 export const dataFor = (rows: ResultRow[], signedIn = false, waiting = 0): ProfileData => ({
   stats: computeStats(rows, { tz: 'UTC', now: NOW }),
   badges: evaluateAchievements(rows, { tz: 'UTC', now: NOW, signedIn }),
+  beforeLatest: badgesBeforeLatest(rows, { tz: 'UTC', now: NOW, signedIn }),
   waiting
 });
 

@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { Router, type Request, type Response } from 'express';
-import { computeStats, evaluateAchievements, isValidTimeZone } from '@upndown/profile';
+import { badgesBeforeLatest, computeStats, evaluateAchievements, isValidTimeZone } from '@upndown/profile';
 import { accountNameSchema, randomPresidentName, resultRowSchema, solitaireResultPayloadSchema, storedSettingsSchema, type ResultRow } from '@upndown/shared-types';
 import { z } from 'zod';
 import { buildSolitaireRow } from '../profile/result-rows.js';
@@ -364,7 +364,10 @@ export function createAuthRouter(options: AuthRouterOptions): {
     if (!tz) { res.status(400).json({ error: 'invalid time zone' }); return; }
     const session = await profileSession(req, res, current, 'api.achievements');
     if (!session) return;
-    res.json({ badges: evaluateAchievements(await rowsOf(current, session.userId), { tz, now: Date.now(), signedIn: true }) });
+    const rows = await rowsOf(current, session.userId);
+    const ctx = { tz, now: Date.now(), signedIn: true };
+    // beforeLatest is the same badges without the newest game, so the page can show what that game changed.
+    res.json({ badges: evaluateAchievements(rows, ctx), beforeLatest: badgesBeforeLatest(rows, ctx) });
   }));
 
   // History, newest first. The cursor is "<endedAtMs>:<gameId>" from the previous page's `next`.

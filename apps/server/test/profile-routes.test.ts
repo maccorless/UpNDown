@@ -76,6 +76,17 @@ describe('profile routes', () => {
       expect(body.stats).toEqual(JSON.parse(JSON.stringify(computeStats(rows, { tz: 'UTC', now: Date.now() }))));
     });
 
+    // The page shows what the newest game did, so the account needs the badges as they were before it, from the same rows.
+    it('send the badges as they stood before the newest game, from the same games', async () => {
+      const { userId, cookie } = await account('g-before');
+      seed(userId, [valid(), valid(), valid()]);
+      const body = await (await get('/api/me/achievements?tz=UTC', cookie)).json() as { badges: Array<{ id: string; progress: { value: number } }>; beforeLatest: Array<{ id: string; progress: { value: number } }> };
+      const now = body.badges.find((b) => b.id === 'regular')!;
+      const before = body.beforeLatest.find((b) => b.id === 'regular')!;
+      expect(now.progress.value).toBe(3);
+      expect(before.progress.value).toBe(2);
+    });
+
     it('count signing in as a badge for an account', async () => {
       const { cookie } = await account('g-badge');
       const { badges } = await (await get('/api/me/achievements?tz=UTC', cookie)).json() as { badges: Array<{ id: string; tier: number }> };

@@ -7,7 +7,7 @@ import { hashToken } from '../src/auth/sessions.js';
 import { createRealtimeServer } from '../src/index.js';
 import { createFakeProvider } from './helpers/fake-provider.js';
 import { MemoryProfileStore } from './helpers/memory-store.js';
-import { setUpWin } from './helpers/rig.js';
+import { setUpOneCard, setUpWin } from './helpers/rig.js';
 
 const settings: AuthSettings = {
   databaseUrl: 'unused', publicBaseUrl: 'https://upndown.cloud', stateSecret: 's'.repeat(40),
@@ -94,8 +94,12 @@ describe('results through real sockets', () => {
     await new Promise<void>((resolve) => { setTimeout(resolve, 60); });
     expect(store.results).toHaveLength(2);
 
-    // A second game in the same room, ended by the host while it is still being played.
+    // A second game in the same room, ended by the host after one card was played. A game nobody has played is not kept.
     await ask(ann.socket, 'game:start', { gameId });
+    const second = structuredClone(room(gameId).gameState);
+    setUpOneCard(second, annId);
+    room(gameId).gameState = second;
+    expect((await ask(ann.socket, 'game:playCard', { gameId, cardId: 'c-2', pileId: 0 })).ok).toBe(true);
     expect((await ask(ann.socket, 'game:endGame', { gameId })).ok).toBe(true);
     await until(() => store.results.length >= 3);
     expect(store.results).toHaveLength(3);

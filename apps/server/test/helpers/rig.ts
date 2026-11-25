@@ -32,6 +32,22 @@ export function setUpWin(state: GameState, activeId: string): void {
   for (const p of state.players) p.hand = p.id === activeId ? [{ id: 'c-2', value: 2 }] : [];
 }
 
+// The active player holds two cards and one is left in the draw pile, so playing c-2 on pile 0 goes on without winning. A game is
+// kept as abandoned only once a card has been played, so a test that quits a game after playing one starts from this.
+export function setUpOneCard(state: GameState, activeId: string): void {
+  state.currentPlayerIndex = state.players.findIndex((p) => p.id === activeId);
+  state.drawPile = [{ id: 'c-9', value: 9 }];
+  state.cardsPlayedThisTurn = 0;
+  for (const p of state.players) p.hand = p.id === activeId ? [{ id: 'c-2', value: 2 }, { id: 'c-3', value: 3 }] : [];
+}
+
+// Plays one card in a started game and leaves the game going. It goes on pile 1, so a later setUpWin that plays on pile 0 still
+// starts from an untouched pile.
+export function playOneCard(l: { manager: GameManager; gameId: string; room: () => { gameState: GameState } }, activeId: string): void {
+  rig(l.room, (s) => setUpOneCard(s, activeId));
+  l.manager.playCard(activeId, { gameId: l.gameId, cardId: 'c-2', pileId: 1 });
+}
+
 // The active player may end their turn, and the next player holds a card nothing can take: ending the turn loses.
 export function setUpLoss(state: GameState, activeId: string): void {
   state.currentPlayerIndex = state.players.findIndex((p) => p.id === activeId);

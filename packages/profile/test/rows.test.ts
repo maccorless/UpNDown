@@ -42,8 +42,21 @@ describe('resultRowFromState', () => {
   it('ends an abandoned game when it was abandoned, not when the engine last stamped a time', () => {
     const state = game();
     state.statistics = { ...state.statistics, startedAtMs: 1_000 };
-    const row = resultRowFromState({ state, runId: 'r', outcome: 'abandoned', playerId: 'p1', nowMs: 51_000 });
+    state.statistics.players.p1 = { ...state.statistics.players.p1!, cardsPlayed: 3 };
+    const row = resultRowFromState({ state, runId: 'r', outcome: 'abandoned', playerId: 'p1', nowMs: 51_000 })!;
     expect(row.endedAtMs).toBe(51_000);
     expect(row.playedLastCard).toBe(false);
+  });
+
+  it('keeps no row for a game that was started and left before any card was played, by anyone', () => {
+    const state = game();
+    state.statistics = { ...state.statistics, startedAtMs: 1_000 };
+    expect(resultRowFromState({ state, runId: 'r', outcome: 'abandoned', playerId: 'p1', nowMs: 51_000 })).toBeNull();
+  });
+
+  it('keeps an abandoned row for a player who joined a game where someone else had played', () => {
+    const state = game();
+    state.statistics.players.p2 = { ...state.statistics.players.p2!, cardsPlayed: 2 };
+    expect(resultRowFromState({ state, runId: 'r', outcome: 'abandoned', playerId: 'p1', nowMs: 51_000 })).not.toBeNull();
   });
 });

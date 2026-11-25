@@ -20,6 +20,7 @@ export function buildResultRows(args: {
     const userId = userIdByPlayerId.get(player.id);
     if (!userId || (onlyPlayerId !== undefined && player.id !== onlyPlayerId)) continue;
     const row = resultRowFromState({ state, runId, outcome, playerId: player.id, nowMs });
+    if (!row) continue;
     // A game the server watched keeps its full settings; the shared builder only knows the fields the profile reads.
     const mine = state.statistics.players[player.id];
     rows.push({ ...toStoredRow(userId, row), ...(mine ? { myTrades: mine.tradesUsed, myNasCheats: mine.nasCheatsUsed } : {}), settings: { ...state.settings } });

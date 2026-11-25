@@ -70,7 +70,7 @@ export function useSolitaireResult({ active, state, runId, signedIn, guest = fal
       attemptedRun.current = runId;
       const row = resultRowFromState({ state, runId, outcome: state.gamePhase, playerId: SOLO_PLAYER_ID, nowMs: Date.now() });
       // Only a game the server would also accept is kept, so a later move to an account refuses nothing.
-      if (resultRowSchema.safeParse(row).success) {
+      if (row && resultRowSchema.safeParse(row).success) {
         history.add(row);
         setStatus('local');
       }

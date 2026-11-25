@@ -4,9 +4,12 @@ import { cheatsAllowedBy, type GameState, type ResultRow } from '@upndown/shared
 const MAX_PLAY_MS = 24 * 24 * 3_600_000;
 
 // One player's row for a game, from the state the player sees. The server builds its rows with this too, so a guest's row
-// and the server's row for the same game agree.
-export function resultRowFromState(a: { state: GameState; runId: string; outcome: ResultRow['outcome']; playerId: string; nowMs: number }): ResultRow {
+// and the server's row for the same game agree. Null for a game that was started and left with no card played by anyone: it
+// was never played, so it is not kept as abandoned.
+export function resultRowFromState(a: { state: GameState; runId: string; outcome: ResultRow['outcome']; playerId: string; nowMs: number }): ResultRow | null {
   const { state, runId, outcome, playerId, nowMs } = a;
+  const anyCardPlayed = Object.values(state.statistics.players).some((p) => p.cardsPlayed > 0);
+  if (outcome === 'abandoned' && !anyCardPlayed) return null;
   // Merged with the defaults: a game that was running when a counter was added reads that counter as zero, not undefined.
   const mine = { ...emptyPlayerStats(), ...state.statistics.players[playerId] };
   const mode = state.isSolitaire ? 'solitaire' : 'multiplayer';

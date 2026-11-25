@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GameManager, defaultMultiplayerSettings } from '../src/game-manager.js';
-import { lobbyWithUsers, rig, setUpLoss, setUpWin } from './helpers/rig.js';
+import { lobbyWithUsers, playOneCard, rig, setUpLoss, setUpWin } from './helpers/rig.js';
 
 const three = () => lobbyWithUsers([{ id: 'p1', userId: 'u1' }, { id: 'p2', userId: 'u2' }, { id: 'p3' }]); // p3 is a guest
 
@@ -145,6 +145,7 @@ describe('quitting a started game', () => {
   it('after an abandoned game the room starts a fresh run, so the next result is a different game', () => {
     const l = three();
     l.manager.startGame('p1', l.gameId);
+    playOneCard(l, 'p1');
     l.manager.endGame('p1', l.gameId);
     l.manager.startGame('p1', l.gameId);
     win(l);
@@ -193,6 +194,7 @@ describe('whose result it is', () => {
   it('credits an abandoned row to the account that hosted, after the host reconnects', () => {
     const l = three();
     l.manager.startGame('p1', l.gameId);
+    playOneCard(l, 'p1');
     l.manager.rejoinPlayer(l.gameId, 'p1', 'p1b', l.manager.getRejoinToken(l.gameId, 'p1'));
     l.manager.endGame('p1b', l.gameId);
     expect(l.rows().map((r) => r.userId)).toEqual(['u1']);
@@ -202,6 +204,7 @@ describe('whose result it is', () => {
   it('records a kicked player as having abandoned, and the others their result', () => {
     const l = three();
     l.manager.startGame('p1', l.gameId);
+    playOneCard(l, 'p1');
     l.manager.kickPlayer('p1', { gameId: l.gameId, targetPlayerId: 'p2' });
     win(l);
     expect(l.rows().map((r) => [r.userId, r.outcome])).toEqual([['u2', 'abandoned'], ['u1', 'won']]);

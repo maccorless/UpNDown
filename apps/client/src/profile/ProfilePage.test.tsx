@@ -6,7 +6,7 @@ import { authOf, dataFor, row, sourceOf, viewOf } from './profile-fixtures.js';
 
 const setup = (over: Partial<Parameters<typeof ProfilePage>[0]> = {}) => {
   const props = {
-    auth: authOf(), view: viewOf(), history: createLocalHistory(), authEnabled: true, seen: {}, tab: 'stats' as ProfileTab,
+    auth: authOf(), view: viewOf(), history: createLocalHistory(), authEnabled: true, seen: {}, lastGame: new Map(), tab: 'stats' as ProfileTab,
     onTab: vi.fn(), onBack: vi.fn(), onSignIn: vi.fn(), onPlay: vi.fn(), ...over
   };
   render(<ProfilePage {...props} />);

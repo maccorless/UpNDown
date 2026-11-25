@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { GameManager } from '../src/game-manager.js';
 import { createRealtimeServer } from '../src/index.js';
 import { MATHEMATICIANS, pickRobotName } from '../src/robot-names.js';
-import { lobbyWithUsers } from './helpers/rig.js';
+import { lobbyWithUsers, playOneCard } from './helpers/rig.js';
 
 const settings = { ...defaultMultiplayerSettings, maxPlayers: 4 };
 
@@ -95,6 +95,7 @@ describe('robots at the table (rules)', () => {
     const l = lobbyWithUsers([{ id: 'h', userId: 'u-host', name: 'Hana' }, { id: 'g', name: 'Guy' }]);
     l.manager.addRobot('h', l.gameId);
     l.manager.startGame('h', l.gameId);
+    playOneCard(l, 'h');
     l.manager.endGame('h', l.gameId);
     const rows = l.rows();
     expect(rows.map((r) => r.userId)).toEqual(['u-host']);
@@ -186,6 +187,7 @@ describe('when robots may act', () => {
     const l = lobbyWithUsers([{ id: 'h1', userId: 'u1', name: 'Person 1' }, { id: 'h2', name: 'Guest' }]);
     l.manager.addRobot('h1', l.gameId);
     l.manager.startGame('h1', l.gameId);
+    playOneCard(l, 'h1');
     l.manager.markDisconnected('h1', 1_000);
     expect(l.manager.abandonIfOnlyRobotsRemain(l.gameId, 1_000 + 95_000)).toBe(false); // h2 is still here
     l.manager.markDisconnected('h2', 2_000);

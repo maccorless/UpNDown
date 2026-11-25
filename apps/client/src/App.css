@@ -3307,9 +3307,20 @@ dialog.modal-dialog.confirm-dialog { padding: 16px; background: var(--surface); 
 .badge-toasts { position: fixed; inset-inline: 0; inset-block-end: 14px; z-index: 60; display: grid; justify-items: center; pointer-events: none; }
 .badge-toast { pointer-events: auto; max-inline-size: min(26rem, calc(100% - 2rem)); padding: 10px 14px; border: 2px solid var(--line-strong); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 10px 28px rgba(4, 12, 24, 0.35); }
 .badge-toast p { margin: 2px 0 0; }
+.badge-toast-hint { font-size: 0.85rem; color: var(--accent-strong); }
 @media (prefers-reduced-motion: no-preference) {
-  .badge-toast { animation: modal-in 0.25s ease-out; }
+  .badge-toast { animation: badge-toast-float 8s ease-out both; }
 }
+/* Rises from below the bottom edge, drifts up the screen, and fades out over its last stretch. Lasts as long as SHOW_MS in BadgeToasts.tsx. */
+@keyframes badge-toast-float {
+  0% { opacity: 0; transform: translateY(24px); }
+  10% { opacity: 1; transform: translateY(0); }
+  75% { opacity: 1; transform: translateY(-120px); }
+  100% { opacity: 0; transform: translateY(-160px); }
+}
+.badge-card.is-changed { border-color: var(--accent-strong); box-shadow: 0 0 0 2px var(--accent-strong) inset; }
+.badge-progress s { opacity: 0.7; }
+.badge-new { font-size: 0.8rem; font-weight: 700; color: var(--accent-strong); }
 
 /* A game in progress that this browser can go back to: on the front page and at the top of the Multiplayer screen. */
 .rejoin-notice {

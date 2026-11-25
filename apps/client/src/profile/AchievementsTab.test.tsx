@@ -1,12 +1,38 @@
-import { CATALOG } from '@upndown/profile';
+import { CATALOG, type BadgeChange } from '@upndown/profile';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { AchievementsTab } from './AchievementsTab.js';
 import { dataFor, row } from './profile-fixtures.js';
 
-const show = (rows = [row()], seen: Record<string, number> = {}, signedIn = false) => render(<AchievementsTab badges={dataFor(rows, signedIn).badges} seen={seen} tz="UTC" />);
+const show = (rows = [row()], seen: Record<string, number> = {}, signedIn = false, lastGame: ReadonlyMap<string, BadgeChange> = new Map()) => render(<AchievementsTab badges={dataFor(rows, signedIn).badges} seen={seen} tz="UTC" lastGame={lastGame} />);
 
 describe('the achievements tab', () => {
+  it('picks out the badges the last game changed, so a player sees what that game did', () => {
+    show([row()], {}, false, new Map([['first-steps', { tierUp: true, from: 0, to: 1 }]]));
+    const changed = screen.getByText('First Steps').closest('li')!;
+    expect(changed.classList.contains('is-changed')).toBe(true);
+    expect(changed.textContent).toMatch(/New in your last game/);
+    const unchanged = screen.getByText('Regular').closest('li')!;
+    expect(unchanged.classList.contains('is-changed')).toBe(false);
+    expect(unchanged.textContent).not.toMatch(/in your last game/);
+  });
+
+  // A game that moved a count shows where it was (struck through) and where it is now, so its effect reads at a glance.
+  it('strikes through the progress the last game started from, and shows where it is now', () => {
+    show(Array.from({ length: 10 }, () => row()), {}, false, new Map([['regular', { tierUp: true, from: 9, to: 10 }]]));
+    const card = screen.getByText('Regular').closest('li')!;
+    expect(card.querySelector('s')?.textContent).toBe('was 9');
+    expect(card.textContent).toMatch(/was 9 now 10 \/ 50/);
+    expect(card.textContent).toMatch(/New in your last game/);
+  });
+
+  it('shows plain progress for a badge the last game did not move', () => {
+    show(Array.from({ length: 10 }, () => row()));
+    const card = screen.getByText('Regular').closest('li')!;
+    expect(card.querySelector('s')).toBeNull();
+    expect(card.textContent).toMatch(/10 \/ 50/);
+  });
+
   it('sums up how many badges are earned and how many are gold', () => {
     show();
     expect(screen.getByRole('status').textContent).toMatch(new RegExp(`^\\d+ of ${CATALOG.length} earned, 0 gold$`));

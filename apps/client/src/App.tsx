@@ -35,6 +35,7 @@ import { useSolitaireResult } from './useSolitaireResult.js';
 import { useLocalHistory } from './profile/useLocalHistory.js';
 import { useGuestMultiplayerRecord } from './profile/useGuestMultiplayerRecord.js';
 import { ProfileLayer } from './profile/ProfileLayer.js';
+import type { ProfileTab } from './profile/ProfilePage.js';
 import { BadgeToasts } from './profile/BadgeToasts.js';
 import { useBadgeToasts } from './profile/useBadgeToasts.js';
 import { useSeenBadges } from './profile/useSeenBadges.js';
@@ -103,6 +104,7 @@ export function App(): JSX.Element {
   // Solitaire needs no server. Only a signed-in player's finished game is sent, to be saved to their history.
   const localHistory = useLocalHistory();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<ProfileTab>('stats');
   const seenBadges = useSeenBadges(auth, localHistory);
   const profileSource = useProfileSource(auth, localHistory);
   const solitaireResult = useSolitaireResult({ active: solitaireActive, state: solitaireState, runId: solitaireRunId, signedIn: auth.status === 'signedIn', guest: auth.status === 'guest' || auth.status === 'disabled', userId: auth.userId, history: localHistory });
@@ -1586,8 +1588,8 @@ export function App(): JSX.Element {
         />
       ) : null}
 
-      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={seenBadges.seen} markSeen={seenBadges.markSeen} onClose={() => setProfileOpen(false)} onChangeName={mode === 'solitaire' || multiplayerState !== null ? undefined : () => setEditingName(true)} />
-      <BadgeToasts toasts={badgeToasts.toasts} onDismiss={badgeToasts.dismiss} />
+      <ProfileLayer auth={auth} history={localHistory} open={profileOpen} seen={seenBadges.seen} markSeen={seenBadges.markSeen} lastGame={badgeToasts.lastGame} tab={profileTab} onTab={setProfileTab} onClose={() => setProfileOpen(false)} onChangeName={mode === 'solitaire' || multiplayerState !== null ? undefined : () => setEditingName(true)} />
+      <BadgeToasts toasts={badgeToasts.toasts} onDismiss={badgeToasts.dismiss} onOpen={() => { setProfileTab('achievements'); setProfileOpen(true); }} />
       <MoveHistoryDialog auth={auth} history={localHistory} source={profileSource} markSeen={seenBadges.markSeen} />
 
       {(mode || isSettingsOpen) ? (

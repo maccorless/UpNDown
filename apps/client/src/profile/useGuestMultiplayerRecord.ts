@@ -15,7 +15,7 @@ function keep(history: LocalHistory, state: GameState, playerId: string, outcome
   // The server's view names the run. Without it the game cannot be given the id the server would give it, so it is not kept.
   if (!state.runId || state.isSolitaire) return;
   const row = resultRowFromState({ state, runId: state.runId, outcome, playerId, nowMs: Date.now() });
-  if (resultRowSchema.safeParse(row).success) history.add(row);
+  if (row && resultRowSchema.safeParse(row).success) history.add(row);
 }
 
 // Keeps a guest's finished multiplayer game on the device, once. A game that is already finished when its first view arrives
